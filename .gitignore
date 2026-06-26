@@ -1,0 +1,9 @@
+# secrets / install artifacts — never commit
+*wazuh-passwords.txt
+wazuh-install-files.tar
+*.pem
+*.key
+.env
+# local noise
+*.log
+.DS_Store
