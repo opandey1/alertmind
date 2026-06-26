@@ -1,0 +1,173 @@
+<!--
+  AlertMind : Wazuh local rules for the auditd ATT&CK keys.
+  Wazuh-native form of the Linux detections; fires on the keys set by
+  /etc/audit/rules.d/alertmind.rules on linux-victim.
+
+  Each child rule chains off base rule 80700 (level 0) via if_sid, matches
+  one audit.key, raises the level, and tags ATT&CK.
+
+  execve (key t1059_exec) is intentionally NOT alerted here: it is high
+  volume substrate telemetry for command specific rules, not an alert.
+
+  Deploy + validation steps live in README.md and architecture/soc-architecture.md
+  (kept out of this comment to avoid double hyphen sequences, which are illegal
+  inside XML comments).
+-->
+
+<group name="audit,attack,alertmind,">
+
+  <!-- ============ CREDENTIAL ACCESS ============ -->
+  <rule id="100100" level="12">
+    <if_sid>80700</if_sid>
+    <field name="audit.key">t1003_008_shadow_read</field>
+    <description>AlertMind: /etc/shadow or /etc/gshadow read - possible credential access (T1003.008)</description>
+    <mitre>
+      <id>T1003.008</id>
+    </mitre>
+  </rule>
+
+  <rule id="100113" level="10">
+    <if_sid>80700</if_sid>
+    <field name="audit.key">t1552_004_ssh_keys</field>
+    <description>AlertMind: Access to /root/.ssh - SSH private keys / authorized_keys (T1552.004)</description>
+    <mitre>
+      <id>T1552.004</id>
+    </mitre>
+  </rule>
+
+  <!-- ============ PERSISTENCE / ACCOUNT MANIPULATION ============ -->
+  <rule id="100101" level="10">
+    <if_sid>80700</if_sid>
+    <field name="audit.key">t1136_accounts</field>
+    <description>AlertMind: Modification of user/group database (passwd/shadow/group) (T1136 / T1098)</description>
+    <mitre>
+      <id>T1136</id>
+      <id>T1098</id>
+    </mitre>
+  </rule>
+
+  <rule id="100103" level="8">
+    <if_sid>80700</if_sid>
+    <field name="audit.key">t1053_003_cron</field>
+    <description>AlertMind: Cron configuration modified - scheduled-task persistence (T1053.003)</description>
+    <mitre>
+      <id>T1053.003</id>
+    </mitre>
+  </rule>
+
+  <rule id="100104" level="8">
+    <if_sid>80700</if_sid>
+    <field name="audit.key">t1543_002_systemd</field>
+    <description>AlertMind: systemd unit modified - service persistence (T1543.002)</description>
+    <mitre>
+      <id>T1543.002</id>
+    </mitre>
+  </rule>
+
+  <rule id="100105" level="8">
+    <if_sid>80700</if_sid>
+    <field name="audit.key">t1037_init</field>
+    <description>AlertMind: Boot/logon init script modified (rc.local / init.d) (T1037)</description>
+    <mitre>
+      <id>T1037</id>
+    </mitre>
+  </rule>
+
+  <rule id="100106" level="8">
+    <if_sid>80700</if_sid>
+    <field name="audit.key">t1546_004_shell_init</field>
+    <description>AlertMind: Shell init file modified (profile / bashrc / environment) (T1546.004)</description>
+    <mitre>
+      <id>T1546.004</id>
+    </mitre>
+  </rule>
+
+  <rule id="100107" level="13">
+    <if_sid>80700</if_sid>
+    <field name="audit.key">t1574_006_ldpreload</field>
+    <description>AlertMind: Dynamic linker config modified (ld.so.preload/conf) - LD_PRELOAD hijack (T1574.006)</description>
+    <mitre>
+      <id>T1574.006</id>
+    </mitre>
+  </rule>
+
+  <rule id="100108" level="12">
+    <if_sid>80700</if_sid>
+    <field name="audit.key">t1547_006_kmod</field>
+    <description>AlertMind: Kernel module load/unload or modprobe config change - possible LKM rootkit (T1547.006 / T1014)</description>
+    <mitre>
+      <id>T1547.006</id>
+      <id>T1014</id>
+    </mitre>
+  </rule>
+
+  <!-- ============ PRIVILEGE ESCALATION ============ -->
+  <rule id="100102" level="12">
+    <if_sid>80700</if_sid>
+    <field name="audit.key">t1548_003_sudoers</field>
+    <description>AlertMind: sudoers modified - privilege-escalation persistence (T1548.003)</description>
+    <mitre>
+      <id>T1548.003</id>
+    </mitre>
+  </rule>
+
+  <rule id="100109" level="8">
+    <if_sid>80700</if_sid>
+    <field name="audit.key">t1548_001_setuid</field>
+    <description>AlertMind: setuid/setgid bit change by user - possible privilege escalation (T1548.001)</description>
+    <mitre>
+      <id>T1548.001</id>
+    </mitre>
+  </rule>
+
+  <!-- ============ DEFENSE EVASION ============ -->
+  <rule id="100110" level="13">
+    <if_sid>80700</if_sid>
+    <field name="audit.key">t1562_001_audit_tamper</field>
+    <description>AlertMind: auditd configuration tampering - defense evasion (T1562.001)</description>
+    <mitre>
+      <id>T1562.001</id>
+    </mitre>
+  </rule>
+
+  <rule id="100111" level="10">
+    <if_sid>80700</if_sid>
+    <field name="audit.key">t1070_logs</field>
+    <description>AlertMind: Login/session log modified (wtmp/btmp/utmp) - indicator removal (T1070)</description>
+    <mitre>
+      <id>T1070</id>
+    </mitre>
+  </rule>
+
+  <rule id="100112" level="10">
+    <if_sid>80700</if_sid>
+    <field name="audit.key">t1070_006_timestomp</field>
+    <description>AlertMind: File timestamp modification by user - timestomping (T1070.006)</description>
+    <mitre>
+      <id>T1070.006</id>
+    </mitre>
+  </rule>
+
+  <!-- ============ INITIAL ACCESS / CONFIG ============ -->
+  <rule id="100114" level="8">
+    <if_sid>80700</if_sid>
+    <field name="audit.key">t1098_004_sshd_config</field>
+    <description>AlertMind: sshd_config modified - SSH access manipulation (T1098.004)</description>
+    <mitre>
+      <id>T1098.004</id>
+    </mitre>
+  </rule>
+
+  <!-- NOTE: mapping is TENTATIVE. Editing APT sources/config is not cleanly
+       "Ingress Tool Transfer"; a malicious repo is closer to supply-chain
+       compromise (T1195.001). Kept as a low-confidence hygiene monitor. -->
+  <rule id="100115" level="5">
+    <if_sid>80700</if_sid>
+    <field name="audit.key">t1105_software_mgmt</field>
+    <description>AlertMind: Package manager / repository configuration changed (low confidence; tentative T1195.001)</description>
+    <mitre>
+      <id>T1195.001</id>
+    </mitre>
+  </rule>
+
+</group>
