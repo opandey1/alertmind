@@ -176,8 +176,6 @@ Every "Verified" claim above maps to a captured artifact in `evidence/`. (IDs ar
 | EVID-LIN-002 | auditd `/etc/shadow` rule 100100 fired (T1003.008) | `evidence/week1/linux-shadow-t1003-008.png` |
 | EVID-RULES-001 | `alertmind_local_rules.xml` validates + loads clean | `evidence/week1/wazuh-rules-load.png` |
 
-*Capture the listed screenshots into `evidence/week1/` as you re-verify each item.*
-
 ## 8. Measurement approach
 
 The brief conflates two metrics; AlertMind separates them deliberately:
