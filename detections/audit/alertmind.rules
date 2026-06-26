@@ -1,0 +1,122 @@
+## ===========================================================================
+## AlertMind — lean auditd ruleset (Linux endpoint)
+## ---------------------------------------------------------------------------
+## Scoped to the ATT&CK techniques the AlertMind Sigma pack covers. Every path
+## below exists on a clean Ubuntu host, so the load is error-free (unlike the
+## Nextron "best practice" set, which watches absent software and floods the
+## backlog). Keys encode the ATT&CK technique ID so Wazuh's audit decoder and
+## your Sigma rules can map straight onto data.audit.key.
+##
+## Deploy (do NOT edit /etc/audit/audit.rules directly):
+##   sudo rm -f /etc/audit/rules.d/audit.rules      # remove the Nextron firehose
+##   sudo cp alertmind.rules /etc/audit/rules.d/alertmind.rules
+##   sudo augenrules --load
+## Verify:
+##   sudo auditctl -l        # should list these rules, no errors
+##   sudo auditctl -s        # check 'lost 0' and a healthy backlog
+## ===========================================================================
+
+## ---- Control ----
+-D
+-b 8192
+-f 1
+--backlog_wait_time 60000
+
+## ---- Noise suppression (FIRST match wins — keep this block at the top) ----
+## Don't audit auditd reading/writing its own logs (prevents feedback loops)
+-a never,exit -F dir=/var/log/audit/ -k noise
+## Very high-volume, low-value on a lab box
+-a always,exclude -F msgtype=CRYPTO_KEY_USER
+
+## ====================== EXECUTION ======================
+## T1059  Command & scripting interpreter — process-execution backbone.
+## This is the highest-volume rule and the foundation of most Linux detections
+## (covers curl|bash, reverse shells, LOLBins, etc. — refine in Sigma).
+-a always,exit -F arch=b64 -S execve,execveat -F key=t1059_exec
+-a always,exit -F arch=b32 -S execve,execveat -F key=t1059_exec
+
+## ====================== CREDENTIAL ACCESS ======================
+## T1003.008  Read of /etc/shadow & /etc/gshadow (the actual credential read).
+## Syscall-based (not -w) so it captures READ specifically and won't collide
+## with the write-watch on the same files below.
+-a always,exit -F arch=b64 -S open,openat,openat2 -F path=/etc/shadow -F key=t1003_008_shadow_read
+-a always,exit -F arch=b64 -S open,openat,openat2 -F path=/etc/gshadow -F key=t1003_008_shadow_read
+## T1552.004  Private keys / authorized_keys access
+-w /root/.ssh/ -p rwa -k t1552_004_ssh_keys
+
+## ====================== PERSISTENCE ======================
+## T1136 / T1098  Account creation & manipulation (user/group DB writes)
+-w /etc/passwd  -p wa -k t1136_accounts
+-w /etc/group   -p wa -k t1136_accounts
+-w /etc/shadow  -p wa -k t1136_accounts
+-w /etc/gshadow -p wa -k t1136_accounts
+
+## T1053.003  Cron
+-w /etc/crontab        -p wa -k t1053_003_cron
+-w /etc/cron.d/        -p wa -k t1053_003_cron
+-w /etc/cron.daily/    -p wa -k t1053_003_cron
+-w /etc/cron.hourly/   -p wa -k t1053_003_cron
+-w /etc/cron.weekly/   -p wa -k t1053_003_cron
+-w /etc/cron.monthly/  -p wa -k t1053_003_cron
+-w /var/spool/cron/    -p wa -k t1053_003_cron
+-w /etc/cron.allow     -p wa -k t1053_003_cron
+-w /etc/cron.deny      -p wa -k t1053_003_cron
+
+## T1543.002  systemd service persistence
+-w /etc/systemd/system/   -p wa -k t1543_002_systemd
+-w /lib/systemd/system/   -p wa -k t1543_002_systemd
+-w /usr/lib/systemd/system/ -p wa -k t1543_002_systemd
+-w /etc/systemd/user/     -p wa -k t1543_002_systemd
+
+## T1037  Boot / logon init scripts
+-w /etc/rc.local -p wa -k t1037_init
+-w /etc/init.d/  -p wa -k t1037_init
+
+## T1546.004  Unix shell config (system-wide; per-user ~/.bashrc can't be
+## watched generically — cover the global files attackers actually use)
+-w /etc/profile     -p wa -k t1546_004_shell_init
+-w /etc/profile.d/  -p wa -k t1546_004_shell_init
+-w /etc/bash.bashrc -p wa -k t1546_004_shell_init
+-w /etc/environment -p wa -k t1546_004_shell_init
+
+## T1574.006  Hijack execution flow via the dynamic linker / LD_PRELOAD
+-w /etc/ld.so.preload -p wa -k t1574_006_ldpreload
+-w /etc/ld.so.conf    -p wa -k t1574_006_ldpreload
+-w /etc/ld.so.conf.d/ -p wa -k t1574_006_ldpreload
+
+## T1547.006 / T1014  Kernel module load/unload (LKM rootkits)
+-a always,exit -F arch=b64 -S init_module,finit_module,delete_module -F auid!=unset -F key=t1547_006_kmod
+-a always,exit -F arch=b32 -S init_module,finit_module,delete_module -F auid!=unset -F key=t1547_006_kmod
+-w /etc/modprobe.d/     -p wa -k t1547_006_kmod
+-w /etc/modules-load.d/ -p wa -k t1547_006_kmod
+
+## ====================== PRIVILEGE ESCALATION ======================
+## T1548.003  Sudo / sudoers tampering
+-w /etc/sudoers   -p wa -k t1548_003_sudoers
+-w /etc/sudoers.d/ -p wa -k t1548_003_sudoers
+## T1548.001  setuid/setgid changes by human users
+-a always,exit -F arch=b64 -S chmod,fchmod,fchmodat -F auid>=1000 -F auid!=unset -F key=t1548_001_setuid
+-a always,exit -F arch=b32 -S chmod,fchmod,fchmodat -F auid>=1000 -F auid!=unset -F key=t1548_001_setuid
+
+## ====================== DEFENSE EVASION ======================
+## T1562.001  Disable/tamper with security tooling (auditd config)
+-w /etc/audit/  -p wa -k t1562_001_audit_tamper
+-w /etc/audisp/ -p wa -k t1562_001_audit_tamper
+## T1070  Indicator removal — login/session records
+-w /var/log/wtmp -p wa -k t1070_logs
+-w /var/log/btmp -p wa -k t1070_logs
+-w /var/run/utmp -p wa -k t1070_logs
+## T1070.006  Timestomping
+-a always,exit -F arch=b64 -S utimensat,utimes,futimesat -F auid>=1000 -F auid!=unset -F key=t1070_006_timestomp
+-a always,exit -F arch=b32 -S utimensat,utimes,futimesat -F auid>=1000 -F auid!=unset -F key=t1070_006_timestomp
+
+## ====================== INITIAL ACCESS / CONFIG ======================
+## T1098.004  SSH daemon config changes
+-w /etc/ssh/sshd_config -p wa -k t1098_004_sshd_config
+## T1105  Ingress tooling — apt config tampering (only pkg mgr present on Ubuntu)
+-w /etc/apt/ -p wa -k t1105_software_mgmt
+
+## ---- Make the configuration immutable (uncomment ONLY for the final locked
+## ---- state; while developing you want to reload freely). Requires reboot to
+## ---- change once set.
+## -e 2
