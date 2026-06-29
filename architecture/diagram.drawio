@@ -7,13 +7,13 @@
         <mxCell id="title" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=16;fontStyle=1;" value="AlertMind — Mini-SOC Lab Architecture &amp; Data Flow" vertex="1">
           <mxGeometry height="30" width="520" x="40" y="20" as="geometry" />
         </mxCell>
-        <mxCell id="labnet" parent="1" style="rounded=1;whiteSpace=wrap;html=1;dashed=1;dashPattern=6 4;fillColor=#f5f5f5;strokeColor=#666666;verticalAlign=top;fontStyle=1;fontSize=13;align=left;spacingLeft=12;spacingTop=8;" value="&amp;nbsp; &amp;nbsp; &amp;nbsp;VirtualBox NAT Network — LabNet (10.0.2.0/24)" vertex="1">
+        <mxCell id="labnet" parent="1" style="rounded=1;whiteSpace=wrap;html=1;dashed=1;dashPattern=6 4;fillColor=#f5f5f5;strokeColor=#666666;verticalAlign=top;fontStyle=1;fontSize=13;align=left;spacingLeft=12;spacingTop=8;" value="VirtualBox NAT Network — LabNet (10.0.2.0/24)" vertex="1">
           <mxGeometry height="410" width="780" x="40" y="120" as="geometry" />
         </mxCell>
         <mxCell id="host" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;" value="&lt;b&gt;Host browser&lt;/b&gt;&lt;br/&gt;(Windows 11 host · hypervisor)" vertex="1">
           <mxGeometry height="50" width="210" x="600" y="40" as="geometry" />
         </mxCell>
-        <mxCell id="attacker" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" value="&lt;b&gt;attacker&lt;/b&gt; (Kali) · 10.0.2.8&lt;br&gt;nmap · Metasploit&lt;br&gt;Atomic Red Team" vertex="1">
+        <mxCell id="attacker" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" value="&lt;b&gt;attacker&lt;/b&gt; (Kali)&lt;br/&gt;nmap · Metasploit&lt;br/&gt;Atomic Red Team" vertex="1">
           <mxGeometry height="90" width="160" x="70" y="300" as="geometry" />
         </mxCell>
         <mxCell id="win" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" value="&lt;b&gt;win-victim&lt;/b&gt; (Windows 11)&lt;br/&gt;10.0.2.4 · agent 001&lt;br/&gt;Sysmon 15.21 + Wazuh agent&lt;br/&gt;Sysmon / System / Security" vertex="1">
@@ -22,7 +22,7 @@
         <mxCell id="lin" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" value="&lt;b&gt;linux-victim&lt;/b&gt; (Ubuntu)&lt;br/&gt;10.0.2.7 · agent 002&lt;br/&gt;auditd + Wazuh agent&lt;br/&gt;alertmind.rules" vertex="1">
           <mxGeometry height="100" width="220" x="300" y="380" as="geometry" />
         </mxCell>
-        <mxCell id="siem" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;verticalAlign=top;spacingTop=8;fontSize=11;" value="&lt;b&gt;wazuh-siem&lt;/b&gt; (Ubuntu) · 10.0.2.15&lt;br/&gt;&lt;br/&gt;Wazuh Manager (analysisd, remoted)&lt;br/&gt;Wazuh Indexer (OpenSearch)&lt;br/&gt;Wazuh Dashboard&lt;br/&gt;Filebeat&lt;br/&gt;&lt;br/&gt;alertmind_local_rules.xml&lt;br/&gt;→ ATT&amp;amp;CK-tagged alerts" vertex="1">
+        <mxCell id="siem" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;verticalAlign=top;spacingTop=8;fontSize=11;" value="&lt;b&gt;wazuh-siem&lt;/b&gt; (Ubuntu) · 10.0.2.15&lt;br/&gt;&lt;br/&gt;Wazuh Manager (analysisd, remoted)&lt;br/&gt;Wazuh Indexer (OpenSearch)&lt;br/&gt;Wazuh Dashboard&lt;br/&gt;Filebeat&lt;br/&gt;&lt;br/&gt;local_rules.xml&lt;br/&gt;→ ATT&amp;amp;CK-tagged alerts" vertex="1">
           <mxGeometry height="220" width="220" x="580" y="200" as="geometry" />
         </mxCell>
         <mxCell id="cloud" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;dashed=1;" value="&lt;b&gt;Cloud telemetry&lt;/b&gt; (sample)&lt;br/&gt;CloudTrail / Azure AD sign-in&lt;br/&gt;&lt;i&gt;planned&lt;/i&gt;" vertex="1">
@@ -35,7 +35,7 @@
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
         <mxCell id="e2" edge="1" parent="1" source="win" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;fontSize=10;" target="siem" value="agent events :1514 (enroll :1515)">
-          <mxGeometry relative="1" x="0.2941" as="geometry">
+          <mxGeometry relative="1" x="0.1765" y="-10" as="geometry">
             <mxPoint as="offset" />
           </mxGeometry>
         </mxCell>
@@ -49,7 +49,7 @@
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
         <mxCell id="e6" edge="1" parent="1" source="cloud" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;dashed=1;fontSize=10;" target="siem" value="custom decoder">
-          <mxGeometry relative="1" x="-0.2668" y="10" as="geometry">
+          <mxGeometry relative="1" x="-0.2667" as="geometry">
             <mxPoint as="offset" />
           </mxGeometry>
         </mxCell>

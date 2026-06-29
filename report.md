@@ -41,7 +41,7 @@ A growing SaaS company's three-person SOC processes ~1,200 alerts per day at a m
 
 **Objectives.** (1) Stand up a SIEM with heterogeneous, healthy log sources. (2) Author ATT&CK-mapped detections in Sigma and deploy them. (3) Build operational dashboards and IR playbooks. (4) Build a guardrailed LLM tier-1 assistant. (5) Measure its real impact on triage time and accuracy.
 
-**Scope (solo).** Two endpoint log sources (Windows + Linux), 7+ detection rules, alert-summarisation assistant scope, one tabletop scenario, 10–12 page report. _TODO: confirm against instructor answer on the 7/2-vs-10/3 question._
+**Scope (solo, confirmed with instructor).** The solo requirement is **2 endpoint log sources (Windows + Linux) and 7 detection rules**, expanding to 10 rules / 3 sources (adding cloud) only if time permits. The implemented rule pack already exceeds the minimum. Other solo parameters: alert-summarisation assistant scope, one tabletop scenario, 10–12 page report.
 
 ---
 
@@ -82,7 +82,7 @@ The lab runs on VirtualBox with all VMs on an isolated NAT Network (`LabNet`, 10
 ## 5. Detection engineering
 *✅ Linux Wazuh-native pack implemented; rule 100100 verified · 🚧 Sigma YAML source + remaining rule validation + Windows custom rules.*  *(Rubric: 15% — working rules mapped to ATT&CK.)*
 
-**Authoring model.** Sigma YAML is the intended portable source of truth (`detections/sigma/`); each rule is converted to Wazuh-native form and any hand-translation logged. _Current state: the Wazuh-native rules exist in `siem/wazuh/alertmind_local_rules.xml` (authored first); the Sigma YAML is being backfilled so the portable source exists. TODO: write the Sigma YAML._
+**Authoring model.** Sigma YAML is the intended portable source of truth (`detections/sigma/`); each rule is converted to Wazuh-native form and any hand-translation logged. _Current state: the Wazuh-native rules exist in `siem/wazuh/local_rules.xml` (authored first); the Sigma YAML is being backfilled so the portable source exists. TODO: write the Sigma YAML._
 
 **Linux pack — implemented; 100100 verified end-to-end.** Custom Wazuh rules 100100–100115 (16 rules) chain off base rule 80700, each matching one ATT&CK-encoded auditd key and tagging MITRE. Coverage spans credential access (T1003.008), persistence (T1136/T1098, T1053.003, T1543.002, T1037, T1546.004), defense evasion (T1562.001, T1070/T1070.006), priv-esc (T1548.003, T1548.001), exec-flow hijack (T1574.006), rootkit/LKM (T1547.006/T1014), and config tampering (T1098.004, T1552.004, and a tentatively-mapped package-config monitor). Rule 100100 verified firing end-to-end at level 12 on a real `/etc/shadow` read (EVID-LIN-002); the remaining rules are deployed and will be individually tested during the Atomic/baseline phase. _Full table: README §5._
 
@@ -104,7 +104,7 @@ The lab runs on VirtualBox with all VMs on an isolated NAT Network (`LabNet`, 10
 ## 7. Attack simulation & baseline
 *⏳ Week 2.* *(Feeds Rubric: 15% measured impact.)*
 
-**Scenario.** _TODO: Atomic Red Team chain exercising the rule pack end-to-end, e.g. T1566 → T1059.001 → T1547.001 → T1003.001 → T1021 → T1048. Record per-technique whether it fired, the rule ID, and detection latency._ _TODO: confirm whether the scenario is instructor-standardised._
+**Scenario (self-chosen, confirmed with instructor).** _TODO: Atomic Red Team chain exercising the rule pack end-to-end, e.g. T1566 → T1059.001 → T1547.001 → T1003.001 → T1021 → T1048. Record per-technique whether it fired, the rule ID, and detection latency._ Scenarios are self-selected (instructor suggested PowerShell execution, credential dumping, DNS tunnelling as good candidates).
 
 **Baseline (unassisted).** _TODO: lock the measurement protocol (§9) before this run. Capture MTTD per technique and unassisted triage time over the alert corpus._
 
@@ -117,26 +117,35 @@ The lab runs on VirtualBox with all VMs on an isolated NAT Network (`LabNet`, 10
 
 **Guardrails (document each with evidence).**
 - _No autonomous actions_ — outputs text only; reaches the SIEM via the read-only `assistant-svc` identity (can't act by credential, not just by code).
-- _No secrets to the model_ — redaction layer strips credential/token/secret patterns pre-prompt; IPs retained for triage. _TODO: redaction proof test — plant fake secrets, assert none reach the LLM, save output as evidence._
+- _No secrets to the model_ — redaction layer strips credential/token/secret patterns pre-prompt; IPs retained for triage. **The instructor confirmed a stated policy is not sufficient: a before/after demonstration is required** — show the original alert with a (planted, fake) secret visible, then the post-redaction prompt with it removed, captured as screenshots. _TODO: build the redaction proof test and save before/after evidence._
 - _Human review_ on every output.
 - _Full logging_ — prompt + response + model + version per call (`assistant/logging/`).
 
-_TODO: model/topology choice pending the hosted-vs-self-hosted instructor answer; Ollama + Llama 3 is the fallback._
+_Model/topology: a hosted API is acceptable provided the redaction guardrail is in place (the instructor's emphasis was that secrets/passwords/unneeded IPs must be redacted before anything reaches the model); a self-hosted open model (Ollama + Llama 3) is the alternative. TODO: finalise model choice._
 
 ---
 
 ## 9. Impact measurement
-*🚧 Methodology designed (Week 1) · ⏳ results Week 3.* *(Rubric: 15% — honest before/after, threats-to-validity acknowledged.)*
+*🚧 Methodology designed (Week 1, confirmed with instructor) · ⏳ results Week 3.* *(Rubric: 15% — honest before/after, threats-to-validity acknowledged.)*
 
-**Two metrics, separated honestly.**
-- **MTTD** (attack → alert fires) is a property of the detection rules; the assistant does **not** improve it, and the report says so explicitly.
-- **Time-to-triage** (analyst opens alert → disposition + drafted comms) is what the assistant can plausibly move.
+**Definitions (per instructor clarification).** The detection/response clock starts from **the time the attack actually occurs as recorded in the logs — not the time the log was ingested**. Each incident is tracked with four timestamps:
 
-**Beating n=1.** Rather than timing a single tabletop run, build an alert corpus of ~15–20 alerts spanning the ATT&CK stages from the Atomic runs (`measurement/alert-corpus.json`), split into matched sets A/B, counterbalanced (triage A unassisted then B assisted, or randomised) to control the within-subject learning effect — yielding ~10 timed observations per condition.
+1. **Attack started** (timestamp in the log/event)
+2. **Alert generated** (rule fires in Wazuh)
+3. **Analyst saw the alert** (triage begins)
+4. **Investigation completed** (disposition reached)
 
-**Quality, not just speed.** For each assisted triage, compare the assistant's ATT&CK tag and summary against known Atomic ground truth; record a hallucination / mis-tag rate. A faster-but-wrong triage is worse than a slow correct one.
+From these, MTTD = (2) − (1) and MTTR/time-to-triage = (4) − (3) (with (3) − (2) as analyst pickup latency).
 
-**Reporting.** _TODO: table of condition × {median triage time, tag accuracy, hallucination count} with caveats (small n, single environment, synthetic alerts, within-subject learning)._ _TODO: confirm time-to-triage definition with instructor._
+**What the assistant is expected to change — and what it is not.** The instructor was explicit that the AI assistant does **not** change the MTTD/MTTR *values* themselves; the underlying incident timeline is what it is whether computed manually or with AI. The assistant's value is in making **reporting and summarisation easier and more consistent**, not in speeding up the core investigation. The report therefore treats "does the assistant reduce triage time?" as an honest empirical question with a likely-neutral answer, rather than a result to be manufactured — which the instructor confirmed is the correct posture (an honest negative or neutral finding is expected and acceptable).
+
+**Tracking method (manual is acceptable).** The four timestamps are captured manually in `measurement/timing-log.csv` (the instructor confirmed manual timestamped tracking is sufficient; TheHive/Cortex is an optional add-on, not required). The AI-assisted run is then **cross-checked against the manual timeline for consistency** — i.e. does the assistant's account agree with ground truth, or does it drift?
+
+**Quality and the hallucination cost.** Speed alone is misleading. For each assisted triage, the assistant's ATT&CK tag and summary are compared against known Atomic ground truth and a **mis-tag / hallucination rate** is recorded. The instructor's own example: if the assistant mislabels a privilege-escalation as persistence, the analyst's response time can *increase* because the wrong lead must be unwound — a faster-but-wrong triage is worse than a slower correct one. Per his guidance, **any hallucination that could mislead the report is flagged transparently** rather than smoothed over.
+
+**Beating n=1.** Rather than a single tabletop run, an alert corpus of ~15–20 alerts spanning the ATT&CK stages from the Atomic runs (`measurement/alert-corpus.json`) is split into matched sets A/B, counterbalanced (set A unassisted then B assisted, or randomised) to control the within-subject learning effect — yielding ~10 timed observations per condition.
+
+**Reporting.** _TODO (Week 3): table of condition × {median triage time, tag accuracy, hallucination count}, plus the four-timestamp timeline per scenario, with explicit caveats — small n, single environment/analyst, synthetic alerts, within-subject learning — and a plain statement of whether the assistant helped, was neutral, or hurt._
 
 ---
 
@@ -159,7 +168,7 @@ All AI use is disclosed here per program policy. No real credentials, customer d
 - **Synthetic alerts only** — detection precision is characterised against known Atomic ground truth, not real-world base rates; false-positive behaviour on production traffic is unknown.
 - **Within-subject measurement** — one analyst; learning-effect controls (matched sets, counterbalancing) reduce but don't eliminate the confound. n is small.
 - **Known false positive** — rule 100100 fires on legitimate `cron` reads of `/etc/shadow`; tuning planned and reported rather than hidden.
-- **Cloud source** — static sample, not live ingestion (pending scope confirmation).
+- **Cloud source** — a static sample (e.g. a public CloudTrail/Azure dataset) is used rather than live ingestion; the instructor confirmed this is acceptable, with live ingestion an optional enhancement. Cloud is part of the optional 10-rule / 3-source stretch, not the solo minimum.
 - _TODO: add assistant-specific risks once built (hallucinated tags, over-trust / automation bias, review overhead potentially exceeding time saved)._
 
 ---
@@ -192,12 +201,12 @@ Every ✅ claim in this report maps to a captured artifact. (Consistent with REA
 | EVID-WIN-002 | Windows service creation (7045 → rule 61138, T1543.003) | `evidence/week1/win-system-7045-service.png` |
 | EVID-LIN-001 | Linux user creation detected | `evidence/week1/linux-useradd-t1136.png` |
 | EVID-LIN-002 | auditd `/etc/shadow` rule 100100 fired (T1003.008) | `evidence/week1/linux-shadow-t1003-008.png` |
-| EVID-RULES-001 | `alertmind_local_rules.xml` validates + loads clean | `evidence/week1/wazuh-rules-load.png` |
+| EVID-RULES-001 | `local_rules.xml` validates + loads clean | `evidence/week1/wazuh-rules-load.png` |
 
 _TODO: capture each screenshot into `evidence/week1/`; add Week 2–3 evidence (dashboards, Atomic runs, assistant, redaction proof test) as those land._
 
 ### B. Detection rule pack
-`siem/wazuh/alertmind_local_rules.xml` (deployed Wazuh-native rules) · `detections/auditd/alertmind.rules` (auditd ruleset) · `detections/sigma/` (portable source, backfill in progress).
+`siem/wazuh/local_rules.xml` (deployed Wazuh-native rules) · `detections/auditd/alertmind.rules` (auditd ruleset) · `detections/sigma/` (portable source, backfill in progress).
 
 ### C. Configurations
 Agent `ossec.conf` blocks (audit + Windows channels), Sysmon config edit (EID 10), retention/ISM policies.

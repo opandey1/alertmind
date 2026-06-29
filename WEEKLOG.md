@@ -32,12 +32,16 @@ A short status note per week (written each Saturday, per the program cadence): w
 - Sigma YAML source for the rule pack not yet written (Wazuh-native form exists; portable form pending).
 - Cloud telemetry sample source not yet ingested.
 
-### Open instructor questions (still awaiting answers)
-- ⭐ Solo minimum: 7 rules / 2 sources, or 10 rules / 3 sources (is cloud in scope)?
-- ⭐ Hosted LLM API acceptable (synthetic alerts), or self-hosted only? Credits provided?
-- ⭐ Is an honestly-reported *negative* triage-time result acceptable?
-- How is time-to-triage defined/measured?
-- Atomic scenario instructor-standardised or self-chosen?
+### Instructor questions — resolved (clarified 26 Jun)
+- **Solo scope:** 7 rules / 2 sources is the requirement; 10 rules / 3 sources (add cloud) only if time permits. → implemented pack already exceeds the minimum.
+- **Sigma workflow:** author Sigma YAML for the rubric and manually implement the equivalent Wazuh rules in `local_rules.xml` — approved as a "very good approach."
+- **Cloud telemetry:** a static sample file (e.g. from a public dataset) is acceptable; live AWS ingestion is an optional enhancement.
+- **Atomic scenarios:** self-chosen (suggested: PowerShell execution, credential dumping, DNS tunnelling).
+- **MTTD/MTTR:** manual timestamp tracking acceptable (attack started → alert generated → analyst saw → investigation completed); MTTD counts from the attack time *in the logs*, not ingestion. AI eases reporting/consistency, not the metric values. TheHive optional.
+- **Negative results:** honestly-reported negative/neutral findings are expected and acceptable; flag any hallucination transparently. RAG/feedback loop optional.
+- **Redaction proof:** stated policy is not enough — a before/after demonstration (original alert with secret → redacted prompt, screenshots) is required.
+- **Reproducibility:** graders will `git clone` and rebuild (<1 hr, no troubleshooting). Docker recommended; a clear rebuild guide will accompany the repo.
+- **Stretch goals:** no bonus points, but improve project quality, oral defense, and portfolio value.
 
 ### Next week (Week 2)
 Dashboards (daily SOC briefing + ATT&CK heatmap) · three NIST 800-61 IR playbooks · stand up the Kali attacker · build + run the Atomic Red Team chain · capture the unassisted baseline (after locking the measurement protocol) · write the Sigma YAML sources · apply the 100100 tune.

@@ -74,7 +74,7 @@ alertmind/
 │   ├── soc-architecture.md    # log sources, retention, RBAC, ingestion
 │   └── diagram.drawio / .png
 ├── siem/
-│   └── wazuh/                  # alertmind_local_rules.xml, agent ossec.conf exports
+│   └── wazuh/                  # local_rules.xml, agent ossec.conf exports
 ├── detections/
 │   ├── auditd/                 # alertmind.rules (auditd ruleset)
 │   ├── sigma/                  # source-of-truth Sigma YAML (backfill in progress)
@@ -139,9 +139,9 @@ sudo augenrules --load
 #   add the <localfile> audit block to /var/ossec/etc/ossec.conf, then:
 sudo systemctl restart wazuh-agent
 
-# 3. Manager — custom detection rules (deploy as a SEPARATE file, auto-loaded from etc/rules/)
-xmllint --noout siem/wazuh/alertmind_local_rules.xml          # validate first
-sudo cp siem/wazuh/alertmind_local_rules.xml /var/ossec/etc/rules/alertmind_local_rules.xml
+# 3. Manager — custom detection rules (the standard Wazuh local_rules.xml)
+xmllint --noout siem/wazuh/local_rules.xml                    # validate first
+sudo cp siem/wazuh/local_rules.xml /var/ossec/etc/rules/local_rules.xml
 sudo systemctl restart wazuh-manager
 sudo tail -50 /var/ossec/logs/ossec.log                       # confirm clean load
 ```
@@ -174,7 +174,9 @@ Every "Verified" claim above maps to a captured artifact in `evidence/`. (IDs ar
 | EVID-WIN-002 | Windows service creation (7045 → rule 61138) | `evidence/week1/win-system-7045-service.png` |
 | EVID-LIN-001 | Linux user creation detected | `evidence/week1/linux-useradd-t1136.png` |
 | EVID-LIN-002 | auditd `/etc/shadow` rule 100100 fired (T1003.008) | `evidence/week1/linux-shadow-t1003-008.png` |
-| EVID-RULES-001 | `alertmind_local_rules.xml` validates + loads clean | `evidence/week1/wazuh-rules-load.png` |
+| EVID-RULES-001 | `local_rules.xml` validates + loads clean | `evidence/week1/wazuh-rules-load.png` |
+
+*Capture the listed screenshots into `evidence/week1/` as you re-verify each item.*
 
 ## 8. Measurement approach
 
@@ -196,7 +198,7 @@ Per the program's Responsible AI requirements:
 
 ## 10. Code reuse & attribution
 
-This project reuses the alert-summarization core from the author's prior **[AI-SOC-Assistant](https://github.com/opandey1/AI-SOC-Assistant/)** repository (permitted; disclosed for academic integrity). Reused modules are isolated under `assistant/` and noted in their headers. Everything else — the redaction layer, SOC prompt library, logging, SIEM integration, detection content, dashboards, playbooks, and measurement harness — is new for this capstone.
+This project reuses the alert-summarization core from the author's prior **[AI-SOC-Assistant](https://github.com/)** repository (permitted; disclosed for academic integrity). Reused modules are isolated under `assistant/` and noted in their headers. Everything else — the redaction layer, SOC prompt library, logging, SIEM integration, detection content, dashboards, playbooks, and measurement harness — is new for this capstone.
 
 ## 11. Ethics & scope
 

@@ -20,7 +20,7 @@ This document describes both what is implemented now and the intended end state.
 | Linux auditd ingestion | Implemented | Tune noisy rules (e.g. 100100) |
 | Linux Wazuh-native rule pack (100100–100115) | Implemented | Verify remaining rules individually |
 | Sigma YAML source | In progress (XML authored first; Sigma backfilling) | Complete 7+ portable rules |
-| Cloud sample source | Planned | Optional / instructor-dependent |
+| Cloud sample source | Planned (optional) | Static sample confirmed acceptable; optional 3rd source if time permits |
 | RBAC users (`socanalyst`, `assistant-svc`) | Planned (only `admin` exists) | Created before Week-3 assistant |
 | Retention ISM policies | Documented, not yet enforced | Enforce or note as production-intent |
 | Dashboard interface restriction | Not enforced (binds 0.0.0.0:443) | Bind Host-Only or add firewall rule |
@@ -105,9 +105,9 @@ endpoint agent ──(1514/TLS)──► wazuh-remoted ──► wazuh-analysisd
 
 **Authoring model (target):** Sigma YAML (`detections/sigma/`) is the portable source of truth; each rule is converted to its Wazuh-native form and deployed to the manager, with any hand-translation logged.
 
-**Current state:** the Wazuh-native Linux rules are implemented in `siem/wazuh/alertmind_local_rules.xml`, deployed under `/var/ossec/etc/rules/` as a separate file (so AlertMind rules stay isolated from any other local rules; files in `etc/rules/` are auto-loaded by the `rule_dir`). The matching Sigma YAML source is being **backfilled** so the portable source and converted output remain auditable — the XML was authored first.
+**Current state:** the Wazuh-native Linux rules are implemented in `siem/wazuh/local_rules.xml`, deployed to `/var/ossec/etc/rules/local_rules.xml` — the standard Wazuh local-rules file, as confirmed with the instructor. (For a solo build there are no other custom rules, so a single `local_rules.xml` is the cleanest place for them.) The matching Sigma YAML source is being **backfilled** so the portable source and converted output remain auditable — the XML was authored first.
 
-**Validation:** rules are checked with `xmllint --noout siem/wazuh/alertmind_local_rules.xml` before deployment, and `sudo tail -50 /var/ossec/logs/ossec.log` after restart confirms the manager loaded the file without XML or rule-parser errors. (Double-hyphen sequences inside XML comments are illegal and will fail this check — comments are kept minimal for that reason.)
+**Validation:** rules are checked with `xmllint --noout siem/wazuh/local_rules.xml` before deployment, and `sudo tail -50 /var/ossec/logs/ossec.log` after restart confirms the manager loaded the file without XML or rule-parser errors. (Double-hyphen sequences inside XML comments are illegal and will fail this check — comments are kept minimal for that reason.)
 
 **Rule organisation:**
 
@@ -185,6 +185,7 @@ See the README §8 for the measurement design that quantifies the assistant's ef
 ## 11. Assumptions & limitations
 
 - Single-node Wazuh (no clustering/HA) — appropriate for a lab, not production scale.
-- Cloud telemetry is a static sample, pending instructor confirmation that live ingestion is out of scope for the solo build.
+- Cloud telemetry, if added, is a static sample file (e.g. a public CloudTrail/Azure dataset) ingested via a custom decoder; the instructor confirmed a sample is acceptable and live ingestion is an optional enhancement. It is part of the optional 10-rule / 3-source scope, not the solo minimum (2 sources / 7 rules, confirmed).
+- The Atomic Red Team scenarios are self-chosen (instructor-confirmed), built around an execution → persistence → credential-access → lateral-movement → exfiltration chain.
 - Synthetic alerts only; no production traffic, so detection precision is characterised against known Atomic ground truth rather than real-world base rates.
 - Measurement is within-subject (single analyst) with the learning-effect controls described in the README; threats to validity are reported in `report.md`.
