@@ -1,0 +1,25 @@
+title: Signed Binary Proxy Execution (LOLBin)
+id: 664fa9c7-67d6-48d7-ab0b-b73507a23188
+status: experimental
+description: Detects execution of common living-off-the-land binaries (mshta, regsvr32, wmic) used to
+  proxy execution and evade defences.
+references:
+- https://attack.mitre.org/techniques/T1218/
+author: AlertMind capstone
+date: 2026/06/26
+tags:
+- attack.defense-evasion
+- attack.t1218
+logsource:
+  category: process_creation
+  product: windows
+detection:
+  selection:
+    Image|endswith:
+    - \mshta.exe
+    - \regsvr32.exe
+    - \wmic.exe
+  condition: selection
+falsepositives:
+- Legitimate administrative or installer use of these binaries; tune by parent/command line
+level: medium

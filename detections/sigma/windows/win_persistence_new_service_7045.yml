@@ -1,0 +1,23 @@
+title: New Windows Service Installed
+id: 5e8a4aa5-3b54-4c89-b206-4aed42b0a32f
+status: experimental
+description: Detects installation of a new Windows service (System log EID 7045), a common persistence
+  and lateral-movement mechanism.
+references:
+- https://attack.mitre.org/techniques/T1543/003/
+author: AlertMind capstone
+date: 2026/06/26
+tags:
+- attack.persistence
+- attack.t1543.003
+logsource:
+  product: windows
+  service: system
+detection:
+  selection:
+    Provider_Name: Service Control Manager
+    EventID: 7045
+  condition: selection
+falsepositives:
+- Legitimate software and driver installation creates services; baseline expected service names
+level: medium

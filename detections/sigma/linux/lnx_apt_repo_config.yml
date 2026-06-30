@@ -1,0 +1,23 @@
+title: Package Manager / Repository Config Change
+id: 1a15154e-856f-4eec-ba7c-43e7c1d25993
+status: experimental
+description: Detects changes to APT configuration (low confidence). Editing repo/config could enable malicious
+  package delivery; mapping is tentative (closer to T1195.001 than the original T1105). Implemented via the
+  auditd key set in detections/auditd/alertmind.rules.
+references:
+- https://attack.mitre.org/techniques/T1195/001/
+- https://github.com/opandey1/alertmind (detections/auditd/alertmind.rules)
+author: AlertMind capstone
+date: 2026/06/26
+tags:
+- attack.t1195.001
+logsource:
+  product: linux
+  service: auditd
+detection:
+  selection:
+    key: t1195_001_apt_repo_config
+  condition: selection
+falsepositives:
+- Routine package management and repository updates -- expected frequently
+level: low

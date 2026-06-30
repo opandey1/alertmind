@@ -1,0 +1,25 @@
+title: User/Group Database Modification
+id: 288a74b5-34a9-48dc-9e19-ba8a633742a2
+status: experimental
+description: Detects writes to /etc/passwd, /etc/group, /etc/shadow or /etc/gshadow -- account creation
+  or manipulation. Implemented via the auditd key set in detections/auditd/alertmind.rules.
+references:
+- https://attack.mitre.org/techniques/T1136/
+- https://attack.mitre.org/techniques/T1098/
+- https://github.com/opandey1/alertmind (detections/auditd/alertmind.rules)
+author: AlertMind capstone
+date: 2026/06/26
+tags:
+- attack.persistence
+- attack.t1136
+- attack.t1098
+logsource:
+  product: linux
+  service: auditd
+detection:
+  selection:
+    key: t1136_accounts
+  condition: selection
+falsepositives:
+- Legitimate user administration (useradd/usermod) by administrators
+level: medium

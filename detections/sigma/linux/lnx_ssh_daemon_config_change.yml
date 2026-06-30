@@ -1,0 +1,24 @@
+title: SSH Daemon Configuration Change
+id: 03d8f904-5c9c-4c82-b786-f2c1e4bdc7a2
+status: experimental
+description: Detects modification of /etc/ssh/sshd_config -- SSH access-configuration change (e.g. PermitRootLogin,
+  authentication settings). Useful SSH-tamper telemetry; note T1098.004 is specifically authorized_keys, so this
+  is mapped to the broad T1098 as a tentative parent. Implemented via the auditd key set in detections/auditd/alertmind.rules.
+references:
+- https://attack.mitre.org/techniques/T1098/
+- https://github.com/opandey1/alertmind (detections/auditd/alertmind.rules)
+author: AlertMind capstone
+date: 2026/06/26
+tags:
+- attack.persistence
+- attack.t1098
+logsource:
+  product: linux
+  service: auditd
+detection:
+  selection:
+    key: t1098_sshd_config
+  condition: selection
+falsepositives:
+- Legitimate SSH hardening or configuration management
+level: medium

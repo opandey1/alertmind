@@ -1,0 +1,23 @@
+title: Login/Session Log Tampering
+id: 55af13db-73f7-4bd2-9f79-4368ec1166ea
+status: experimental
+description: Detects modification of wtmp/btmp/utmp login records -- indicator removal. Implemented via
+  the auditd key set in detections/auditd/alertmind.rules.
+references:
+- https://attack.mitre.org/techniques/T1070/
+- https://github.com/opandey1/alertmind (detections/auditd/alertmind.rules)
+author: AlertMind capstone
+date: 2026/06/26
+tags:
+- attack.defense-evasion
+- attack.t1070
+logsource:
+  product: linux
+  service: auditd
+detection:
+  selection:
+    key: t1070_logs
+  condition: selection
+falsepositives:
+- Log rotation; otherwise rare and worth review
+level: high

@@ -1,0 +1,23 @@
+title: Timestomping
+id: 87695ff6-44a4-4766-8cd8-eb412780e88a
+status: experimental
+description: Detects utime-family syscalls altering file timestamps by interactive users -- indicator
+  removal. Implemented via the auditd key set in detections/auditd/alertmind.rules.
+references:
+- https://attack.mitre.org/techniques/T1070/006/
+- https://github.com/opandey1/alertmind (detections/auditd/alertmind.rules)
+author: AlertMind capstone
+date: 2026/06/26
+tags:
+- attack.defense-evasion
+- attack.t1070.006
+logsource:
+  product: linux
+  service: auditd
+detection:
+  selection:
+    key: t1070_006_timestomp
+  condition: selection
+falsepositives:
+- Build tooling and archive extraction can legitimately set timestamps
+level: high

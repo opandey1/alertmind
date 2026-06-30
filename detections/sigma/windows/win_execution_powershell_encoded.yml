@@ -1,0 +1,32 @@
+title: PowerShell Encoded Command Execution
+id: 4fa2de7f-fea4-4658-bcd4-bd19778ac34a
+status: experimental
+description: Detects PowerShell invoked with an encoded command, frequently used to obfuscate malicious
+  payloads.
+references:
+- https://attack.mitre.org/techniques/T1059/001/
+author: AlertMind capstone
+date: 2026/06/26
+tags:
+- attack.execution
+- attack.t1059.001
+logsource:
+  category: process_creation
+  product: windows
+detection:
+  selection:
+    Image|endswith:
+    - \powershell.exe
+    - \pwsh.exe
+    CommandLine|contains:
+    - ' -enc'
+    - ' -EncodedCommand'
+    - ' -encodedcommand '
+    - ' -ec '
+    - ' -e '
+    - /enc
+    - /encodedcommand
+  condition: selection
+falsepositives:
+- Rare legitimate administrative tooling that base64-encodes commands
+level: high

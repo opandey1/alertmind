@@ -1,0 +1,23 @@
+title: Boot or Logon Init Script Modification
+id: 1cb128f5-e43e-4e05-a5f1-e7fa48d649d2
+status: experimental
+description: Detects changes to rc.local or init.d boot scripts used for persistence at startup. Implemented
+  via the auditd key set in detections/auditd/alertmind.rules.
+references:
+- https://attack.mitre.org/techniques/T1037/
+- https://github.com/opandey1/alertmind (detections/auditd/alertmind.rules)
+author: AlertMind capstone
+date: 2026/06/26
+tags:
+- attack.persistence
+- attack.t1037
+logsource:
+  product: linux
+  service: auditd
+detection:
+  selection:
+    key: t1037_init
+  condition: selection
+falsepositives:
+- Legitimate boot configuration changes
+level: medium

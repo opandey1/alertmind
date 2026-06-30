@@ -1,0 +1,23 @@
+title: SSH Private Key / authorized_keys Access
+id: 52a98af2-afec-412d-bbc3-d72adeffcbc9
+status: experimental
+description: Detects access to /root/.ssh contents -- unsecured-credential access or key-based persistence
+  setup. Implemented via the auditd key set in detections/auditd/alertmind.rules.
+references:
+- https://attack.mitre.org/techniques/T1552/004/
+- https://github.com/opandey1/alertmind (detections/auditd/alertmind.rules)
+author: AlertMind capstone
+date: 2026/06/26
+tags:
+- attack.credential-access
+- attack.t1552.004
+logsource:
+  product: linux
+  service: auditd
+detection:
+  selection:
+    key: t1552_004_ssh_keys
+  condition: selection
+falsepositives:
+- Legitimate SSH administration
+level: high

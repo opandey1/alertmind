@@ -1,0 +1,23 @@
+title: Cron Persistence
+id: 736a81a8-3fae-40bc-97fe-df0e8702a6a6
+status: experimental
+description: Detects changes to cron configuration (crontab, cron.d, cron.* directories, spool) used for
+  scheduled-task persistence. Implemented via the auditd key set in detections/auditd/alertmind.rules.
+references:
+- https://attack.mitre.org/techniques/T1053/003/
+- https://github.com/opandey1/alertmind (detections/auditd/alertmind.rules)
+author: AlertMind capstone
+date: 2026/06/26
+tags:
+- attack.persistence
+- attack.t1053.003
+logsource:
+  product: linux
+  service: auditd
+detection:
+  selection:
+    key: t1053_003_cron
+  condition: selection
+falsepositives:
+- Legitimate scheduled jobs added by administrators or packages
+level: medium

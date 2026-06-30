@@ -1,0 +1,25 @@
+title: Possible DNS Tunneling (Long Query Labels)
+id: 60828182-592f-4cd1-b9d9-c09b54bce94f
+status: experimental
+description: 'Heuristic: detects DNS queries (Sysmon EID 22) with unusually long labels, a common indicator
+  of DNS tunneling / exfiltration. Tune the threshold and allowlist known domains.'
+references:
+- https://attack.mitre.org/techniques/T1048/
+- https://attack.mitre.org/techniques/T1071/004/
+author: AlertMind capstone
+date: 2026/06/26
+tags:
+- attack.exfiltration
+- attack.t1048
+- attack.command-and-control
+- attack.t1071.004
+logsource:
+  category: dns_query
+  product: windows
+detection:
+  selection:
+    QueryName|re: ([a-zA-Z0-9+/=_-]{30,}\.)
+  condition: selection
+falsepositives:
+- CDNs, telemetry, and some cloud services use long encoded subdomains; allowlist them
+level: medium

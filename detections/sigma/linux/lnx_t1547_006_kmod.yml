@@ -1,0 +1,25 @@
+title: Kernel Module Load/Unload
+id: d899e741-2352-42ff-917e-398f9cb26e8b
+status: experimental
+description: Detects kernel module load/unload syscalls or modprobe config changes -- possible LKM rootkit.
+  Implemented via the auditd key set in detections/auditd/alertmind.rules.
+references:
+- https://attack.mitre.org/techniques/T1547/006/
+- https://attack.mitre.org/techniques/T1014/
+- https://github.com/opandey1/alertmind (detections/auditd/alertmind.rules)
+author: AlertMind capstone
+date: 2026/06/26
+tags:
+- attack.persistence
+- attack.t1547.006
+- attack.t1014
+logsource:
+  product: linux
+  service: auditd
+detection:
+  selection:
+    key: t1547_006_kmod
+  condition: selection
+falsepositives:
+- Legitimate driver/module loading at boot or by administrators
+level: high

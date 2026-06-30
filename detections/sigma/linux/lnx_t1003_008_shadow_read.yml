@@ -1,0 +1,24 @@
+title: Read of /etc/shadow or /etc/gshadow
+id: 9183db08-61cd-44bc-b075-ae61c96defa2
+status: experimental
+description: Detects read access to the shadow password files via the auditd key set by alertmind.rules.
+  Core credential-access behaviour. Implemented via the auditd key set in detections/auditd/alertmind.rules.
+references:
+- https://attack.mitre.org/techniques/T1003/008/
+- https://github.com/opandey1/alertmind (detections/auditd/alertmind.rules)
+author: AlertMind capstone
+date: 2026/06/26
+tags:
+- attack.credential-access
+- attack.t1003.008
+logsource:
+  product: linux
+  service: auditd
+detection:
+  selection:
+    key: t1003_008_shadow_read
+  condition: selection
+falsepositives:
+- cron/PAM reads /etc/shadow on each job run (auid unset) -- scope to auid>=1000 to cut this; backup and
+  account-management tools
+level: high

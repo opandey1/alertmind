@@ -1,0 +1,24 @@
+title: Dynamic Linker Hijack (LD_PRELOAD)
+id: 4179900f-1c10-4268-9baa-9323bb805240
+status: experimental
+description: Detects modification of /etc/ld.so.preload or ld.so.conf(.d) -- dynamic-linker hijacking,
+  almost always malicious on a server. Implemented via the auditd key set in detections/auditd/alertmind.rules.
+references:
+- https://attack.mitre.org/techniques/T1574/006/
+- https://github.com/opandey1/alertmind (detections/auditd/alertmind.rules)
+author: AlertMind capstone
+date: 2026/06/26
+tags:
+- attack.persistence
+- attack.privilege-escalation
+- attack.t1574.006
+logsource:
+  product: linux
+  service: auditd
+detection:
+  selection:
+    key: t1574_006_ldpreload
+  condition: selection
+falsepositives:
+- Very rare legitimate use; investigate all hits
+level: critical

@@ -4,7 +4,7 @@
 
 **Capstone:** PG Certificate in AI/GenAI Powered Cybersecurity (IIT Roorkee × Futurense) · EC-Council **SOC Essentials (SCE)** track · Project code **CAP-SCE-3W** · Mode: **Solo**
 
-**Status:** 🟢 Week 1 infrastructure + Linux Wazuh-native detection pack complete (Wazuh + Windows/Linux ingestion verified) · 🟡 Sigma source, Windows rule verification, dashboards, playbooks, attack baseline, and LLM assistant in progress
+**Status:** 🟢 Week 1 infrastructure + Linux Wazuh-native detection pack complete (Wazuh + Windows/Linux ingestion verified) + Sigma / Wazuh detection source complete· 🟡 Windows rule verification, dashboards, playbooks, attack baseline, and LLM assistant in progress
 
 ---
 
@@ -89,7 +89,7 @@ alertmind/
 
 ## 5. Detection coverage (ATT&CK)
 
-Detections are deployed as Wazuh rules; the portable Sigma YAML source is being backfilled (`detections/sigma/`). Linux custom rules occupy IDs **100100–100115**; Windows leans on Sysmon-EID and Security/System channel rules.
+Detections are deployed as Wazuh rules with a portable Sigma YAML source in `detections/sigma/` (25 rules, validated). Linux custom rules occupy IDs **100100–100116**; Windows leans on Sysmon-EID and Security/System channel rules.
 
 **Status key:** ✅ Verified (alert observed in Wazuh with evidence) · 🟡 Configured (telemetry/rule in place, test pending) · ⏳ Planned.
 
@@ -117,13 +117,14 @@ Rule 100100 is verified firing end-to-end; the remaining rules are deployed (�
 | Shell init files | `t1546_004_shell_init` | T1546.004 | 100106 | 🟡 |
 | LD_PRELOAD hijack | `t1574_006_ldpreload` | T1574.006 | 100107 | 🟡 |
 | Kernel module / rootkit | `t1547_006_kmod` | T1547.006 / T1014 | 100108 | 🟡 |
-| setuid/setgid change | `t1548_001_setuid` | T1548.001 | 100109 | 🟡 |
+| setuid/setgid change | `t1548_001_setuid` | T1548.001 / T1222.002 | 100109 | 🟡 |
 | auditd tampering | `t1562_001_audit_tamper` | T1562.001 | 100110 | 🟡 |
 | Login-log tampering | `t1070_logs` | T1070 | 100111 | 🟡 |
 | Timestomping | `t1070_006_timestomp` | T1070.006 | 100112 | 🟡 |
 | SSH key access | `t1552_004_ssh_keys` | T1552.004 | 100113 | 🟡 |
-| sshd_config change | `t1098_004_sshd_config` | T1098.004 | 100114 | 🟡 |
-| Package mgr / repo config change | `t1105_software_mgmt` | T1195.001 *(tentative)* | 100115 | 🟡 |
+| sshd_config change | `t1098_sshd_config` | T1098 *(tentative)* | 100114 | 🟡 |
+| Package mgr / repo config change | `t1195_001_apt_repo_config` | T1195.001 *(tentative)* | 100115 | 🟡 |
+| authorized_keys persistence | `t1098_004_authorized_keys` | T1098.004 | 100116 | 🟡 |
 
 ## 6. Quickstart
 
@@ -155,7 +156,7 @@ Windows endpoint: install Sysmon with the provided config, deploy the Wazuh agen
 - [x] Linux telemetry onboarded (auditd → Wazuh, custom rule pack firing)
 - [x] Detection pipeline verified end-to-end (auditd → decoder → custom rule → ATT&CK-tagged alert)
 - [x] VMs snapshotted in a clean post-setup state
-- [ ] Sigma YAML source for the rule pack
+- [x] Sigma YAML source for the rule pack
 - [ ] Cloud telemetry (sample CloudTrail / Azure AD)
 - [ ] Dashboards (daily briefing + ATT&CK heatmap)
 - [ ] IR playbooks (phishing, malware, account compromise)

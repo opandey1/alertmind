@@ -1,0 +1,24 @@
+title: PsExec Service Execution (Lateral Movement)
+id: f79849b6-6339-40ce-9a83-691862f51313
+status: experimental
+description: Detects the PsExec service binary (PSEXESVC) running on a host, indicating remote command
+  execution / lateral movement via the Service Control Manager.
+references:
+- https://attack.mitre.org/techniques/T1021/002/
+author: AlertMind capstone
+date: 2026/06/26
+tags:
+- attack.lateral-movement
+- attack.t1021.002
+- attack.execution
+- attack.t1569.002
+logsource:
+  category: process_creation
+  product: windows
+detection:
+  selection:
+    Image|endswith: \PSEXESVC.exe
+  condition: selection
+falsepositives:
+- Legitimate administrative use of PsExec; baseline expected admin hosts
+level: high

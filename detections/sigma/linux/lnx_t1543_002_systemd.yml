@@ -1,0 +1,23 @@
+title: Systemd Service Persistence
+id: ba5a7a61-f969-4f56-be9a-ba683228934b
+status: experimental
+description: Detects creation or modification of systemd unit files, a common Linux service-persistence
+  mechanism. Implemented via the auditd key set in detections/auditd/alertmind.rules.
+references:
+- https://attack.mitre.org/techniques/T1543/002/
+- https://github.com/opandey1/alertmind (detections/auditd/alertmind.rules)
+author: AlertMind capstone
+date: 2026/06/26
+tags:
+- attack.persistence
+- attack.t1543.002
+logsource:
+  product: linux
+  service: auditd
+detection:
+  selection:
+    key: t1543_002_systemd
+  condition: selection
+falsepositives:
+- Package installation and legitimate service management
+level: medium

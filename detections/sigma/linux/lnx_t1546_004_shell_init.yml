@@ -1,0 +1,23 @@
+title: Shell Init File Modification
+id: d26c3778-6242-451f-b242-37255002e374
+status: experimental
+description: Detects changes to system-wide shell init files (profile, profile.d, bash.bashrc, environment)
+  used for persistence. Implemented via the auditd key set in detections/auditd/alertmind.rules.
+references:
+- https://attack.mitre.org/techniques/T1546/004/
+- https://github.com/opandey1/alertmind (detections/auditd/alertmind.rules)
+author: AlertMind capstone
+date: 2026/06/26
+tags:
+- attack.persistence
+- attack.t1546.004
+logsource:
+  product: linux
+  service: auditd
+detection:
+  selection:
+    key: t1546_004_shell_init
+  condition: selection
+falsepositives:
+- Administrator or package changes to global shell configuration
+level: medium

@@ -41,8 +41,12 @@
 ## with the write-watch on the same files below.
 -a always,exit -F arch=b64 -S open,openat,openat2 -F path=/etc/shadow -F key=t1003_008_shadow_read
 -a always,exit -F arch=b64 -S open,openat,openat2 -F path=/etc/gshadow -F key=t1003_008_shadow_read
-## T1552.004  Private keys / authorized_keys access
+## T1552.004  Private keys / authorized_keys access (reads + writes to /root/.ssh)
 -w /root/.ssh/ -p rwa -k t1552_004_ssh_keys
+## T1098.004  SSH authorized_keys persistence (WRITE/attr only -- avoids sshd login-read noise).
+## Requires /root/.ssh/authorized_keys to exist at load (create with `touch` if absent);
+## brand-new file creation is already caught by the /root/.ssh/ directory watch above.
+-w /root/.ssh/authorized_keys -p wa -k t1098_004_authorized_keys
 
 ## ====================== PERSISTENCE ======================
 ## T1136 / T1098  Account creation & manipulation (user/group DB writes)
@@ -111,10 +115,10 @@
 -a always,exit -F arch=b32 -S utimensat,utimes,futimesat -F auid>=1000 -F auid!=unset -F key=t1070_006_timestomp
 
 ## ====================== INITIAL ACCESS / CONFIG ======================
-## T1098.004  SSH daemon config changes
--w /etc/ssh/sshd_config -p wa -k t1098_004_sshd_config
-## T1105  Ingress tooling — apt config tampering (only pkg mgr present on Ubuntu)
--w /etc/apt/ -p wa -k t1105_software_mgmt
+## T1098 (broad)  SSH daemon config changes (precise T1098.004 = authorized_keys, watched above)
+-w /etc/ssh/sshd_config -p wa -k t1098_sshd_config
+## T1195.001 (tentative)  Package manager / repository config tampering (only pkg mgr present on Ubuntu)
+-w /etc/apt/ -p wa -k t1195_001_apt_repo_config
 
 ## ---- Make the configuration immutable (uncomment ONLY for the final locked
 ## ---- state; while developing you want to reload freely). Requires reboot to

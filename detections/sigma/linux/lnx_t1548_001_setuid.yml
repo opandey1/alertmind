@@ -1,0 +1,28 @@
+title: Chmod by Interactive User - Possible Setuid/Setgid Change
+id: 946eab91-a2f0-421e-b1cb-2256ca12d8d6
+status: experimental
+description: Detects chmod-family syscalls by interactive users. This is a broad precursor for possible
+  setuid/setgid abuse (T1548.001); the audit rule does not itself confirm the setuid/setgid bit was set, so
+  triage must check whether the resulting mode includes those bits (general permission changes map to T1222.002).
+  Implemented via the auditd key set in detections/auditd/alertmind.rules.
+references:
+- https://attack.mitre.org/techniques/T1548/001/
+- https://attack.mitre.org/techniques/T1222/002/
+- https://github.com/opandey1/alertmind (detections/auditd/alertmind.rules)
+author: AlertMind capstone
+date: 2026/06/26
+tags:
+- attack.privilege-escalation
+- attack.t1548.001
+- attack.defense-evasion
+- attack.t1222.002
+logsource:
+  product: linux
+  service: auditd
+detection:
+  selection:
+    key: t1548_001_setuid
+  condition: selection
+falsepositives:
+- Software installation or legitimate permission management
+level: medium

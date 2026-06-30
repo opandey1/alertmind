@@ -1,0 +1,23 @@
+title: Sudoers Modification
+id: 00bdcc20-5eea-41f8-b2e1-fc3967cf87b6
+status: experimental
+description: Detects modification of /etc/sudoers or /etc/sudoers.d -- privilege-escalation persistence.
+  Implemented via the auditd key set in detections/auditd/alertmind.rules.
+references:
+- https://attack.mitre.org/techniques/T1548/003/
+- https://github.com/opandey1/alertmind (detections/auditd/alertmind.rules)
+author: AlertMind capstone
+date: 2026/06/26
+tags:
+- attack.privilege-escalation
+- attack.t1548.003
+logsource:
+  product: linux
+  service: auditd
+detection:
+  selection:
+    key: t1548_003_sudoers
+  condition: selection
+falsepositives:
+- Legitimate sudo policy changes by administrators or configuration management
+level: high

@@ -1,0 +1,23 @@
+title: auditd Configuration Tampering
+id: f5028e37-e6b5-45a3-9460-f5b302f5a2af
+status: experimental
+description: Detects modification of auditd or audisp configuration -- defence evasion by disabling/altering
+  logging. Implemented via the auditd key set in detections/auditd/alertmind.rules.
+references:
+- https://attack.mitre.org/techniques/T1562/001/
+- https://github.com/opandey1/alertmind (detections/auditd/alertmind.rules)
+author: AlertMind capstone
+date: 2026/06/26
+tags:
+- attack.defense-evasion
+- attack.t1562.001
+logsource:
+  product: linux
+  service: auditd
+detection:
+  selection:
+    key: t1562_001_audit_tamper
+  condition: selection
+falsepositives:
+- Legitimate audit policy changes by administrators (should be rare and reviewed)
+level: critical
