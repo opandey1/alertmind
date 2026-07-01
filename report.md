@@ -1,9 +1,9 @@
 # AlertMind — AI-Assisted Mini SOC
 ## Technical Report
 
-**Author:** _[name]_ · **Mode:** Solo · **Track:** EC-Council SOC Essentials (SCE) · **Project:** CAP-SCE-3W
+**Author:** Ojas Pandey · **Mode:** Solo · **Track:** EC-Council SOC Essentials (SCE) · **Project:** CAP-SCE-3W
 **Program:** PG Certificate in AI/GenAI Powered Cybersecurity — IIT Roorkee × Futurense, Cohort 1
-**Repository:** _[repo URL]_ · **Report length target:** 10–12 pages
+**Repository:** https://github.com/opandey1/alertmind · **Report length target:** 10–12 pages
 
 > **Living document.** Started Week 1 and updated daily. Sections are tagged ✅ complete / 🚧 in progress / ⏳ pending so the draft is always honest about its own state. Replace each `_TODO_` as the work lands.
 
@@ -80,11 +80,13 @@ The lab runs on VirtualBox with all VMs on an isolated NAT Network (`LabNet`, 10
 ---
 
 ## 5. Detection engineering
-*✅ Linux Wazuh-native pack implemented; rule 100100 verified · 🚧 Sigma YAML source + remaining rule validation + Windows custom rules.*  *(Rubric: 15% — working rules mapped to ATT&CK.)*
+*✅ Sigma source complete; Linux Wazuh-native pack implemented; rules 100100 and 100116 verified · 🚧 remaining Linux validation + Windows custom rules.*
 
-**Authoring model.** Sigma YAML is the intended portable source of truth (`detections/sigma/`); each rule is converted to Wazuh-native form and any hand-translation logged. _Current state: the Wazuh-native rules exist in `siem/wazuh/local_rules.xml` (authored first); the Sigma YAML is being backfilled so the portable source exists. TODO: write the Sigma YAML._
+**Authoring model.** Sigma YAML is the portable source of truth (`detections/sigma/`, 25 rules, all validated with pySigma); each rule is converted to Wazuh-native form and any hand-translation logged in `detections/sigma/notes.md`. The Wazuh-native rules were authored first in `siem/wazuh/local_rules.xml`, with the Sigma source now complete and mapped 1:1 (one child-rule exception, documented).
 
-**Linux pack — implemented; 100100 verified end-to-end.** Custom Wazuh rules 100100–100115 (16 rules) chain off base rule 80700, each matching one ATT&CK-encoded auditd key and tagging MITRE. Coverage spans credential access (T1003.008), persistence (T1136/T1098, T1053.003, T1543.002, T1037, T1546.004), defense evasion (T1562.001, T1070/T1070.006), priv-esc (T1548.003, T1548.001), exec-flow hijack (T1574.006), rootkit/LKM (T1547.006/T1014), and config tampering (T1098.004, T1552.004, and a tentatively-mapped package-config monitor). Rule 100100 verified firing end-to-end at level 12 on a real `/etc/shadow` read (EVID-LIN-002); the remaining rules are deployed and will be individually tested during the Atomic/baseline phase. _Full table: README §5._
+**Linux pack — implemented; 100100 and 100116 verified end-to-end.** Custom Wazuh rules 100100–100116 (17 rules) chain off base rule 80700 (with one child-rule exception, below), each matching one ATT&CK-encoded auditd key and tagging MITRE. Coverage spans credential access (T1003.008, T1552.004), persistence (T1136/T1098, T1053.003, T1543.002, T1037, T1546.004, T1098.004 authorized-keys), defense evasion (T1562.001, T1070/T1070.006), priv-esc (T1548.003, T1548.001/T1222.002), exec-flow hijack (T1574.006), rootkit/LKM (T1547.006/T1014), and config tampering (T1098 sshd_config and a tentatively-mapped package-config monitor). Rule 100100 verified firing end-to-end at level 12 on a real `/etc/shadow` read (EVID-LIN-002) and rule 100116 verified on an SSH `authorized_keys` write (T1098.004, EVID-LIN-003); the remaining rules are deployed and will be individually tested during the Atomic/baseline phase. _Full table: README §5._
+
+**Notable detection-engineering issue (100116).** The authorized-keys persistence rule (T1098.004) initially did not fire. The cause was an auditd limitation, not a Wazuh error: two `-w` watches covering the same path (`/root/.ssh/`) cannot both apply their keys, so writes to `authorized_keys` were emitted under the broader `t1552_004_ssh_keys` key and matched only rule 100113. Rather than fight auditd with overlapping watches, the fix follows a standard SOC pattern — collect broadly at the sensor, differentiate in the SIEM: 100116 was re-implemented as a child of 100113 (`<if_sid>100113</if_sid>`) that narrows on the `authorized_keys` path. This is now verified firing end-to-end (EVID-LIN-003).
 
 **Windows.** Process create (EID 1, EVID-WIN-001) and service creation (EID 7045 → rule 61138 → T1543.003, EVID-WIN-002) are verified in Wazuh. LSASS process-access telemetry is configured via the Sysmon EID 10 fix (T1003.001); the Wazuh alert validation is pending. _TODO: add custom Windows rules for any Sigma detections not natively covered (e.g. Office-spawns-shell T1566, encoded PowerShell T1059.001, LOLBins T1218)._
 
@@ -137,7 +139,7 @@ _Model/topology: a hosted API is acceptable provided the redaction guardrail is 
 
 From these, MTTD = (2) − (1) and MTTR/time-to-triage = (4) − (3) (with (3) − (2) as analyst pickup latency).
 
-**What the assistant is expected to change — and what it is not.** The instructor was explicit that the AI assistant does **not** change the MTTD/MTTR *values* themselves; the underlying incident timeline is what it is whether computed manually or with AI. The assistant's value is in making **reporting and summarisation easier and more consistent**, not in speeding up the core investigation. The report therefore treats "does the assistant reduce triage time?" as an honest empirical question with a likely-neutral answer, rather than a result to be manufactured — which the instructor confirmed is the correct posture (an honest negative or neutral finding is expected and acceptable).
+**What the assistant is expected to change — and what it is not.** The assistant cannot change the attack timestamp or the alert-generation timestamp, so it does not improve MTTD. Its measurable value is in the analyst workflow after the alert is seen: summarisation, ATT&CK tagging, query suggestions, and draft reporting. The report therefore measures whether the assistant improves the human triage/reporting segment without reducing accuracy. The report therefore treats "does the assistant reduce triage time?" as an honest empirical question with a likely-neutral answer, rather than a result to be manufactured — which the instructor confirmed is the correct posture (an honest negative or neutral finding is expected and acceptable).
 
 **Tracking method (manual is acceptable).** The four timestamps are captured manually in `measurement/timing-log.csv` (the instructor confirmed manual timestamped tracking is sufficient; TheHive/Cortex is an optional add-on, not required). The AI-assisted run is then **cross-checked against the manual timeline for consistency** — i.e. does the assistant's account agree with ground truth, or does it drift?
 
@@ -201,12 +203,13 @@ Every ✅ claim in this report maps to a captured artifact. (Consistent with REA
 | EVID-WIN-002 | Windows service creation (7045 → rule 61138, T1543.003) | `evidence/week1/win-system-7045-service.png` |
 | EVID-LIN-001 | Linux user creation detected | `evidence/week1/linux-useradd-t1136.png` |
 | EVID-LIN-002 | auditd `/etc/shadow` rule 100100 fired (T1003.008) | `evidence/week1/linux-shadow-t1003-008.png` |
+| EVID-LIN-003 | SSH `authorized_keys` persistence, rule 100116 fired (T1098.004) | `evidence/week2/linux-authorized-keys-t1098-004.png` |
 | EVID-RULES-001 | `local_rules.xml` validates + loads clean | `evidence/week1/wazuh-rules-load.png` |
 
 _TODO: capture each screenshot into `evidence/week1/`; add Week 2–3 evidence (dashboards, Atomic runs, assistant, redaction proof test) as those land._
 
 ### B. Detection rule pack
-`siem/wazuh/local_rules.xml` (deployed Wazuh-native rules) · `detections/auditd/alertmind.rules` (auditd ruleset) · `detections/sigma/` (portable source, backfill in progress).
+`siem/wazuh/local_rules.xml` (deployed Wazuh-native rules) · `detections/auditd/alertmind.rules` (auditd ruleset) · `detections/sigma/` (portable Sigma source, 25 rules validated).
 
 ### C. Configurations
 Agent `ossec.conf` blocks (audit + Windows channels), Sysmon config edit (EID 10), retention/ISM policies.

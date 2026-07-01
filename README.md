@@ -5,6 +5,7 @@
 **Capstone:** PG Certificate in AI/GenAI Powered Cybersecurity (IIT Roorkee × Futurense) · EC-Council **SOC Essentials (SCE)** track · Project code **CAP-SCE-3W** · Mode: **Solo**
 
 **Status:** 🟢 Week 1 infrastructure + Linux Wazuh-native detection pack complete (Wazuh + Windows/Linux ingestion verified) + Sigma / Wazuh detection source complete · 🟡 Windows rule verification, dashboards, playbooks, attack baseline, and LLM assistant in progress
+
 ---
 
 ## 1. Overview

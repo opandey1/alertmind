@@ -29,7 +29,7 @@ A short status note per week (written each Saturday, per the program cadence): w
 
 ### Known items carried forward
 - **Tune rule 100100:** currently also fires on legitimate `cron` PAM reads of `/etc/shadow` (`auid` unset). Plan: scope the audit rule to `auid>=1000 -F auid!=unset`.
-- Sigma YAML source for the rule pack not yet written (Wazuh-native form exists; portable form pending).
+- Sigma YAML source for the rule pack not yet written (at Week 1 close. Resolved in Week 2).
 - Cloud telemetry sample source not yet ingested.
 
 ### Instructor questions — resolved (clarified 26 Jun)
@@ -49,19 +49,23 @@ Dashboards (daily SOC briefing + ATT&CK heatmap) · three NIST 800-61 IR playboo
 ---
 
 ## Week 2 — Dashboards, Playbooks, Baseline
-**Dates:** 29 Jun – 5 Jul 2026 · **Effort target:** ~12h · **Status:** ⏳ Not started
+**Dates:** 29 Jun – 5 Jul 2026 · **Effort target:** ~12h · **Status:** 🚧 In progress — detection layer completed; dashboards/playbooks/baseline pending
 
 ### Shipped
-- _TODO_
+- Sigma rule pack authored and validated: 25 rules (8 Windows + 17 Linux), all pass pySigma; `detections/sigma/notes.md` documents the Sigma → Wazuh crosswalk with honest Verified/Configured/Planned status.
+- Detection mappings tightened after review: renamed keys to precise ATT&CK IDs (`t1195_001_apt_repo_config`, `t1098_sshd_config`), added T1222.002 to the setuid rule and T1569.002 to the PsExec rule, expanded encoded-PowerShell flags.
+- Added a precise T1098.004 detection — SSH `authorized_keys` persistence (rule 100116) — and verified it firing end-to-end (EVID-LIN-003).
 
 ### Blocked → resolved
-- _TODO_
+- **Rule 100116 not firing.** Root cause was an auditd limitation, not Wazuh: two `-w` watches on the same path (`/root/.ssh/`) can't both apply their keys, so `authorized_keys` writes were keyed `t1552_004_ssh_keys` and only matched rule 100113. Resolved by collecting broadly in auditd and adding specificity in the SIEM — 100116 re-implemented as a child of 100113 narrowing on the `authorized_keys` path. Verified (EVID-LIN-003).
 
 ### Known items carried forward
-- _TODO_
+- Windows Sysmon detections (office-spawn, encoded PowerShell, LOLBin, LSASS, run-key) need dedicated custom Wazuh rules to move from 🟡 to ✅.
+- Rule 100100 `/etc/shadow` auid tune still to apply.
+- Still to do this week: dashboards (daily briefing + ATT&CK heatmap), three NIST 800-61 IR playbooks, stand up the Kali attacker, run the Atomic chain, capture the unassisted baseline.
 
 ### Next week (Week 3)
-- _TODO_
+- LLM assistant + guardrails (redaction before/after proof), assisted measurement, final report + defense deck.
 
 ---
 
