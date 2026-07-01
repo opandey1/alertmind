@@ -158,11 +158,16 @@
     </mitre>
   </rule>
 
-  <!-- Precise T1098.004: write/attr change to /root/.ssh/authorized_keys (SSH key persistence) -->
+  <!-- Precise T1098.004: authorized_keys access under /root/.ssh.
+       NOTE: auditd cannot reliably key authorized_keys separately from the broad
+       /root/.ssh watch (overlapping watches collapse to one key), so this is a
+       CHILD of 100113 that narrows on the file path Wazuh-side rather than a
+       direct audit.key match. If audit.file.name does not carry the filename in
+       your events, swap the field line for: <match>authorized_keys</match> -->
   <rule id="100116" level="10">
-    <if_sid>80700</if_sid>
-    <field name="audit.key">t1098_004_authorized_keys</field>
-    <description>AlertMind: /root/.ssh/authorized_keys modified - SSH authorized-keys persistence (T1098.004)</description>
+    <if_sid>100113</if_sid>
+    <field name="audit.file.name">authorized_keys</field>
+    <description>AlertMind: /root/.ssh/authorized_keys accessed/modified - possible SSH authorized-keys persistence (T1098.004)</description>
     <mitre>
       <id>T1098.004</id>
     </mitre>

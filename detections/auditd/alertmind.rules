@@ -41,12 +41,13 @@
 ## with the write-watch on the same files below.
 -a always,exit -F arch=b64 -S open,openat,openat2 -F path=/etc/shadow -F key=t1003_008_shadow_read
 -a always,exit -F arch=b64 -S open,openat,openat2 -F path=/etc/gshadow -F key=t1003_008_shadow_read
-## T1552.004  Private keys / authorized_keys access (reads + writes to /root/.ssh)
+## T1552.004 / T1098.004  /root/.ssh access (reads = private-key theft; writes to
+## authorized_keys = SSH persistence). A single broad watch is used because auditd
+## cannot reliably honour two overlapping watches on the same path -- the directory
+## watch wins and tags every access with this key. Wazuh then differentiates:
+##   rule 100113 = broad /root/.ssh access (T1552.004)
+##   rule 100116 = child of 100113 that narrows on authorized_keys (T1098.004)
 -w /root/.ssh/ -p rwa -k t1552_004_ssh_keys
-## T1098.004  SSH authorized_keys persistence (WRITE/attr only -- avoids sshd login-read noise).
-## Requires /root/.ssh/authorized_keys to exist at load (create with `touch` if absent);
-## brand-new file creation is already caught by the /root/.ssh/ directory watch above.
--w /root/.ssh/authorized_keys -p wa -k t1098_004_authorized_keys
 
 ## ====================== PERSISTENCE ======================
 ## T1136 / T1098  Account creation & manipulation (user/group DB writes)
@@ -115,7 +116,7 @@
 -a always,exit -F arch=b32 -S utimensat,utimes,futimesat -F auid>=1000 -F auid!=unset -F key=t1070_006_timestomp
 
 ## ====================== INITIAL ACCESS / CONFIG ======================
-## T1098 (broad)  SSH daemon config changes (precise T1098.004 = authorized_keys, watched above)
+## T1098 (broad)  SSH daemon config changes (precise T1098.004 = authorized_keys, covered by rule 100116)
 -w /etc/ssh/sshd_config -p wa -k t1098_sshd_config
 ## T1195.001 (tentative)  Package manager / repository config tampering (only pkg mgr present on Ubuntu)
 -w /etc/apt/ -p wa -k t1195_001_apt_repo_config

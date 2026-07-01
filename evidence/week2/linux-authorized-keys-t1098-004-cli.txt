@@ -1,0 +1,3 @@
+notroot@wazuh-siem:~$ sudo grep '"id":"100116"' /var/ossec/logs/alerts/alerts.json | tail -1 \ | jq '{rule:.rule.id, level:.rule.level, desc:.rule.description, key:.data.audit.key, file:.data.audit.file.name}' 
+
+{ "rule": "100116", "level": 10, "desc": "AlertMind: /root/.ssh/authorized_keys accessed/modified - possible SSH authorized-keys persistence (T1098.004)", "key": "t1552_004_ssh_keys", "file": "/root/.ssh/authorized_keys" }

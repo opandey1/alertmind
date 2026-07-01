@@ -18,7 +18,7 @@ Wazuh does **not** natively consume Sigma, and the `sigma-cli`/pySigma Wazuh bac
 
 ## Crosswalk — Linux (auditd)
 
-Every Linux Sigma rule maps 1:1 to a deployed Wazuh rule in `siem/wazuh/local_rules.xml`.
+Every Linux Sigma rule maps to a deployed Wazuh rule in `siem/wazuh/local_rules.xml` — directly via the auditd `key` for all but rule 100116, which is a Wazuh child rule (see caveats).
 
 | Sigma file | ATT&CK | Wazuh rule | Status |
 |---|---|---|---|
@@ -38,7 +38,7 @@ Every Linux Sigma rule maps 1:1 to a deployed Wazuh rule in `siem/wazuh/local_ru
 | `lnx_t1552_004_ssh_keys.yml` | T1552.004 | 100113 | 🟡 |
 | `lnx_ssh_daemon_config_change.yml` | T1098 *(broad; see caveats)* | 100114 | 🟡 |
 | `lnx_apt_repo_config.yml` | T1195.001 *(tentative)* | 100115 | 🟡 |
-| `lnx_t1098_004_authorized_keys.yml` | T1098.004 | 100116 | 🟡 |
+| `lnx_t1098_004_authorized_keys.yml` | T1098.004 | 100116 *(child of 100113)* | ✅ (EVID-LIN-003) |
 
 `alertmind.rules` also sets `t1059_exec`, but that key is intentionally **not** part of the levelled Linux alert pack. It is high-volume execution substrate telemetry reserved for future targeted command-pattern detections (suspicious `curl|bash`, reverse-shell commands, suspicious `chmod`/`chown`). Alerting on every `execve` event would create excessive noise. (`noise` is a suppression key and likewise not an alert.)
 
@@ -46,7 +46,7 @@ Every Linux Sigma rule maps 1:1 to a deployed Wazuh rule in `siem/wazuh/local_ru
 
 - **`lnx_apt_repo_config.yml`** — APT-config tampering is not cleanly any single ATT&CK technique; mapped to **T1195.001 (tentative)** as the closest fit (the original T1105 mapping was wrong). Kept as a low-confidence hygiene monitor (Wazuh level 5).
 - **`lnx_ssh_daemon_config_change.yml`** — watches `/etc/ssh/sshd_config`, which is useful SSH access-configuration telemetry but is **not** T1098.004 (that sub-technique is specifically `authorized_keys`). Mapped to the broad **T1098** as tentative. Precise T1098.004 coverage is provided separately by `lnx_t1098_004_authorized_keys.yml` (rule 100116).
-- **`lnx_t1098_004_authorized_keys.yml`** — precise T1098.004: a write/attr change to `/root/.ssh/authorized_keys` (write/attr only, to avoid sshd login-read noise). Note `t1552_004_ssh_keys` (100113) also covers `/root/.ssh/` broadly for read-based key theft; the two are complementary (persistence-write vs credential-read).
+- **`lnx_t1098_004_authorized_keys.yml`** — auditd cannot reliably key `authorized_keys` separately from the broad `/root/.ssh` watch: two overlapping watches collapse to one key, so an `authorized_keys` write is emitted under `t1552_004_ssh_keys`, not a dedicated key. The detection therefore matches the broad key **plus** the `authorized_keys` path, and the deployed Wazuh rule 100116 is a **child of 100113** (`<if_sid>100113</if_sid>` + path narrowing) rather than a direct `audit.key` rule. Because it chains off the broad `-p rwa` watch it can also catch *reads* of `authorized_keys` (e.g. a root key-based SSH login), but those are rare in the lab and already covered by 100113 — acceptable, and noted as a false positive in the rule.
 - **`lnx_t1548_001_setuid.yml`** — detects chmod-family activity by interactive users; it does **not** itself confirm a setuid/setgid bit was set. Triage must verify the resulting mode. Broad permission changes are tagged T1222.002 alongside the T1548.001 intent.
 
 ## Crosswalk — Windows
@@ -66,7 +66,8 @@ Every Linux Sigma rule maps 1:1 to a deployed Wazuh rule in `siem/wazuh/local_ru
 
 ## Hand-translation notes (per reproducibility requirement)
 
-- **Linux 100100–100116:** direct translation — `<if_sid>80700</if_sid>` + `<field name="audit.key">{key}</field>` + `<mitre>` tag. No semantic loss.
+- **Linux 100100–100115:** direct translation — `<if_sid>80700</if_sid>` + `<field name="audit.key">{key}</field>` + `<mitre>` tag. No semantic loss.
+- **Rule 100116 (authorized_keys) is the one exception** — it is *not* a direct `audit.key` translation. Overlapping `/root/.ssh` watches mean the write is keyed `t1552_004_ssh_keys`, so 100116 chains from 100113 (`<if_sid>100113</if_sid>`) and narrows on `audit.file.name` containing `authorized_keys`. This is the "broad sensor, specific SIEM rule" pattern.
 - **Windows 7045 → 61138:** no custom rule needed; Wazuh's built-in rule already fires on the System EID 7045 event the Sigma rule targets.
 - **Windows Sysmon rules:** Wazuh decodes the Sysmon eventchannel; office-spawn / encoded-PowerShell / LOLBin / LSASS / run-key still need dedicated custom rules added to `local_rules.xml` to raise them above the generic Sysmon rules (tracked as 🟡/⏳ above).
 - **Exfil DNS tunneling** is a heuristic (long-label regex on Sysmon EID 22); it needs threshold tuning and a domain allowlist before it is alert-worthy — kept `experimental`.

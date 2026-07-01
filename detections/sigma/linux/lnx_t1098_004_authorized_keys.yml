@@ -1,9 +1,11 @@
 title: SSH authorized_keys Modification (Persistence)
 id: 2b7e1c4a-9f3d-4a6b-8c2e-5d1f0a9b7c34
 status: experimental
-description: Detects write/attribute changes to /root/.ssh/authorized_keys -- the precise behaviour of SSH
-  authorized-keys persistence (appending an attacker-controlled key). Write/attr only, so it avoids the
-  high-volume sshd login-read noise. Implemented via the auditd key set in detections/auditd/alertmind.rules.
+description: Detects access to /root/.ssh/authorized_keys -- appending an attacker-controlled key is the
+  precise behaviour of SSH authorized-keys persistence (T1098.004). Because auditd cannot reliably key
+  authorized_keys separately from the broad /root/.ssh watch, the deployed detection matches the broad
+  audit key plus the authorized_keys path (Wazuh rule 100116 chains from 100113). Implemented in
+  detections/auditd/alertmind.rules + siem/wazuh/local_rules.xml.
 references:
 - https://attack.mitre.org/techniques/T1098/004/
 - https://github.com/opandey1/alertmind (detections/auditd/alertmind.rules)
@@ -17,8 +19,10 @@ logsource:
   service: auditd
 detection:
   selection:
-    key: t1098_004_authorized_keys
+    key: t1552_004_ssh_keys
+    name|contains: authorized_keys
   condition: selection
 falsepositives:
 - Legitimate SSH key provisioning by administrators or configuration management
+- sshd reading authorized_keys on a root key-based login (read, not a write)
 level: high

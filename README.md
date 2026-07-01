@@ -4,8 +4,7 @@
 
 **Capstone:** PG Certificate in AI/GenAI Powered Cybersecurity (IIT Roorkee × Futurense) · EC-Council **SOC Essentials (SCE)** track · Project code **CAP-SCE-3W** · Mode: **Solo**
 
-**Status:** 🟢 Week 1 infrastructure + Linux Wazuh-native detection pack complete (Wazuh + Windows/Linux ingestion verified) + Sigma / Wazuh detection source complete· 🟡 Windows rule verification, dashboards, playbooks, attack baseline, and LLM assistant in progress
-
+**Status:** 🟢 Week 1 infrastructure + Linux Wazuh-native detection pack complete (Wazuh + Windows/Linux ingestion verified) + Sigma / Wazuh detection source complete · 🟡 Windows rule verification, dashboards, playbooks, attack baseline, and LLM assistant in progress
 ---
 
 ## 1. Overview
@@ -77,7 +76,7 @@ alertmind/
 │   └── wazuh/                  # local_rules.xml, agent ossec.conf exports
 ├── detections/
 │   ├── auditd/                 # alertmind.rules (auditd ruleset)
-│   ├── sigma/                  # source-of-truth Sigma YAML (backfill in progress)
+│   ├── sigma/                  # source-of-truth Sigma YAML
 │   └── converted/              # Wazuh-native output + translation notes
 ├── playbooks/                 # phishing.md, malware.md, account-compromise.md
 ├── attack/                    # Atomic Red Team configs + run logs
@@ -104,7 +103,7 @@ Detections are deployed as Wazuh rules with a portable Sigma YAML source in `det
 
 **Linux (`linux-victim`) — auditd custom rule pack**
 
-Rule 100100 is verified firing end-to-end; the remaining rules are deployed (🟡 Configured) pending individual test triggers.
+Rules 100100 and 100116 are verified firing end-to-end; the remaining Linux rules are deployed (🟡 Configured) pending individual test triggers.
 
 | Detection | Key | ATT&CK | Rule | Status |
 |---|---|---|---|---|
@@ -124,7 +123,7 @@ Rule 100100 is verified firing end-to-end; the remaining rules are deployed (�
 | SSH key access | `t1552_004_ssh_keys` | T1552.004 | 100113 | 🟡 |
 | sshd_config change | `t1098_sshd_config` | T1098 *(tentative)* | 100114 | 🟡 |
 | Package mgr / repo config change | `t1195_001_apt_repo_config` | T1195.001 *(tentative)* | 100115 | 🟡 |
-| authorized_keys persistence | `t1098_004_authorized_keys` | T1098.004 | 100116 | 🟡 |
+| authorized_keys persistence | `t1552` + path *(child of 100113)* | T1098.004 | 100116 | ✅ Verified |
 
 ## 6. Quickstart
 
@@ -176,8 +175,8 @@ Every "Verified" claim above maps to a captured artifact in `evidence/`. (IDs ar
 | EVID-LIN-001 | Linux user creation detected | `evidence/week1/linux-useradd-t1136.png` |
 | EVID-LIN-002 | auditd `/etc/shadow` rule 100100 fired (T1003.008) | `evidence/week1/linux-shadow-t1003-008.png` |
 | EVID-RULES-001 | `local_rules.xml` validates + loads clean | `evidence/week1/wazuh-rules-load.png` |
+| EVID-LIN-003 | SSH `authorized_keys` persistence detected (rule 100116 / T1098.004) | `evidence/week2/linux-authorized-keys-t1098-004.png` |
 
-*Capture the listed screenshots into `evidence/week1/` as you re-verify each item.*
 
 ## 8. Measurement approach
 
@@ -199,7 +198,7 @@ Per the program's Responsible AI requirements:
 
 ## 10. Code reuse & attribution
 
-This project reuses the alert-summarization core from the author's prior **[AI-SOC-Assistant](https://github.com/)** repository (permitted; disclosed for academic integrity). Reused modules are isolated under `assistant/` and noted in their headers. Everything else — the redaction layer, SOC prompt library, logging, SIEM integration, detection content, dashboards, playbooks, and measurement harness — is new for this capstone.
+This project reuses the alert-summarization core from the author's prior **[AI-SOC-Assistant](https://github.com/opandey1/AI-SOC-Assistant)** repository (permitted; disclosed for academic integrity). Reused modules are isolated under `assistant/` and noted in their headers. Everything else — the redaction layer, SOC prompt library, logging, SIEM integration, detection content, dashboards, playbooks, and measurement harness — is new for this capstone.
 
 ## 11. Ethics & scope
 
