@@ -1,0 +1,25 @@
+ 
+
+win-victim:
+
+PS C:\Windows\System32> $Name = "AlertMindRunKey$(Get-Date -Format yyyyMMddHHmmss)"
+PS C:\Windows\System32> reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v $Name /d "calc.exe" /f
+The operation completed successfully.
+PS C:\Windows\System32> Write-Host $Name
+AlertMindRunKey20260702225211
+PS C:\Windows\System32> reg delete "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v $Name /f
+The operation completed successfully.
+
+
+wazuh-siem:
+
+notroot@wazuh-siem:~$ NAME=AlertMindRunKey20260702225211
+notroot@wazuh-siem:~$ sudo grep -F "$NAME" /var/ossec/logs/alerts/alerts.json | tail -3 \
+  | jq '{rule:.rule.id, level:.rule.level, desc:.rule.description, target:.data.win.eventdata.targetObject}'
+
+{
+  "rule": "100205",
+  "level": 10,
+  "desc": "AlertMind: Run/RunOnce registry value set (HKU\\\\S-1-5-21-2783956757-1425684079-3775447278-1000\\\\Software\\\\Microsoft\\\\Windows\\\\CurrentVersion\\\\Run\\\\AlertMindRunKey20260702225211) - autorun persistence (T1547.001)",
+  "target": "HKU\\\\S-1-5-21-2783956757-1425684079-3775447278-1000\\\\Software\\\\Microsoft\\\\Windows\\\\CurrentVersion\\\\Run\\\\AlertMindRunKey20260702225211"
+}
