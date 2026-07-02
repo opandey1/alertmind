@@ -1,10 +1,13 @@
 <!--
-  AlertMind : Wazuh local rules for the auditd ATT&CK keys.
-  Wazuh-native form of the Linux detections; fires on the keys set by
-  /etc/audit/rules.d/alertmind.rules on linux-victim.
+  AlertMind : Wazuh local rules (single group, single file per instructor).
 
-  Each child rule chains off base rule 80700 (level 0) via if_sid, matches
-  one audit.key, raises the level, and tags ATT&CK.
+  Two detection sections:
+    - Linux (100100+): Wazuh-native form of the auditd detections; fires on the
+      keys set by /etc/audit/rules.d/alertmind.rules on linux-victim. Each child
+      rule chains off base rule 80700 (level 0) via if_sid, matches one
+      audit.key, raises the level, and tags ATT&CK.
+    - Windows (100200+): Sysmon detections; each chains off a Wazuh built-in
+      Sysmon base rule via if_sid and narrows on Sysmon fields.
 
   execve (key t1059_exec) is intentionally NOT alerted here: it is high
   volume substrate telemetry for command specific rules, not an alert.
@@ -182,6 +185,101 @@
     <description>AlertMind: Package manager / repository configuration changed (low confidence; tentative T1195.001)</description>
     <mitre>
       <id>T1195.001</id>
+    </mitre>
+  </rule>
+
+  <!--
+    Windows Sysmon detections (custom range 100200+; Linux uses 100100+).
+    Each rule chains off a Wazuh built-in Sysmon base rule (level 0) via
+    if_sid and narrows on Sysmon fields. Base rules: EID 1 = 61603,
+    EID 10 = 61612, EID 13 = 61615, EID 22 = 61624.
+    Sigma source: detections/sigma/windows/.
+  -->
+
+  <!-- ============ INITIAL ACCESS / EXECUTION (Windows) ============ -->
+  <!-- Office app spawns a shell/script interpreter (malicious macro pattern) -->
+  <rule id="100200" level="12">
+    <if_sid>61603</if_sid>
+    <field name="win.eventdata.parentImage" type="pcre2">(?i)\\(winword|excel|powerpnt|outlook|msaccess|mspub)\.exe$</field>
+    <field name="win.eventdata.image" type="pcre2">(?i)\\(cmd|powershell|pwsh|wscript|cscript|mshta)\.exe$</field>
+    <description>AlertMind: Office app $(win.eventdata.parentImage) spawned interpreter $(win.eventdata.image) - possible malicious macro (T1566/T1059)</description>
+    <mitre>
+      <id>T1566</id>
+      <id>T1059</id>
+    </mitre>
+  </rule>
+
+  <!-- ============ EXECUTION ============ -->
+  <!-- PowerShell encoded command: -e/-ec/-enc/-encodedcommand (and / variants) followed by a base64 blob -->
+  <rule id="100201" level="12">
+    <if_sid>61603</if_sid>
+    <field name="win.eventdata.image" type="pcre2">(?i)\\(powershell|pwsh)\.exe$</field>
+    <field name="win.eventdata.commandLine" type="pcre2">(?i)[-/]e(ncodedcommand|nc|c)?\s+[A-Za-z0-9+/=]{20,}</field>
+    <description>AlertMind: PowerShell encoded command executed - possible obfuscated payload (T1059.001)</description>
+    <mitre>
+      <id>T1059.001</id>
+    </mitre>
+  </rule>
+
+  <!-- LOLBin execution (mshta / regsvr32 / wmic) -->
+  <rule id="100202" level="8">
+    <if_sid>61603</if_sid>
+    <field name="win.eventdata.image" type="pcre2">(?i)\\(mshta|regsvr32|wmic)\.exe$</field>
+    <description>AlertMind: Living-off-the-land binary $(win.eventdata.image) executed - possible signed-binary proxy execution (T1218)</description>
+    <mitre>
+      <id>T1218</id>
+    </mitre>
+  </rule>
+
+  <!-- ============ CREDENTIAL ACCESS ============ -->
+  <!-- LSASS process access (credential dumping). Requires Sysmon EID 10 with lsass.exe included.
+       FP note: AV/EDR and some system processes read LSASS legitimately; refine later by
+       sourceImage allowlist or grantedAccess (e.g. 0x1010/0x1410). -->
+  <rule id="100203" level="12">
+    <if_sid>61612</if_sid>
+    <field name="win.eventdata.targetImage" type="pcre2">(?i)\\lsass\.exe$</field>
+    <description>AlertMind: LSASS process access by $(win.eventdata.sourceImage) - possible credential dumping (T1003.001)</description>
+    <mitre>
+      <id>T1003.001</id>
+    </mitre>
+  </rule>
+
+  <!-- ============ LATERAL MOVEMENT ============ -->
+  <!-- PsExec service binary on the target. Catches the default PSEXESVC name; renamed services evade. -->
+  <rule id="100204" level="12">
+    <if_sid>61603</if_sid>
+    <field name="win.eventdata.image" type="pcre2">(?i)\\PSEXESVC\.exe$</field>
+    <description>AlertMind: PsExec service binary executed - possible remote service execution / lateral movement (T1021.002/T1569.002)</description>
+    <mitre>
+      <id>T1021.002</id>
+      <id>T1569.002</id>
+    </mitre>
+  </rule>
+
+  <!-- ============ PERSISTENCE ============ -->
+  <!-- Registry Run/RunOnce value set (autorun persistence). Chains off Wazuh's
+       built-in Run-key parent 92300 (0860-sysmon_id_13.xml), which already matches
+       the Run-key path in Wazuh's doubled-backslash registry format. Level 10 so it
+       outranks the built-in reg.exe child 92302 (level 6) and is the reported alert.
+       FP note: installers and legitimate software add Run keys. -->
+  <rule id="100205" level="10">
+    <if_sid>92300</if_sid>
+    <description>AlertMind: Run/RunOnce registry value set ($(win.eventdata.targetObject)) - autorun persistence (T1547.001)</description>
+    <mitre>
+      <id>T1547.001</id>
+    </mitre>
+  </rule>
+
+  <!-- ============ EXFILTRATION / C2 (heuristic) ============ -->
+  <!-- DNS query with an unusually long label - possible DNS tunneling. Heuristic; tune the
+       threshold and allowlist known long-subdomain services (CDNs, telemetry). Sysmon EID 22. -->
+  <rule id="100206" level="6">
+    <if_sid>61624</if_sid>
+    <field name="win.eventdata.queryName" type="pcre2">(?i)[a-z0-9+/=_-]{30,}\.</field>
+    <description>AlertMind: DNS query with long label ($(win.eventdata.queryName)) - possible DNS tunneling (heuristic; T1048/T1071.004)</description>
+    <mitre>
+      <id>T1048</id>
+      <id>T1071.004</id>
     </mitre>
   </rule>
 

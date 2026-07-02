@@ -54,13 +54,13 @@ Every Linux Sigma rule maps to a deployed Wazuh rule in `siem/wazuh/local_rules.
 | Sigma file | ATT&CK | Wazuh implementation | Status |
 |---|---|---|---|
 | `win_persistence_new_service_7045.yml` | T1543.003 | built-in rule 61138 | ✅ (EVID-WIN-002) |
-| `win_initial_access_office_spawns_shell.yml` | T1566 / T1059 | Sysmon EID 1 (custom rule to add) | 🟡 rule ready; Office/simulation dependency |
-| `win_execution_powershell_encoded.yml` | T1059.001 | Sysmon EID 1 (custom rule to add) | 🟡 test pending |
-| `win_defense_evasion_lolbin_execution.yml` | T1218 | Sysmon EID 1 (custom rule to add) | 🟡 rule ready; test pending |
-| `win_credential_access_lsass_access.yml` | T1003.001 | Sysmon EID 10 (include fix applied) | 🟡 rule ready; test pending |
-| `win_persistence_run_key.yml` | T1547.001 | Sysmon EID 13 (config covers) | 🟡 test pending |
-| `win_lateral_movement_psexec_service.yml` | T1021.002 / T1569.002 | Sysmon EID 1 / System 7045 | 🟡 rule ready; test pending |
-| `win_exfiltration_dns_tunneling.yml` | T1048 / T1071.004 | Sysmon EID 22 (heuristic) | ⏳ heuristic; needs allowlist tuning |
+| `win_initial_access_office_spawns_shell.yml` | T1566 / T1059 | rule 100200 (if_sid 61603, EID 1) | 🟡 deployed; Office/simulation dependency |
+| `win_execution_powershell_encoded.yml` | T1059.001 | rule 100201 (if_sid 61603, EID 1) | ✅ (EVID-WIN-003) |
+| `win_defense_evasion_lolbin_execution.yml` | T1218 | rule 100202 (if_sid 61603, EID 1) | ✅ (EVID-WIN-004) |
+| `win_credential_access_lsass_access.yml` | T1003.001 | rule 100203 (if_sid 61612, EID 10) | 🟡 deployed; test pending |
+| `win_persistence_run_key.yml` | T1547.001 | rule 100205 (if_sid 92300, built-in Run-key parent) | ✅ (EVID-WIN-005)  |
+| `win_lateral_movement_psexec_service.yml` | T1021.002 / T1569.002 | rule 100204 (if_sid 61603, EID 1) | 🟡 deployed; test pending |
+| `win_exfiltration_dns_tunneling.yml` | T1048 / T1071.004 | rule 100206 (if_sid 61624, EID 22) | ⏳ heuristic; needs allowlist tuning |
 
 **Testability note:** `win_initial_access_office_spawns_shell.yml` is portable Sigma coverage for malicious-macro behaviour, but validating it in the Win11 evaluation VM requires Office installed or a controlled simulation; status stays *configured* until a real event is captured.
 
@@ -69,7 +69,7 @@ Every Linux Sigma rule maps to a deployed Wazuh rule in `siem/wazuh/local_rules.
 - **Linux 100100–100115:** direct translation — `<if_sid>80700</if_sid>` + `<field name="audit.key">{key}</field>` + `<mitre>` tag. No semantic loss.
 - **Rule 100116 (authorized_keys) is the one exception** — it is *not* a direct `audit.key` translation. Overlapping `/root/.ssh` watches mean the write is keyed `t1552_004_ssh_keys`, so 100116 chains from 100113 (`<if_sid>100113</if_sid>`) and narrows on `audit.file.name` containing `authorized_keys`. This is the "broad sensor, specific SIEM rule" pattern.
 - **Windows 7045 → 61138:** no custom rule needed; Wazuh's built-in rule already fires on the System EID 7045 event the Sigma rule targets.
-- **Windows Sysmon rules:** Wazuh decodes the Sysmon eventchannel; office-spawn / encoded-PowerShell / LOLBin / LSASS / run-key still need dedicated custom rules added to `local_rules.xml` to raise them above the generic Sysmon rules (tracked as 🟡/⏳ above).
+- **Windows Sysmon rules:** implemented as custom rules **100200–100206** in `local_rules.xml`, each chaining off the relevant Wazuh built-in Sysmon base rule (EID 1 = 61603, EID 10 = 61612, EID 13 = 61615, EID 22 = 61624) and narrowing on `win.eventdata.*` fields with `type="pcre2"`. - **Windows Sysmon rules:** implemented as custom rules **100200–100206** in `local_rules.xml`. Most chain from Wazuh’s Sysmon base rules (EID 1 = 61603, EID 10 = 61612, EID 22 = 61624). Rule **100205** is the exception: Sysmon EID 13 base rule **61615** is level 0, so the deployed AlertMind rule chains from Wazuh’s built-in Run-key parent **92300** instead. Verified rules are 100201, 100202, and 100205; remaining Windows rules move to ✅ as individual tests are captured. Service creation (T1543.003) stays on the built-in rule 61138 (already ✅).
 - **Exfil DNS tunneling** is a heuristic (long-label regex on Sysmon EID 22); it needs threshold tuning and a domain allowlist before it is alert-worthy — kept `experimental`.
 
 ## Validate locally
