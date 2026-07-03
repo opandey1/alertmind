@@ -57,19 +57,24 @@ Every Linux Sigma rule maps to a deployed Wazuh rule in `siem/wazuh/local_rules.
 | `win_initial_access_office_spawns_shell.yml` | T1566 / T1059 | rule 100200 (if_sid 61603, EID 1) | 🟡 deployed; Office/simulation dependency |
 | `win_execution_powershell_encoded.yml` | T1059.001 | rule 100201 (if_sid 61603, EID 1) | ✅ (EVID-WIN-003) |
 | `win_defense_evasion_lolbin_execution.yml` | T1218 | rule 100202 (if_sid 61603, EID 1) | ✅ (EVID-WIN-004) |
-| `win_credential_access_lsass_access.yml` | T1003.001 | rule 100203 (if_sid 61612, EID 10) | 🟡 deployed; test pending |
+| `win_credential_access_lsass_access.yml` | T1003.001 | rule 100203 (if_sid 61612, EID 10) | 🟡 tuned (dump-grade GrantedAccess); awaiting Atomic dump |
 | `win_persistence_run_key.yml` | T1547.001 | rule 100205 (if_sid 92300, built-in Run-key parent) | ✅ (EVID-WIN-005)  |
 | `win_lateral_movement_psexec_service.yml` | T1021.002 / T1569.002 | rule 100204 (if_sid 61603, EID 1) | 🟡 deployed; test pending |
 | `win_exfiltration_dns_tunneling.yml` | T1048 / T1071.004 | rule 100206 (if_sid 61624, EID 22) | ⏳ heuristic; needs allowlist tuning |
 
 **Testability note:** `win_initial_access_office_spawns_shell.yml` is portable Sigma coverage for malicious-macro behaviour, but validating it in the Win11 evaluation VM requires Office installed or a controlled simulation; status stays *configured* until a real event is captured.
 
+### Windows tuning caveats
+
+- **`100205` (Run-key)** — chaining off the built-in 92300 inherits a prefix match: 92300 matches `CurrentVersion\Run`, so it also matches `CurrentVersion\RunNotification` (a shell startup-notification key Windows writes *when* a Run key is added), producing a duplicate false-positive alert. Observed in testing (a single `reg add` fired 100205 twice). Fixed by re-narrowing 100205 with a `targetObject` filter (`CURRENTVERSION\\Run(Once)?\\`, in Wazuh's doubled-backslash format) so only genuine Run/RunOnce writes fire.
+- **`100203` (LSASS)** — the untuned rule fired on *every* LSASS access, including hundreds of benign query-only reads (AV, EdgeUpdate, svchost at `GrantedAccess 0x1000`). Tuned to dump-grade GrantedAccess masks (those including `PROCESS_VM_READ` 0x10 — `0x1010/0x1410/0x1418/0x1438/0x143a/0x1fffff`); it now stays quiet until a genuine dump and will be verified via the Atomic credential-dumping test.
+
 ## Hand-translation notes (per reproducibility requirement)
 
 - **Linux 100100–100115:** direct translation — `<if_sid>80700</if_sid>` + `<field name="audit.key">{key}</field>` + `<mitre>` tag. No semantic loss.
 - **Rule 100116 (authorized_keys) is the one exception** — it is *not* a direct `audit.key` translation. Overlapping `/root/.ssh` watches mean the write is keyed `t1552_004_ssh_keys`, so 100116 chains from 100113 (`<if_sid>100113</if_sid>`) and narrows on `audit.file.name` containing `authorized_keys`. This is the "broad sensor, specific SIEM rule" pattern.
 - **Windows 7045 → 61138:** no custom rule needed; Wazuh's built-in rule already fires on the System EID 7045 event the Sigma rule targets.
-- **Windows Sysmon rules:** implemented as custom rules **100200–100206** in `local_rules.xml`, each chaining off the relevant Wazuh built-in Sysmon base rule (EID 1 = 61603, EID 10 = 61612, EID 13 = 61615, EID 22 = 61624) and narrowing on `win.eventdata.*` fields with `type="pcre2"`. - **Windows Sysmon rules:** implemented as custom rules **100200–100206** in `local_rules.xml`. Most chain from Wazuh’s Sysmon base rules (EID 1 = 61603, EID 10 = 61612, EID 22 = 61624). Rule **100205** is the exception: Sysmon EID 13 base rule **61615** is level 0, so the deployed AlertMind rule chains from Wazuh’s built-in Run-key parent **92300** instead. Verified rules are 100201, 100202, and 100205; remaining Windows rules move to ✅ as individual tests are captured. Service creation (T1543.003) stays on the built-in rule 61138 (already ✅).
+- **Windows Sysmon rules:** implemented as custom rules **100200–100206** in `local_rules.xml`, narrowing on `win.eventdata.*` fields with `type="pcre2"`. Most chain off the relevant Wazuh built-in Sysmon base rule (EID 1 = 61603, EID 10 = 61612, EID 22 = 61624). Rule **100205** is the exception: the Sysmon EID 13 base rule (61615) is level 0 and Wazuh already ships a Run-key parent, so 100205 chains off the built-in **92300** instead. Verified: 100201, 100202, 100205; the rest move to ✅ as individual tests are captured. Service creation (T1543.003) stays on built-in rule 61138 (already ✅).
 - **Exfil DNS tunneling** is a heuristic (long-label regex on Sysmon EID 22); it needs threshold tuning and a domain allowlist before it is alert-worthy — kept `experimental`.
 
 ## Validate locally

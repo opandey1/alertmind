@@ -89,18 +89,23 @@ alertmind/
 
 ## 5. Detection coverage (ATT&CK)
 
-Detections are deployed as Wazuh rules with a portable Sigma YAML source in `detections/sigma/` (25 rules, validated). Linux custom rules occupy IDs **100100–100116**; Windows leans on Sysmon-EID and Security/System channel rules.
+Detections are deployed as Wazuh rules with a portable Sigma YAML source in `detections/sigma/` (25 rules, validated). Linux custom rules occupy IDs **100100–100116** (auditd) and Windows custom rules **100200–100206** (Sysmon), plus the built-in rule 61138 for service creation.
 
 **Status key:** ✅ Verified (alert observed in Wazuh with evidence) · 🟡 Configured (telemetry/rule in place, test pending) · ⏳ Planned.
 
 **Windows (`win-victim`) — Sysmon + Security/System channels**
 
-| Detection | Source | ATT&CK | Status |
-|---|---|---|---|
-| Process creation / suspicious shell | Sysmon EID 1 | T1059 / T1087 | ✅ Verified |
-| New Windows service | System EID 7045 | T1543.003 | ✅ Verified (rule 61138) |
-| LSASS process access | Sysmon EID 10 | T1003.001 | 🟡 Configured (EID 10 fix applied; alert test pending) |
-| Run-key persistence | Sysmon EID 13 | T1547.001 | 🟡 Configured (config covers it; test pending) |
+| Detection | Source | ATT&CK | Rule | Status |
+|---|---|---|---|---|
+| Process creation (telemetry) | Sysmon EID 1 | — | 61603 (base) | ✅ Verified (EVID-WIN-001) |
+| New Windows service | System EID 7045 | T1543.003 | 61138 | ✅ Verified (EVID-WIN-002) |
+| Office spawns shell | Sysmon EID 1 | T1566 / T1059 | 100200 | 🟡 deployed; test pending |
+| Encoded PowerShell | Sysmon EID 1 | T1059.001 | 100201 | ✅ Verified (EVID-WIN-003) |
+| LOLBin execution | Sysmon EID 1 | T1218 | 100202 | ✅ Verified (EVID-WIN-004) |
+| LSASS process access | Sysmon EID 10 | T1003.001 | 100203 | 🟡 tuned (dump-grade GrantedAccess); awaiting Atomic dump |
+| PsExec service execution | Sysmon EID 1 | T1021.002 / T1569.002 | 100204 | 🟡 deployed; test pending |
+| Run-key persistence | Sysmon EID 13 → built-in 92300 | T1547.001 | 100205 | ✅ Verified (EVID-WIN-005) |
+| DNS tunneling (heuristic) | Sysmon EID 22 | T1048 / T1071.004 | 100206 | 🟡 deployed; test pending |
 
 **Linux (`linux-victim`) — auditd custom rule pack**
 
@@ -177,6 +182,9 @@ Every "Verified" claim above maps to a captured artifact in `evidence/`. (IDs ar
 | EVID-LIN-002 | auditd `/etc/shadow` rule 100100 fired (T1003.008) | `evidence/week1/linux-shadow-t1003-008.png` |
 | EVID-RULES-001 | `local_rules.xml` validates + loads clean | `evidence/week1/wazuh-rules-load.png` |
 | EVID-LIN-003 | SSH `authorized_keys` persistence detected (rule 100116 / T1098.004) | `evidence/week2/linux-authorized-keys-t1098-004.png` |
+| EVID-WIN-003 | Encoded PowerShell detected (rule 100201 / T1059.001) | `evidence/week2/win-powershell-t1059-001.png` |
+| EVID-WIN-004 | LOLBin execution detected (rule 100202 / T1218) | `evidence/week2/win-lolbin-t1218.png` |
+| EVID-WIN-005 | Run-key persistence detected (rule 100205 / T1547.001) | `evidence/week2/win-runkey-t1547-001.png` |
 
 
 ## 8. Measurement approach
