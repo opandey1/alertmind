@@ -102,7 +102,7 @@ Detections are deployed as Wazuh rules with a portable Sigma YAML source in `det
 | Office spawns shell | Sysmon EID 1 | T1566 / T1059 | 100200 | 🟡 deployed; test pending |
 | Encoded PowerShell | Sysmon EID 1 | T1059.001 | 100201 | ✅ Verified (EVID-WIN-003) |
 | LOLBin execution | Sysmon EID 1 | T1218 | 100202 | ✅ Verified (EVID-WIN-004) |
-| LSASS process access | Sysmon EID 10 | T1003.001 | 100203 | 🟡 tuned (dump-grade GrantedAccess); awaiting Atomic dump |
+| LSASS process access | Sysmon EID 10 | T1003.001 | 100203 | ✅ Verified (EVID-WIN-006) |
 | PsExec service execution | Sysmon EID 1 | T1021.002 / T1569.002 | 100204 | 🟡 deployed; test pending |
 | Run-key persistence | Sysmon EID 13 → built-in 92300 | T1547.001 | 100205 | ✅ Verified (EVID-WIN-005) |
 | DNS tunneling (heuristic) | Sysmon EID 22 | T1048 / T1071.004 | 100206 | 🟡 deployed; test pending |
@@ -185,6 +185,7 @@ Every "Verified" claim above maps to a captured artifact in `evidence/`. (IDs ar
 | EVID-WIN-003 | Encoded PowerShell detected (rule 100201 / T1059.001) | `evidence/week2/win-powershell-t1059-001.png` |
 | EVID-WIN-004 | LOLBin execution detected (rule 100202 / T1218) | `evidence/week2/win-lolbin-t1218.png` |
 | EVID-WIN-005 | Run-key persistence detected (rule 100205 / T1547.001) | `evidence/week2/win-runkey-t1547-001.png` |
+| EVID-WIN-006 | LSASS dump-grade access detected (rule 100203 / T1003.001) | `evidence/week2/win-lsass-t1003-001.png` |
 
 
 ## 8. Measurement approach

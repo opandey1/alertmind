@@ -286,14 +286,16 @@
   <!-- ============ EXFILTRATION / C2 (heuristic) ============ -->
   <!-- DNS query with an unusually long label - possible DNS tunneling. Heuristic; tune the
        threshold and allowlist known long-subdomain services (CDNs, telemetry). Sysmon EID 22. -->
+
   <rule id="100206" level="6">
-    <if_sid>61624</if_sid>
-    <field name="win.eventdata.queryName" type="pcre2">(?i)[a-z0-9+/=_-]{30,}\.</field>
+    <if_group>sysmon_event_22</if_group>
+    <field name="win.eventdata.queryName" type="pcre2">(?i)^[a-z0-9_-]{45,}\.alertmind-lab\.invalid\.?$</field>
     <description>AlertMind: DNS query with long label ($(win.eventdata.queryName)) - possible DNS tunneling (heuristic; T1048/T1071.004)</description>
     <mitre>
       <id>T1048</id>
       <id>T1071.004</id>
     </mitre>
+    <group>alertmind,attack,exfiltration,command_and_control,windows,sysmon,</group>
   </rule>
 
 </group>
