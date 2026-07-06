@@ -233,18 +233,21 @@
 
   <!-- ============ CREDENTIAL ACCESS ============ -->
   <!-- LSASS process access (credential dumping). Requires Sysmon EID 10 with lsass.exe included.
-       FP note: AV/EDR and some system processes read LSASS legitimately; refine later by
-       sourceImage allowlist or grantedAccess (e.g. 0x1010/0x1410). -->
-  <!-- LSASS process access (credential dumping). Requires Sysmon EID 10 with lsass.exe included.
-       Tuned to dump-grade GrantedAccess masks (those including PROCESS_VM_READ 0x10, used by
-       mimikatz / procdump / comsvcs). This drops the benign query-only readers (AV, EdgeUpdate,
-       svchost at 0x1000/0x1400) that produced hundreds of false positives. If a real dump ever
-       appears with a mask outside this list, add it here. -->
+       Alerts on any GrantedAccess except: 0x1000 / 0x1400 (benign query-only, no VM_READ bit),
+       and 0x3000 (PROCESS_QUERY_LIMITED_INFORMATION + PROCESS_SUSPEND_RESUME, no VM_READ bit;
+       svchost fires this legitimately).
+       Also excludes always-benign sourceImages: wazuh-agent.exe (monitoring agent itself) and
+       MsMpEng.exe (Windows Defender AV). Both legitimately open LSASS at high-privilege masks.
+       Lab pre-condition: RunAsPPL must be 0 to allow dump-grade handles; with PPL enabled the OS
+       blocks the handle and no EID 10 is emitted. Note that in that case Sysmon still logs the
+       ATTEMPT, so a denied access is also a valid detection signal.
+       In production: expand the sourceImage exclusion to cover other trusted security tools. -->
   <rule id="100203" level="12">
     <if_sid>61612</if_sid>
     <field name="win.eventdata.targetImage" type="pcre2">(?i)\\lsass\.exe$</field>
-    <field name="win.eventdata.grantedAccess" type="pcre2">(?i)^0x1(010|410|418|438|43a|fffff)$</field>
-    <description>AlertMind: LSASS dump-grade access by $(win.eventdata.sourceImage) (granted $(win.eventdata.grantedAccess)) - possible credential dumping (T1003.001)</description>
+    <field name="win.eventdata.grantedAccess" type="pcre2">(?i)^0x(?!(1000|1400|3000)$)[0-9a-f]+$</field>
+    <field name="win.eventdata.sourceImage" type="pcre2">(?i)^(?!.*\\(wazuh-agent|MsMpEng)\.exe$).*</field>
+    <description>AlertMind: LSASS access by $(win.eventdata.sourceImage) (granted $(win.eventdata.grantedAccess)) - possible credential dumping (T1003.001)</description>
     <mitre>
       <id>T1003.001</id>
     </mitre>
