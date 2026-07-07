@@ -1,0 +1,28 @@
+notroot@wazuh-siem:~$ sudo grep '"id":"100204"' /var/ossec/logs/alerts/alerts.json | tail -10   | jq '{time:.timestamp, agent:.agent.name, rule:.rule.id, level:.rule.level, desc:.rule.description, mitre:.rule.mitre, image:.data.win.eventdata.image, cmd:.data.win.eventdata.commandLine, target:.data.win.eventdata.targetObject, query:.data.win.eventdata.queryName}'
+[sudo] password for notroot: 
+{
+  "time": "2026-07-06T19:04:42.750+0530",
+  "agent": "win-victim",
+  "rule": "100204",
+  "level": 12,
+  "desc": "AlertMind: PsExec service binary executed - possible remote service execution / lateral movement (T1021.002/T1569.002)",
+  "mitre": {
+    "id": [
+      "T1021.002",
+      "T1569.002"
+    ],
+    "tactic": [
+      "Lateral Movement",
+      "Execution"
+    ],
+    "technique": [
+      "SMB/Windows Admin Shares",
+      "Service Execution"
+    ]
+  },
+  "image": "C:\\\\Windows\\\\PSEXESVC.exe",
+  "cmd": "C:\\\\WINDOWS\\\\PSEXESVC.exe",
+  "target": null,
+  "query": null
+}
+

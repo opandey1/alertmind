@@ -1,0 +1,28 @@
+notroot@wazuh-siem:~$ sudo grep '"id":"100200"' /var/ossec/logs/alerts/alerts.json | tail -10 \
+  | jq '{time:.timestamp, agent:.agent.name, rule:.rule.id, level:.rule.level, desc:.rule.description, mitre:.rule.mitre, image:.data.win.eventdata.image, cmd:.data.win.eventdata.commandLine, target:.data.win.eventdata.targetObject, query:.data.win.eventdata.queryName}'
+[sudo] password for notroot: 
+{
+  "time": "2026-07-05T00:01:21.946+0530",
+  "agent": "win-victim",
+  "rule": "100200",
+  "level": 12,
+  "desc": "AlertMind: Office app C:\\\\Users\\\\user1\\\\AppData\\\\Local\\\\Temp\\\\winword.exe spawned interpreter C:\\\\Windows\\\\System32\\\\cmd.exe - possible malicious macro (T1566/T1059)",
+  "mitre": {
+    "id": [
+      "T1566",
+      "T1059"
+    ],
+    "tactic": [
+      "Initial Access",
+      "Execution"
+    ],
+    "technique": [
+      "Phishing",
+      "Command and Scripting Interpreter"
+    ]
+  },
+  "image": "C:\\\\Windows\\\\System32\\\\cmd.exe",
+  "cmd": "cmd.exe  /c whoami",
+  "target": null,
+  "query": null
+}

@@ -1,0 +1,25 @@
+notroot@wazuh-siem:~$ sudo grep '"id":"100202"' /var/ossec/logs/alerts/alerts.json | tail -10   | jq '{time:.timestamp, agent:.agent.name, rule:.rule.id, level:.rule.level, desc:.rule.description, mitre:.rule.mitre, image:.data.win.eventdata.image, cmd:.data.win.eventdata.commandLine, target:.data.win.eventdata.targetObject, query:.data.win.eventdata.queryName}'
+{
+  "time": "2026-07-05T21:10:42.917+0530",
+  "agent": "win-victim",
+  "rule": "100202",
+  "level": 8,
+  "desc": "AlertMind: Living-off-the-land binary C:\\\\Windows\\\\System32\\\\mshta.exe executed - possible signed-binary proxy execution (T1218)",
+  "mitre": {
+    "id": [
+      "T1218"
+    ],
+    "tactic": [
+      "Defense Evasion"
+    ],
+    "technique": [
+      "System Binary Proxy Execution"
+    ]
+  },
+  "image": "C:\\\\Windows\\\\System32\\\\mshta.exe",
+  "cmd": "mshta.exe  \\\"about:&lt;hta:application&gt;&lt;script language=\\\"VBScript\\\"&gt;Close(Execute(\\\"CreateObject(\\\"\\\"Wscript.Shell\\\"\\\").Run%%20\\\"\\\"powershell.exe%%20-nop%%20-Command%%20Write-Host%%20Hello,%%20MSHTA!;Start-Sleep%%20-Seconds%%205\\\"\\\"\\\"))&lt;/script&gt;'\\\"",
+  "target": null,
+  "query": null
+}
+
+

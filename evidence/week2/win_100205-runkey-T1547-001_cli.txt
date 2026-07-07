@@ -1,0 +1,93 @@
+notroot@wazuh-siem:~$ sudo grep '"id":"100205"' /var/ossec/logs/alerts/alerts.json | tail -10   | jq '{time:.timestamp, agent:.agent.name, rule:.rule.id, level:.rule.level, desc:.rule.description, mitre:.rule.mitre, image:.data.win.eventdata.image, cmd:.data.win.eventdata.commandLine, target:.data.win.eventdata.targetObject, query:.data.win.eventdata.queryName}'
+{
+  "time": "2026-07-05T16:15:40.678+0530",
+  "agent": "win-victim",
+  "rule": "100205",
+  "level": 10,
+  "desc": "AlertMind: Run/RunOnce registry value set (HKU\\\\S-1-5-21-2783956757-1425684079-3775447278-1000\\\\Software\\\\Microsoft\\\\Windows\\\\CurrentVersion\\\\Run\\\\MicrosoftEdgeAutoLaunch_4BA50610520F860366FF3F962A4A3114) - autorun persistence (T1547.001)",
+  "mitre": {
+    "id": [
+      "T1547.001"
+    ],
+    "tactic": [
+      "Persistence",
+      "Privilege Escalation"
+    ],
+    "technique": [
+      "Registry Run Keys / Startup Folder"
+    ]
+  },
+  "image": "C:\\\\Program Files (x86)\\\\Microsoft\\\\Edge\\\\Application\\\\msedge.exe",
+  "cmd": null,
+  "target": "HKU\\\\S-1-5-21-2783956757-1425684079-3775447278-1000\\\\Software\\\\Microsoft\\\\Windows\\\\CurrentVersion\\\\Run\\\\MicrosoftEdgeAutoLaunch_4BA50610520F860366FF3F962A4A3114",
+  "query": null
+}
+{
+  "time": "2026-07-05T16:25:40.002+0530",
+  "agent": "win-victim",
+  "rule": "100205",
+  "level": 10,
+  "desc": "AlertMind: Run/RunOnce registry value set (HKLM\\\\SOFTWARE\\\\Microsoft\\\\Windows\\\\CurrentVersion\\\\RunOnce\\\\msedge_cleanup_{56EB18F8-B008-4CBD-B6D2-8C97FE7E9062}) - autorun persistence (T1547.001)",
+  "mitre": {
+    "id": [
+      "T1547.001"
+    ],
+    "tactic": [
+      "Persistence",
+      "Privilege Escalation"
+    ],
+    "technique": [
+      "Registry Run Keys / Startup Folder"
+    ]
+  },
+  "image": "C:\\\\Program Files (x86)\\\\Microsoft\\\\Edge\\\\Application\\\\150.0.4078.48\\\\Installer\\\\setup.exe",
+  "cmd": null,
+  "target": "HKLM\\\\SOFTWARE\\\\Microsoft\\\\Windows\\\\CurrentVersion\\\\RunOnce\\\\msedge_cleanup_{56EB18F8-B008-4CBD-B6D2-8C97FE7E9062}",
+  "query": null
+}
+{
+  "time": "2026-07-05T20:40:19.199+0530",
+  "agent": "win-victim",
+  "rule": "100205",
+  "level": 10,
+  "desc": "AlertMind: Run/RunOnce registry value set (HKU\\\\S-1-5-21-2783956757-1425684079-3775447278-1000\\\\Software\\\\Microsoft\\\\Windows\\\\CurrentVersion\\\\Run\\\\MicrosoftEdgeAutoLaunch_4BA50610520F860366FF3F962A4A3114) - autorun persistence (T1547.001)",
+  "mitre": {
+    "id": [
+      "T1547.001"
+    ],
+    "tactic": [
+      "Persistence",
+      "Privilege Escalation"
+    ],
+    "technique": [
+      "Registry Run Keys / Startup Folder"
+    ]
+  },
+  "image": "C:\\\\Program Files (x86)\\\\Microsoft\\\\Edge\\\\Application\\\\msedge.exe",
+  "cmd": null,
+  "target": "HKU\\\\S-1-5-21-2783956757-1425684079-3775447278-1000\\\\Software\\\\Microsoft\\\\Windows\\\\CurrentVersion\\\\Run\\\\MicrosoftEdgeAutoLaunch_4BA50610520F860366FF3F962A4A3114",
+  "query": null
+}
+{
+  "time": "2026-07-05T21:35:26.372+0530",
+  "agent": "win-victim",
+  "rule": "100205",
+  "level": 10,
+  "desc": "AlertMind: Run/RunOnce registry value set (HKU\\\\S-1-5-21-2783956757-1425684079-3775447278-1000\\\\Software\\\\Microsoft\\\\Windows\\\\CurrentVersion\\\\Run\\\\AMTest) - autorun persistence (T1547.001)",
+  "mitre": {
+    "id": [
+      "T1547.001"
+    ],
+    "tactic": [
+      "Persistence",
+      "Privilege Escalation"
+    ],
+    "technique": [
+      "Registry Run Keys / Startup Folder"
+    ]
+  },
+  "image": "C:\\\\WINDOWS\\\\system32\\\\reg.exe",
+  "cmd": null,
+  "target": "HKU\\\\S-1-5-21-2783956757-1425684079-3775447278-1000\\\\Software\\\\Microsoft\\\\Windows\\\\CurrentVersion\\\\Run\\\\AMTest",
+  "query": null
+}

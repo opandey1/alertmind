@@ -1,0 +1,51 @@
+notroot@wazuh-siem:~$ sudo grep '"id":"100206"' /var/ossec/logs/alerts/alerts.json | tail -10   | jq '{time:.timestamp, agent:.agent.name, rule:.rule.id, level:.rule.level, desc:.rule.description, mitre:.rule.mitre, image:.data.win.eventdata.image, cmd:.data.win.eventdata.commandLine, target:.data.win.eventdata.targetObject, query:.data.win.eventdata.queryName}'
+{
+  "time": "2026-07-06T21:48:43.803+0530",
+  "agent": "win-victim",
+  "rule": "100206",
+  "level": 6,
+  "desc": "AlertMind: DNS query with long label (bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb-am-t1071dns-20260706214756.alertmind-lab.invalid) - possible DNS tunneling (heuristic; T1048/T1071.004)",
+  "mitre": {
+    "id": [
+      "T1048",
+      "T1071.004"
+    ],
+    "tactic": [
+      "Exfiltration",
+      "Command and Control"
+    ],
+    "technique": [
+      "Exfiltration Over Alternative Protocol",
+      "DNS"
+    ]
+  },
+  "image": "&lt;unknown process&gt;",
+  "cmd": null,
+  "target": null,
+  "query": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb-am-t1071dns-20260706214756.alertmind-lab.invalid"
+}
+{
+  "time": "2026-07-06T21:50:22.901+0530",
+  "agent": "win-victim",
+  "rule": "100206",
+  "level": 6,
+  "desc": "AlertMind: DNS query with long label (aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-am-t1071dns-20260706214941.alertmind-lab.invalid) - possible DNS tunneling (heuristic; T1048/T1071.004)",
+  "mitre": {
+    "id": [
+      "T1048",
+      "T1071.004"
+    ],
+    "tactic": [
+      "Exfiltration",
+      "Command and Control"
+    ],
+    "technique": [
+      "Exfiltration Over Alternative Protocol",
+      "DNS"
+    ]
+  },
+  "image": "C:\\\\Program Files\\\\WindowsApps\\\\Microsoft.PowerShell_7.6.3.0_x64__8wekyb3d8bbwe\\\\pwsh.exe",
+  "cmd": null,
+  "target": null,
+  "query": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-am-t1071dns-20260706214941.alertmind-lab.invalid"
+}

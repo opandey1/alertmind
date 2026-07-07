@@ -4,7 +4,7 @@
 
 **Capstone:** PG Certificate in AI/GenAI Powered Cybersecurity (IIT Roorkee × Futurense) · EC-Council **SOC Essentials (SCE)** track · Project code **CAP-SCE-3W** · Mode: **Solo**
 
-**Status:** 🟢 Week 1 infrastructure + Linux Wazuh-native detection pack complete (Wazuh + Windows/Linux ingestion verified) + Sigma / Wazuh detection source complete · 🟡 Windows rule verification, dashboards, playbooks, attack baseline, and LLM assistant in progress
+**Status:** 🟢 Week 1 infrastructure + Windows/Linux ingestion + Sigma/Wazuh detection source complete · 🟢 Windows custom rule verification complete · 🟡 dashboards, playbooks, attack baseline, and LLM assistant in progress
 
 ---
 
@@ -47,7 +47,7 @@ flowchart LR
 | SIEM host | `wazuh-siem` | Ubuntu | NAT + Host-Only | Wazuh 4.14.5 manager/indexer/dashboard | ✅ Deployed |
 | Windows endpoint | `win-victim` | Windows 11 | NAT | Sysmon 15.21 + Wazuh agent | ✅ Deployed |
 | Linux endpoint | `linux-victim` | Ubuntu | NAT | auditd + Wazuh agent | ✅ Deployed |
-| Attacker | `attacker` | Kali | NAT | nmap, Metasploit, Atomic Red Team | ⏳ Week 2 |
+| Attacker | `attacker` | Kali | NAT | nmap, Metasploit, Atomic Red Team | ✅ Deployed |
 
 Agents: `001 win-victim` (10.0.2.4), `002 linux-victim` (10.0.2.7), manager `10.0.2.15`.
 
@@ -99,13 +99,13 @@ Detections are deployed as Wazuh rules with a portable Sigma YAML source in `det
 |---|---|---|---|---|
 | Process creation (telemetry) | Sysmon EID 1 | — | 61603 (base) | ✅ Verified (EVID-WIN-001) |
 | New Windows service | System EID 7045 | T1543.003 | 61138 | ✅ Verified (EVID-WIN-002) |
-| Office spawns shell | Sysmon EID 1 | T1566 / T1059 | 100200 | 🟡 deployed; test pending |
+| Office spawns shell | Sysmon EID 1 | T1566 / T1059 | 100200 | ✅ Verified (EVID-WIN-007) |
 | Encoded PowerShell | Sysmon EID 1 | T1059.001 | 100201 | ✅ Verified (EVID-WIN-003) |
 | LOLBin execution | Sysmon EID 1 | T1218 | 100202 | ✅ Verified (EVID-WIN-004) |
 | LSASS process access | Sysmon EID 10 | T1003.001 | 100203 | ✅ Verified (EVID-WIN-006) |
-| PsExec service execution | Sysmon EID 1 | T1021.002 / T1569.002 | 100204 | 🟡 deployed; test pending |
+| PsExec service execution | Sysmon EID 1 | T1021.002 / T1569.002 | 100204 | ✅ Verified (EVID-WIN-008) |
 | Run-key persistence | Sysmon EID 13 → built-in 92300 | T1547.001 | 100205 | ✅ Verified (EVID-WIN-005) |
-| DNS tunneling (heuristic) | Sysmon EID 22 | T1048 / T1071.004 | 100206 | 🟡 deployed; test pending |
+| DNS tunneling (heuristic) | Sysmon EID 22 | T1048 / T1071.004 | 100206 | ✅ Verified (EVID-WIN-009) |
 
 **Linux (`linux-victim`) — auditd custom rule pack**
 
@@ -186,6 +186,9 @@ Every "Verified" claim above maps to a captured artifact in `evidence/`. (IDs ar
 | EVID-WIN-004 | LOLBin execution detected (rule 100202 / T1218) | `evidence/week2/win-lolbin-t1218.png` |
 | EVID-WIN-005 | Run-key persistence detected (rule 100205 / T1547.001) | `evidence/week2/win-runkey-t1547-001.png` |
 | EVID-WIN-006 | LSASS dump-grade access detected (rule 100203 / T1003.001) | `evidence/week2/win-lsass-t1003-001.png` |
+| EVID-WIN-007 | Office spawns shell detected (rule 100200 / T1566, T1059) | `evidence/week2/win-office-spawn-t1566.png` |
+| EVID-WIN-008 | PsExec service execution detected (rule 100204 / T1021.002, T1569.002) | `evidence/week3/win-psexec-t1021-002.png` |
+| EVID-WIN-009 | DNS tunneling heuristic detected (rule 100206 / T1048, T1071.004) | `evidence/week3/win-dns-tunnel-t1071-004.png` |
 
 
 ## 8. Measurement approach

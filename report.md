@@ -80,7 +80,7 @@ The lab runs on VirtualBox with all VMs on an isolated NAT Network (`LabNet`, 10
 ---
 
 ## 5. Detection engineering
-*✅ Sigma source complete; Linux Wazuh-native pack implemented; rules 100100 and 100116 verified · 🚧 remaining Linux validation + Windows custom rules.*
+*✅ Sigma source complete; Windows custom Sysmon rules verified; Linux Wazuh-native pack implemented with 100100 and 100116 verified · 🚧 remaining Linux validation, dashboards/playbooks, baseline, and assistant.*
 
 **Authoring model.** Sigma YAML is the portable source of truth (`detections/sigma/`, 25 rules, all validated with pySigma); each rule is converted to Wazuh-native form and any hand-translation logged in `detections/sigma/notes.md`. The Wazuh-native rules were authored first in `siem/wazuh/local_rules.xml`, with the Sigma source now complete and mapped 1:1 (one child-rule exception, documented).
 
@@ -88,7 +88,7 @@ The lab runs on VirtualBox with all VMs on an isolated NAT Network (`LabNet`, 10
 
 **Notable detection-engineering issue (100116).** The authorized-keys persistence rule (T1098.004) initially did not fire. The cause was an auditd limitation, not a Wazuh error: two `-w` watches covering the same path (`/root/.ssh/`) cannot both apply their keys, so writes to `authorized_keys` were emitted under the broader `t1552_004_ssh_keys` key and matched only rule 100113. Rather than fight auditd with overlapping watches, the fix follows a standard SOC pattern — collect broadly at the sensor, differentiate in the SIEM: 100116 was re-implemented as a child of 100113 (`<if_sid>100113</if_sid>`) that narrows on the `authorized_keys` path. This is now verified firing end-to-end (EVID-LIN-003).
 
-**Windows.** Process create (EID 1, EVID-WIN-001) and service creation (EID 7045 → rule 61138 → T1543.003, EVID-WIN-002) are verified in Wazuh. Seven custom Windows Sysmon rules (**100200–100206**) are deployed, each chaining off the relevant Wazuh built-in Sysmon base rule (EID 1 = 61603, EID 10 = 61612, EID 13 = 61615, EID 22 = 61624) and narrowing on `win.eventdata.*` fields: Office-spawns-shell (T1566/T1059), encoded PowerShell (T1059.001), LOLBins (T1218), LSASS access (T1003.001), PsExec service execution (T1021.002/T1569.002), Run-key persistence (T1547.001), and a DNS-tunnelling heuristic (T1048/T1071.004). **Three are verified firing:** encoded PowerShell (EVID-WIN-003), LOLBin execution (EVID-WIN-004), Run-key persistence (EVID-WIN-005), and LSASS credential dump (EVID-WIN-006). Office-spawn, PsExec, and the DNS heuristic are scheduled for the Atomic phase. Two tuning notes: **(a)** Run-key rule 100205 chains off 92300 and was re-narrowed to exclude `CurrentVersion\RunNotification` (a prefix-match FP observed in testing); **(b)** LSASS rule 100203 required three tuning rounds — untuned fired ~557 FPs on benign query-only reads, a positive mask allowlist missed `0x0xxx` dump masks, and the final form uses a negative exclusion for the three confirmed-benign masks (`0x1000`/`0x1400`/`0x3000`) plus sourceImage exclusions for `wazuh-agent.exe` and `MsMpEng.exe`. Verified on `rundll32.exe` at `0x1fffff` (comsvcs MiniDump) after setting `RunAsPPL=0`; the PPL pre-condition is documented as a real-world factor.
+**Windows.** Process create (EID 1, EVID-WIN-001) and service creation (EID 7045 → rule 61138 → T1543.003, EVID-WIN-002) are verified. **All seven custom Windows Sysmon rules (100200–100206) are now verified firing:** Office-spawns-shell (100200, EVID-WIN-007), encoded PowerShell (100201, EVID-WIN-003), LOLBins (100202, EVID-WIN-004), LSASS access (100203, EVID-WIN-006), PsExec service execution (100204, EVID-WIN-008), Run-key persistence (100205, EVID-WIN-005), and the DNS-tunnelling heuristic (100206, EVID-WIN-009). Each narrows on `win.eventdata.*` fields; most chain off the relevant built-in Sysmon base rule (EID 1 = 61603, EID 10 = 61612), with two exceptions — 100205 chains off the built-in Run-key parent 92300, and 100206 chains off the `sysmon_event_22` group rather than a direct `if_sid 61624`. Three findings worth recording: **(a)** Run-key 100205 was re-narrowed to exclude `CurrentVersion\RunNotification` (a prefix-match FP observed in testing); **(b)** LSASS 100203 took three tuning rounds — untuned fired ~557 FPs on benign query-only reads, a positive mask allowlist missed `0x0xxx` dump masks, and the final form excludes the confirmed-benign masks (`0x1000`/`0x1400`/`0x3000`) plus `wazuh-agent.exe`/`MsMpEng.exe` source images; verified on `rundll32.exe`/comsvcs at `0x1fffff` after setting `RunAsPPL=0` (a real-world pre-condition); **(c)** PsExec 100204 detects the default `PSEXESVC.exe` name and fires on Sysinternals PsExec, but impacket-psexec evades it with a randomly-named binary — the behavioural built-ins 92218/92307/92650 catch that variant instead, a clear indicator-vs-behavioural detection lesson.
 
 **Detection-engineering note (kept deliberately).** `execve` is collected but not alerted on directly — it is the substrate for targeted command-pattern rules; blanket exec alerting would bury the console. Rule 100100 was observed firing on legitimate `cron` PAM reads (a false positive); the planned tune scopes the audit rule to interactive users (`auid>=1000`). This baseline→FP→tuned progression is the detection-engineering story.
 
@@ -204,11 +204,14 @@ Every ✅ claim in this report maps to a captured artifact. (Consistent with REA
 | EVID-LIN-001 | Linux user creation detected | `evidence/week1/linux-useradd-t1136.png` |
 | EVID-LIN-002 | auditd `/etc/shadow` rule 100100 fired (T1003.008) | `evidence/week1/linux-shadow-t1003-008.png` |
 | EVID-LIN-003 | SSH `authorized_keys` persistence, rule 100116 fired (T1098.004) | `evidence/week2/linux-authorized-keys-t1098-004.png` |
-| EVID-WIN-003 | Encoded PowerShell, rule 100201 fired (T1059.001) | `evidence/week2/win-powershell-t1059-001.png` |
-| EVID-WIN-004 | LOLBin execution, rule 100202 fired (T1218) | `evidence/week2/win-lolbin-t1218.png` |
-| EVID-WIN-005 | Run-key persistence, rule 100205 fired (T1547.001) | `evidence/week2/win-runkey-t1547-001.png` |
-| EVID-WIN-006 | LSASS dump-grade access, rule 100203 fired (T1003.001) | `evidence/week2/win-lsass-t1003-001.png` |
+| EVID-WIN-003 | Encoded PowerShell, rule 100201 fired (T1059.001) | `evidence/week2/win_100201-powershell-T1059-001.png` |
+| EVID-WIN-004 | LOLBin execution, rule 100202 fired (T1218) | `evidence/week2/win_100202-lolbin-T1218.png` |
+| EVID-WIN-005 | Run-key persistence, rule 100205 fired (T1547.001) | `evidence/week2/win_100205-runkey-T1547-001.png` |
+| EVID-WIN-006 | LSASS dump-grade access, rule 100203 fired (T1003.001) | `evidence/week2/win_100203-Lsass_Access-T1003_001.png` |
 | EVID-RULES-001 | `local_rules.xml` validates + loads clean | `evidence/week1/wazuh-rules-load.png` |
+| EVID-WIN-007 | Office spawns shell, rule 100200 fired (T1566 / T1059) | `evidence/week2/win_100200-office_shell-T1566_T1059.png` |
+| EVID-WIN-008 | PsExec service execution, rule 100204 fired (T1021.002 / T1569.002) | `evidence/week3/win_100204-PsExec-T1021_002.png` |
+| EVID-WIN-009 | DNS tunneling, rule 100206 fired (T1048 /T1071.004) | `evidence/week3/win_100206-DNS_tunneling-T1071_004.png` |
 
 _TODO: capture each screenshot into `evidence/week1/`; add Week 2–3 evidence (dashboards, Atomic runs, assistant, redaction proof test) as those land._
 

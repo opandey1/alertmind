@@ -1,0 +1,90 @@
+notroot@wazuh-siem:~$ sudo grep '"id":"100203"' /var/ossec/logs/alerts/alerts.json | tail -10   | jq '{time:.timestamp, agent:.agent.name, rule:.rule.id, level:.rule.level, desc:.rule.description, mitre:.rule.mitre, image:.data.win.eventdata.image, cmd:.data.win.eventdata.commandLine, target:.data.win.eventdata.targetObject, query:.data.win.eventdata.queryName}'
+[sudo] password for notroot: 
+{
+  "time": "2026-07-06T01:03:40.708+0530",
+  "agent": "win-victim",
+  "rule": "100203",
+  "level": 12,
+  "desc": "AlertMind: LSASS access by C:\\\\WINDOWS\\\\system32\\\\rundll32.exe (granted 0x1410) - possible credential dumping (T1003.001)",
+  "mitre": {
+    "id": [
+      "T1003.001"
+    ],
+    "tactic": [
+      "Credential Access"
+    ],
+    "technique": [
+      "LSASS Memory"
+    ]
+  },
+  "image": null,
+  "cmd": null,
+  "target": null,
+  "query": null
+}
+{
+  "time": "2026-07-06T01:03:40.750+0530",
+  "agent": "win-victim",
+  "rule": "100203",
+  "level": 12,
+  "desc": "AlertMind: LSASS access by C:\\\\WINDOWS\\\\system32\\\\rundll32.exe (granted 0x1fffff) - possible credential dumping (T1003.001)",
+  "mitre": {
+    "id": [
+      "T1003.001"
+    ],
+    "tactic": [
+      "Credential Access"
+    ],
+    "technique": [
+      "LSASS Memory"
+    ]
+  },
+  "image": null,
+  "cmd": null,
+  "target": null,
+  "query": null
+}
+{
+  "time": "2026-07-06T01:04:22.012+0530",
+  "agent": "win-victim",
+  "rule": "100203",
+  "level": 12,
+  "desc": "AlertMind: LSASS access by C:\\\\WINDOWS\\\\system32\\\\rundll32.exe (granted 0x1410) - possible credential dumping (T1003.001)",
+  "mitre": {
+    "id": [
+      "T1003.001"
+    ],
+    "tactic": [
+      "Credential Access"
+    ],
+    "technique": [
+      "LSASS Memory"
+    ]
+  },
+  "image": null,
+  "cmd": null,
+  "target": null,
+  "query": null
+}
+{
+  "time": "2026-07-06T01:04:22.026+0530",
+  "agent": "win-victim",
+  "rule": "100203",
+  "level": 12,
+  "desc": "AlertMind: LSASS access by C:\\\\WINDOWS\\\\system32\\\\rundll32.exe (granted 0x1fffff) - possible credential dumping (T1003.001)",
+  "mitre": {
+    "id": [
+      "T1003.001"
+    ],
+    "tactic": [
+      "Credential Access"
+    ],
+    "technique": [
+      "LSASS Memory"
+    ]
+  },
+  "image": null,
+  "cmd": null,
+  "target": null,
+  "query": null
+}

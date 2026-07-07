@@ -1,0 +1,23 @@
+notroot@wazuh-siem:~$ sudo grep '"id":"100201"' /var/ossec/logs/alerts/alerts.json | tail -10   | jq '{time:.timestamp, agent:.agent.name, rule:.rule.id, level:.rule.level, desc:.rule.description, mitre:.rule.mitre, image:.data.win.eventdata.image, cmd:.data.win.eventdata.commandLine, target:.data.win.eventdata.targetObject, query:.data.win.eventdata.queryName}'
+{
+  "time": "2026-07-05T15:51:42.689+0530",
+  "agent": "win-victim",
+  "rule": "100201",
+  "level": 12,
+  "desc": "AlertMind: PowerShell encoded command executed - possible obfuscated payload (T1059.001)",
+  "mitre": {
+    "id": [
+      "T1059.001"
+    ],
+    "tactic": [
+      "Execution"
+    ],
+    "technique": [
+      "PowerShell"
+    ]
+  },
+  "image": "C:\\\\Windows\\\\System32\\\\WindowsPowerShell\\\\v1.0\\\\powershell.exe",
+  "cmd": "\\\"C:\\\\WINDOWS\\\\System32\\\\WindowsPowerShell\\\\v1.0\\\\powershell.exe\\\" -NoProfile -EncodedCommand QQBsAGUAcgB0AE0AaQBuAGQAIABFAG4AYwBvAGQAZQBkACAAUABvAHcAZQByAFMAaABlAGwAbAAgAFQAZQBzAHQA",
+  "target": null,
+  "query": null
+}
