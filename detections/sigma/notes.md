@@ -23,21 +23,21 @@ Every Linux Sigma rule maps to a deployed Wazuh rule in `siem/wazuh/local_rules.
 | Sigma file | ATT&CK | Wazuh rule | Status |
 |---|---|---|---|
 | `lnx_t1003_008_shadow_read.yml` | T1003.008 | 100100 | ✅ (EVID-LIN-002) |
-| `lnx_t1136_accounts.yml` | T1136 / T1098 | 100101 | 🟡 |
-| `lnx_t1548_003_sudoers.yml` | T1548.003 | 100102 | 🟡 |
-| `lnx_t1053_003_cron.yml` | T1053.003 | 100103 | 🟡 |
-| `lnx_t1543_002_systemd.yml` | T1543.002 | 100104 | 🟡 |
-| `lnx_t1037_init.yml` | T1037 | 100105 | 🟡 |
-| `lnx_t1546_004_shell_init.yml` | T1546.004 | 100106 | 🟡 |
-| `lnx_t1574_006_ldpreload.yml` | T1574.006 | 100107 | 🟡 |
-| `lnx_t1547_006_kmod.yml` | T1547.006 / T1014 | 100108 | 🟡 |
-| `lnx_t1548_001_setuid.yml` | T1548.001 / T1222.002 | 100109 | 🟡 |
-| `lnx_t1562_001_audit_tamper.yml` | T1562.001 | 100110 | 🟡 |
-| `lnx_t1070_logs.yml` | T1070 | 100111 | 🟡 |
-| `lnx_t1070_006_timestomp.yml` | T1070.006 | 100112 | 🟡 |
-| `lnx_t1552_004_ssh_keys.yml` | T1552.004 | 100113 | 🟡 |
-| `lnx_ssh_daemon_config_change.yml` | T1098 *(broad; see caveats)* | 100114 | 🟡 |
-| `lnx_apt_repo_config.yml` | T1195.001 *(tentative)* | 100115 | 🟡 |
+| `lnx_t1136_accounts.yml` | T1136 / T1098 | 100101 | ✅ (EVID-LIN-004) |
+| `lnx_t1548_003_sudoers.yml` | T1548.003 | 100102 | ✅ (EVID-LIN-005) |
+| `lnx_t1053_003_cron.yml` | T1053.003 | 100103 | ✅ (EVID-LIN-006) |
+| `lnx_t1543_002_systemd.yml` | T1543.002 | 100104 | ✅ (EVID-LIN-007) |
+| `lnx_t1037_init.yml` | T1037 | 100105 | ✅ (EVID-LIN-008) |
+| `lnx_t1546_004_shell_init.yml` | T1546.004 | 100106 | ✅ (EVID-LIN-009) |
+| `lnx_t1574_006_ldpreload.yml` | T1574.006 | 100107 | ✅ (EVID-LIN-010) |
+| `lnx_t1547_006_kmod.yml` | T1547.006 / T1014 | 100108 | ✅ (EVID-LIN-011) |
+| `lnx_t1548_001_setuid.yml` | T1548.001 / T1222.002 | 100109 | ✅ (EVID-LIN-012) |
+| `lnx_t1562_001_audit_tamper.yml` | T1562.001 | 100110 | ✅ (EVID-LIN-013) |
+| `lnx_t1070_logs.yml` | T1070 | 100111 | ✅ (EVID-LIN-014) |
+| `lnx_t1070_006_timestomp.yml` | T1070.006 | 100112 | ✅ (EVID-LIN-015) |
+| `lnx_t1552_004_ssh_keys.yml` | T1552.004 | 100113 | ✅ (EVID-LIN-016) |
+| `lnx_ssh_daemon_config_change.yml` | T1098 *(broad; see caveats)* | 100114 | ✅ (EVID-LIN-017) |
+| `lnx_apt_repo_config.yml` | T1195.001 *(tentative)* | 100115 | ✅ (EVID-LIN-018) |
 | `lnx_t1098_004_authorized_keys.yml` | T1098.004 | 100116 *(child of 100113)* | ✅ (EVID-LIN-003) |
 
 `alertmind.rules` also sets `t1059_exec`, but that key is intentionally **not** part of the levelled Linux alert pack. It is high-volume execution substrate telemetry reserved for future targeted command-pattern detections (suspicious `curl|bash`, reverse-shell commands, suspicious `chmod`/`chown`). Alerting on every `execve` event would create excessive noise. (`noise` is a suppression key and likewise not an alert.)

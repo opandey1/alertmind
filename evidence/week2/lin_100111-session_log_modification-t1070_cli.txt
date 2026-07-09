@@ -1,0 +1,164 @@
+RULE_ID="100111"
+sudo grep "\"id\":\"$RULE_ID\"" /var/ossec/logs/alerts/alerts.json | tail -10 \
+| jq '
+def audit_meta:
+(.full_log | capture("audit\\((?<epoch>[0-9]+\\.[0-9]+):(?<serial>[0-9]+)\\)")?) as $m
+| if $m then
+{
+audit_epoch: $m.epoch,
+audit_serial: $m.serial,
+attack_time_utc: (($m.epoch | tonumber | floor) | todateiso8601)
+}
+else
+{
+audit_epoch: null,
+audit_serial: null,
+attack_time_utc: null
+}
+end;
+
+audit_meta as $audit
+| {
+attack_time_utc: $audit.attack_time_utc,
+audit_epoch: $audit.audit_epoch,
+audit_serial: $audit.audit_serial,
+alert_time: .timestamp,
+
+agent: .agent.name,
+rule: .rule.id,
+level: .rule.level,
+desc: .rule.description,
+mitre: .rule.mitre,
+
+audit_key: .data.audit.key,
+audit_type: .data.audit.type,
+syscall: .data.audit.syscall,
+success: .data.audit.success,
+exit: .data.audit.exit,
+
+command: .data.audit.command,
+exe: .data.audit.exe,
+cwd: .data.audit.cwd,
+file: .data.audit.file.name,
+
+auid: .data.audit.auid,
+uid: .data.audit.uid,
+euid: .data.audit.euid,
+gid: .data.audit.gid,
+tty: .data.audit.tty,
+pid: .data.audit.pid,
+ppid: .data.audit.ppid
+}'
+
+
+{
+  "attack_time_utc": "2026-07-08T17:53:17Z",
+  "audit_epoch": "1783533197.813",
+  "audit_serial": "77951",
+  "alert_time": "2026-07-08T23:23:19.571+0530",
+  "agent": "linux-victim",
+  "rule": "100111",
+  "level": 10,
+  "desc": "AlertMind: Login/session log modified (wtmp/btmp/utmp) - indicator removal (T1070)",
+  "mitre": {
+    "id": [
+      "T1070"
+    ],
+    "tactic": [
+      "Defense Evasion"
+    ],
+    "technique": [
+      "Indicator Removal"
+    ]
+  },
+  "audit_key": "t1070_logs",
+  "audit_type": "SYSCALL",
+  "syscall": "257",
+  "success": "yes",
+  "exit": "12",
+  "command": "sudo",
+  "exe": "/usr/bin/sudo",
+  "cwd": "/home/notroot",
+  "file": "/var/run/utmp",
+  "auid": "1000",
+  "uid": "1000",
+  "euid": "0",
+  "gid": "1000",
+  "tty": "pts0",
+  "pid": "53344",
+  "ppid": "4022"
+}
+{
+  "attack_time_utc": "2026-07-08T17:53:17Z",
+  "audit_epoch": "1783533197.822",
+  "audit_serial": "77955",
+  "alert_time": "2026-07-08T23:23:19.590+0530",
+  "agent": "linux-victim",
+  "rule": "100111",
+  "level": 10,
+  "desc": "AlertMind: Login/session log modified (wtmp/btmp/utmp) - indicator removal (T1070)",
+  "mitre": {
+    "id": [
+      "T1070"
+    ],
+    "tactic": [
+      "Defense Evasion"
+    ],
+    "technique": [
+      "Indicator Removal"
+    ]
+  },
+  "audit_key": "t1070_logs",
+  "audit_type": "SYSCALL",
+  "syscall": "257",
+  "success": "yes",
+  "exit": "3",
+  "command": "bash",
+  "exe": "/usr/bin/bash",
+  "cwd": "/home/notroot",
+  "file": "/var/log/btmp",
+  "auid": "1000",
+  "uid": "0",
+  "euid": "0",
+  "gid": "0",
+  "tty": "pts1",
+  "pid": "53346",
+  "ppid": "53345"
+}
+{
+  "attack_time_utc": "2026-07-08T17:53:17Z",
+  "audit_epoch": "1783533197.825",
+  "audit_serial": "77956",
+  "alert_time": "2026-07-08T23:23:19.593+0530",
+  "agent": "linux-victim",
+  "rule": "100111",
+  "level": 10,
+  "desc": "AlertMind: Login/session log modified (wtmp/btmp/utmp) - indicator removal (T1070)",
+  "mitre": {
+    "id": [
+      "T1070"
+    ],
+    "tactic": [
+      "Defense Evasion"
+    ],
+    "technique": [
+      "Indicator Removal"
+    ]
+  },
+  "audit_key": "t1070_logs",
+  "audit_type": "SYSCALL",
+  "syscall": "257",
+  "success": "yes",
+  "exit": "12",
+  "command": "sudo",
+  "exe": "/usr/bin/sudo",
+  "cwd": "/home/notroot",
+  "file": "/var/run/utmp",
+  "auid": "1000",
+  "uid": "1000",
+  "euid": "0",
+  "gid": "0",
+  "tty": "pts0",
+  "pid": "53344",
+  "ppid": "4022"
+}

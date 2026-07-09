@@ -49,23 +49,34 @@ Dashboards (daily SOC briefing + ATT&CK heatmap) · three NIST 800-61 IR playboo
 ---
 
 ## Week 2 — Dashboards, Playbooks, Baseline
-**Dates:** 29 Jun – 5 Jul 2026 · **Effort target:** ~12h · **Status:** 🚧 In progress — detection layer completed; dashboards/playbooks/baseline pending
+**Dates:** 29 Jun – 8 Jul 2026 (status as of 8 Jul) · **Effort:** ~16h (detection debugging ran long) · **Status:** 🚧 In progress — detection layer complete and fully verified (all Windows + Linux rules); dashboards + IR playbooks shipped; unassisted baseline triage in progress
 
 ### Shipped
-- Sigma rule pack authored and validated: 25 rules (8 Windows + 17 Linux), all pass pySigma; `detections/sigma/notes.md` documents the Sigma → Wazuh crosswalk with honest Verified/Configured/Planned status.
-- Detection mappings tightened after review: renamed keys to precise ATT&CK IDs (`t1195_001_apt_repo_config`, `t1098_sshd_config`), added T1222.002 to the setuid rule and T1569.002 to the PsExec rule, expanded encoded-PowerShell flags.
-- Added a precise T1098.004 detection — SSH `authorized_keys` persistence (rule 100116) — and verified it firing end-to-end (EVID-LIN-003).
+- **Sigma rule pack** authored and validated: 25 rules (8 Windows + 17 Linux), all pass pySigma; `detections/sigma/notes.md` holds the Sigma → Wazuh crosswalk with honest Verified/Configured status.
+- **Detection mappings tightened** after review: keys renamed to precise ATT&CK IDs (`t1195_001_apt_repo_config`, `t1098_sshd_config`), T1222.002 added to the setuid rule, T1569.002 to the PsExec rule, encoded-PowerShell flags expanded.
+- **Seven custom Windows Sysmon rules (100200–100206)** authored — each chaining off the relevant built-in Sysmon base rule (EID 1 = 61603, EID 10 = 61612), with 100205 on the Run-key parent 92300 and 100206 on the `sysmon_event_22` group — and **all seven verified firing** (office-spawn, encoded PowerShell, LOLBin, LSASS, PsExec, Run-key, DNS tunnelling). _Evidence: EVID-WIN-003 … EVID-WIN-009._
+- **Full Linux custom-rule pack (100100–100116) verified end-to-end** — all 17 rules confirmed firing on 8 Jul via targeted triggers on each watched path, each with a per-rule screenshot + CLI capture. _Evidence: EVID-LIN-002, EVID-LIN-004 … EVID-LIN-018, EVID-LIN-003._
+- **Two ATT&CK-aligned dashboards:** a MITRE Navigator layer covering all 30 detected techniques (status-scored) plus a build guide for the Daily SOC Briefing and the in-SIEM ATT&CK heatmap (`siem/dashboards/`).
+- **Three NIST SP 800-61 IR playbooks** (phishing, malware, account-compromise): four-phase, role-specific, each mapped to AlertMind rule IDs and Discover queries (`playbooks/`).
+- **Atomic attack-chain plan** (`attack/atomic-plan.md`) mapping every rule to a concrete trigger, plus measurement scaffolding (`measurement/timing-log.csv`, `alert-corpus.json`) and the baseline protocol (four timestamps, benign-salted corpus, A/B counterbalancing).
 
 ### Blocked → resolved
-- **Rule 100116 not firing.** Root cause was an auditd limitation, not Wazuh: two `-w` watches on the same path (`/root/.ssh/`) can't both apply their keys, so `authorized_keys` writes were keyed `t1552_004_ssh_keys` and only matched rule 100113. Resolved by collecting broadly in auditd and adding specificity in the SIEM — 100116 re-implemented as a child of 100113 narrowing on the `authorized_keys` path. Verified (EVID-LIN-003).
+| Issue | Root cause | Resolution |
+|---|---|---|
+| Rule 100116 (authorized_keys) not firing | Two overlapping `-w` watches on `/root/.ssh/` collapse to one key; writes were keyed `t1552_004_ssh_keys` | Re-implemented 100116 as a child of 100113 (`if_sid 100113` + `authorized_keys` path narrow) — broad sensor, specific SIEM rule |
+| Windows Run-key 100205 not firing (~7 iterations) | Wazuh stores registry paths with doubled backslashes; built-in 92302 outranked it; flaky agent connectivity + duplicate localfile lost test events | Chain off built-in Run-key parent 92300 at level 10; dedupe agent localfile + stabilise connectivity; re-narrow to exclude the `RunNotification` prefix-match FP |
+| LSASS 100203 — ~557 false positives, then real dump missed (3 rounds) | Untuned fired on all LSASS access; a positive `0x1xxx` mask allowlist missed common `0x0xxx` dump masks (e.g. `0x0410`) | Negative exclusion of benign masks (`0x1000`/`0x1400`/`0x3000`) + sourceImage exclusion (`wazuh-agent.exe`, `MsMpEng.exe`); `RunAsPPL=0` required for the dump to succeed |
+| PsExec 100204 not firing on impacket-psexec | impacket uploads a randomly-named binary/service (not `PSEXESVC.exe`), evading the name-based indicator | 100204 verified on Sysinternals PsExec; behavioural built-ins 92218/92307/92650 catch the impacket variant — indicator-vs-behavioural detection |
+| DNS 100206 chain | Direct `if_sid 61624` did not match reliably | Chain from the `sysmon_event_22` group (final working pattern for Sysmon DNS-query events) |
 
 ### Known items carried forward
-- Windows Sysmon detections (office-spawn, encoded PowerShell, LOLBin, LSASS, run-key) need dedicated custom Wazuh rules to move from 🟡 to ✅.
-- Rule 100100 `/etc/shadow` auid tune still to apply.
-- Still to do this week: dashboards (daily briefing + ATT&CK heatmap), three NIST 800-61 IR playbooks, stand up the Kali attacker, run the Atomic chain, capture the unassisted baseline.
+- **Unassisted baseline triage in progress:** freeze `alert-corpus.json` (attacks + salted benign FPs from `Alert_corpus_linux.txt` / `Alert_corpus_windows.txt`) and populate `measurement/timing-log.csv`.
+- **Dashboards:** build both in the Wazuh UI and capture screenshots (Navigator layer + build guide done; in-SIEM build pending).
+- Rule 100100 `/etc/shadow` `auid` tune still to apply.
+- Cloud telemetry sample not yet ingested (optional 3rd source).
 
 ### Next week (Week 3)
-- LLM assistant + guardrails (redaction before/after proof), assisted measurement, final report + defense deck.
+- LLM assistant + guardrails (redaction before/after proof), assisted measurement vs. this baseline, final report + defense deck.
 
 ---
 

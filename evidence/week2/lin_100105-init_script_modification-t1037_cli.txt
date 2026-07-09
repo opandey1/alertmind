@@ -1,0 +1,204 @@
+RULE_ID="100105"
+sudo grep "\"id\":\"$RULE_ID\"" /var/ossec/logs/alerts/alerts.json | tail -10 \
+| jq '
+def audit_meta:
+(.full_log | capture("audit\\((?<epoch>[0-9]+\\.[0-9]+):(?<serial>[0-9]+)\\)")?) as $m
+| if $m then
+{
+audit_epoch: $m.epoch,
+audit_serial: $m.serial,
+attack_time_utc: (($m.epoch | tonumber | floor) | todateiso8601)
+}
+else
+{
+audit_epoch: null,
+audit_serial: null,
+attack_time_utc: null
+}
+end;
+
+audit_meta as $audit
+| {
+attack_time_utc: $audit.attack_time_utc,
+audit_epoch: $audit.audit_epoch,
+audit_serial: $audit.audit_serial,
+alert_time: .timestamp,
+
+agent: .agent.name,
+rule: .rule.id,
+level: .rule.level,
+desc: .rule.description,
+mitre: .rule.mitre,
+
+audit_key: .data.audit.key,
+audit_type: .data.audit.type,
+syscall: .data.audit.syscall,
+success: .data.audit.success,
+exit: .data.audit.exit,
+
+command: .data.audit.command,
+exe: .data.audit.exe,
+cwd: .data.audit.cwd,
+file: .data.audit.file.name,
+
+auid: .data.audit.auid,
+uid: .data.audit.uid,
+euid: .data.audit.euid,
+gid: .data.audit.gid,
+tty: .data.audit.tty,
+pid: .data.audit.pid,
+ppid: .data.audit.ppid
+}'
+
+{
+  "attack_time_utc": "2026-07-08T19:42:45Z",
+  "audit_epoch": "1783539765.038",
+  "audit_serial": "79937",
+  "alert_time": "2026-07-09T01:12:46.711+0530",
+  "agent": "linux-victim",
+  "rule": "100105",
+  "level": 8,
+  "desc": "AlertMind: Boot/logon init script modified (rc.local / init.d) (T1037)",
+  "mitre": {
+    "id": [
+      "T1037"
+    ],
+    "tactic": [
+      "Persistence",
+      "Privilege Escalation"
+    ],
+    "technique": [
+      "Boot or Logon Initialization Scripts"
+    ]
+  },
+  "audit_key": "t1037_init",
+  "audit_type": "SYSCALL",
+  "syscall": "257",
+  "success": "yes",
+  "exit": "3",
+  "command": "tee",
+  "exe": "/usr/bin/tee",
+  "cwd": "/home/notroot",
+  "file": "/etc/init.d/amtest_t1037_AM-LIN-T1037-20260708194238",
+  "auid": "1000",
+  "uid": "0",
+  "euid": "0",
+  "gid": "0",
+  "tty": "pts1",
+  "pid": "57504",
+  "ppid": "57503"
+}
+{
+  "attack_time_utc": "2026-07-08T19:42:45Z",
+  "audit_epoch": "1783539765.098",
+  "audit_serial": "79949",
+  "alert_time": "2026-07-09T01:12:46.744+0530",
+  "agent": "linux-victim",
+  "rule": "100105",
+  "level": 8,
+  "desc": "AlertMind: Boot/logon init script modified (rc.local / init.d) (T1037)",
+  "mitre": {
+    "id": [
+      "T1037"
+    ],
+    "tactic": [
+      "Persistence",
+      "Privilege Escalation"
+    ],
+    "technique": [
+      "Boot or Logon Initialization Scripts"
+    ]
+  },
+  "audit_key": "t1037_init",
+  "audit_type": "SYSCALL",
+  "syscall": "268",
+  "success": "yes",
+  "exit": "0",
+  "command": "chmod",
+  "exe": "/usr/bin/chmod",
+  "cwd": "/home/notroot",
+  "file": "/etc/init.d/amtest_t1037_AM-LIN-T1037-20260708194238",
+  "auid": "1000",
+  "uid": "0",
+  "euid": "0",
+  "gid": "0",
+  "tty": "pts1",
+  "pid": "57507",
+  "ppid": "57506"
+}
+{
+  "attack_time_utc": "2026-07-08T19:44:17Z",
+  "audit_epoch": "1783539857.268",
+  "audit_serial": "79987",
+  "alert_time": "2026-07-09T01:14:18.817+0530",
+  "agent": "linux-victim",
+  "rule": "100105",
+  "level": 8,
+  "desc": "AlertMind: Boot/logon init script modified (rc.local / init.d) (T1037)",
+  "mitre": {
+    "id": [
+      "T1037"
+    ],
+    "tactic": [
+      "Persistence",
+      "Privilege Escalation"
+    ],
+    "technique": [
+      "Boot or Logon Initialization Scripts"
+    ]
+  },
+  "audit_key": "t1037_init",
+  "audit_type": "SYSCALL",
+  "syscall": "257",
+  "success": "yes",
+  "exit": "3",
+  "command": "tee",
+  "exe": "/usr/bin/tee",
+  "cwd": "/home/notroot",
+  "file": "/etc/init.d/amtest_t1037_AM-LIN-T1037-20260708194334",
+  "auid": "1000",
+  "uid": "0",
+  "euid": "0",
+  "gid": "0",
+  "tty": "pts1",
+  "pid": "57611",
+  "ppid": "57610"
+}
+{
+  "attack_time_utc": "2026-07-08T19:44:20Z",
+  "audit_epoch": "1783539860.753",
+  "audit_serial": "79999",
+  "alert_time": "2026-07-09T01:14:22.825+0530",
+  "agent": "linux-victim",
+  "rule": "100105",
+  "level": 8,
+  "desc": "AlertMind: Boot/logon init script modified (rc.local / init.d) (T1037)",
+  "mitre": {
+    "id": [
+      "T1037"
+    ],
+    "tactic": [
+      "Persistence",
+      "Privilege Escalation"
+    ],
+    "technique": [
+      "Boot or Logon Initialization Scripts"
+    ]
+  },
+  "audit_key": "t1037_init",
+  "audit_type": "SYSCALL",
+  "syscall": "268",
+  "success": "yes",
+  "exit": "0",
+  "command": "chmod",
+  "exe": "/usr/bin/chmod",
+  "cwd": "/home/notroot",
+  "file": "/etc/init.d/amtest_t1037_AM-LIN-T1037-20260708194334",
+  "auid": "1000",
+  "uid": "0",
+  "euid": "0",
+  "gid": "0",
+  "tty": "pts1",
+  "pid": "57616",
+  "ppid": "57615"
+}

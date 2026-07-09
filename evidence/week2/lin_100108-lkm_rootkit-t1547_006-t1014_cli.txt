@@ -1,0 +1,134 @@
+RULE_ID="100108"
+sudo grep "\"id\":\"$RULE_ID\"" /var/ossec/logs/alerts/alerts.json | tail -10 \
+| jq '
+def audit_meta:
+(.full_log | capture("audit\\((?<epoch>[0-9]+\\.[0-9]+):(?<serial>[0-9]+)\\)")?) as $m
+| if $m then
+{
+audit_epoch: $m.epoch,
+audit_serial: $m.serial,
+attack_time_utc: (($m.epoch | tonumber | floor) | todateiso8601)
+}
+else
+{
+audit_epoch: null,
+audit_serial: null,
+attack_time_utc: null
+}
+end;
+
+audit_meta as $audit
+| {
+attack_time_utc: $audit.attack_time_utc,
+audit_epoch: $audit.audit_epoch,
+audit_serial: $audit.audit_serial,
+alert_time: .timestamp,
+
+agent: .agent.name,
+rule: .rule.id,
+level: .rule.level,
+desc: .rule.description,
+mitre: .rule.mitre,
+
+audit_key: .data.audit.key,
+audit_type: .data.audit.type,
+syscall: .data.audit.syscall,
+success: .data.audit.success,
+exit: .data.audit.exit,
+
+command: .data.audit.command,
+exe: .data.audit.exe,
+cwd: .data.audit.cwd,
+file: .data.audit.file.name,
+
+auid: .data.audit.auid,
+uid: .data.audit.uid,
+euid: .data.audit.euid,
+gid: .data.audit.gid,
+tty: .data.audit.tty,
+pid: .data.audit.pid,
+ppid: .data.audit.ppid
+}'
+
+{
+  "attack_time_utc": "2026-07-08T17:29:09Z",
+  "audit_epoch": "1783531749.723",
+  "audit_serial": "76435",
+  "alert_time": "2026-07-08T22:59:11.354+0530",
+  "agent": "linux-victim",
+  "rule": "100108",
+  "level": 12,
+  "desc": "AlertMind: Kernel module load/unload or modprobe config change - possible LKM rootkit (T1547.006 / T1014)",
+  "mitre": {
+    "id": [
+      "T1547.006",
+      "T1014"
+    ],
+    "tactic": [
+      "Persistence",
+      "Privilege Escalation",
+      "Defense Evasion"
+    ],
+    "technique": [
+      "Kernel Modules and Extensions",
+      "Rootkit"
+    ]
+  },
+  "audit_key": "t1547_006_kmod",
+  "audit_type": "SYSCALL",
+  "syscall": "313",
+  "success": "yes",
+  "exit": "0",
+  "command": "modprobe",
+  "exe": "/usr/bin/kmod",
+  "cwd": null,
+  "file": null,
+  "auid": "1000",
+  "uid": "0",
+  "euid": "0",
+  "gid": "0",
+  "tty": "pts1",
+  "pid": "51813",
+  "ppid": "51812"
+}
+{
+  "attack_time_utc": "2026-07-08T17:29:25Z",
+  "audit_epoch": "1783531765.535",
+  "audit_serial": "76458",
+  "alert_time": "2026-07-08T22:59:27.405+0530",
+  "agent": "linux-victim",
+  "rule": "100108",
+  "level": 12,
+  "desc": "AlertMind: Kernel module load/unload or modprobe config change - possible LKM rootkit (T1547.006 / T1014)",
+  "mitre": {
+    "id": [
+      "T1547.006",
+      "T1014"
+    ],
+    "tactic": [
+      "Persistence",
+      "Privilege Escalation",
+      "Defense Evasion"
+    ],
+    "technique": [
+      "Kernel Modules and Extensions",
+      "Rootkit"
+    ]
+  },
+  "audit_key": "t1547_006_kmod",
+  "audit_type": "SYSCALL",
+  "syscall": "176",
+  "success": "yes",
+  "exit": "0",
+  "command": "modprobe",
+  "exe": "/usr/bin/kmod",
+  "cwd": null,
+  "file": null,
+  "auid": "1000",
+  "uid": "0",
+  "euid": "0",
+  "gid": "0",
+  "tty": "pts1",
+  "pid": "51824",
+  "ppid": "51823"
+}

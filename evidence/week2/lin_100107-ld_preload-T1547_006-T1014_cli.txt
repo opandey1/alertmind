@@ -1,0 +1,91 @@
+RULE_ID="100107"
+sudo grep "\"id\":\"$RULE_ID\"" /var/ossec/logs/alerts/alerts.json | tail -10 \
+| jq '
+def audit_meta:
+(.full_log | capture("audit\\((?<epoch>[0-9]+\\.[0-9]+):(?<serial>[0-9]+)\\)")?) as $m
+| if $m then
+{
+audit_epoch: $m.epoch,
+audit_serial: $m.serial,
+attack_time_utc: (($m.epoch | tonumber | floor) | todateiso8601)
+}
+else
+{
+audit_epoch: null,
+audit_serial: null,
+attack_time_utc: null
+}
+end;
+
+audit_meta as $audit
+| {
+attack_time_utc: $audit.attack_time_utc,
+audit_epoch: $audit.audit_epoch,
+audit_serial: $audit.audit_serial,
+alert_time: .timestamp,
+
+agent: .agent.name,
+rule: .rule.id,
+level: .rule.level,
+desc: .rule.description,
+mitre: .rule.mitre,
+
+audit_key: .data.audit.key,
+audit_type: .data.audit.type,
+syscall: .data.audit.syscall,
+success: .data.audit.success,
+exit: .data.audit.exit,
+
+command: .data.audit.command,
+exe: .data.audit.exe,
+cwd: .data.audit.cwd,
+file: .data.audit.file.name,
+
+auid: .data.audit.auid,
+uid: .data.audit.uid,
+euid: .data.audit.euid,
+gid: .data.audit.gid,
+tty: .data.audit.tty,
+pid: .data.audit.pid,
+ppid: .data.audit.ppid
+}'
+
+{
+  "attack_time_utc": "2026-07-08T17:26:09Z",
+  "audit_epoch": "1783531569.616",
+  "audit_serial": "76386",
+  "alert_time": "2026-07-08T22:56:11.173+0530",
+  "agent": "linux-victim",
+  "rule": "100107",
+  "level": 13,
+  "desc": "AlertMind: Dynamic linker config modified (ld.so.preload/conf) - LD_PRELOAD hijack (T1574.006)",
+  "mitre": {
+    "id": [
+      "T1574.006"
+    ],
+    "tactic": [
+      "Persistence",
+      "Privilege Escalation",
+      "Defense Evasion"
+    ],
+    "technique": [
+      "Dynamic Linker Hijacking"
+    ]
+  },
+  "audit_key": "t1574_006_ldpreload",
+  "audit_type": "SYSCALL",
+  "syscall": "257",
+  "success": "yes",
+  "exit": "3",
+  "command": "tee",
+  "exe": "/usr/bin/tee",
+  "cwd": "/home/notroot",
+  "file": "/etc/ld.so.preload",
+  "auid": "1000",
+  "uid": "0",
+  "euid": "0",
+  "gid": "0",
+  "tty": "pts1",
+  "pid": "51719",
+  "ppid": "51718"
+}

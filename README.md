@@ -4,7 +4,7 @@
 
 **Capstone:** PG Certificate in AI/GenAI Powered Cybersecurity (IIT Roorkee × Futurense) · EC-Council **SOC Essentials (SCE)** track · Project code **CAP-SCE-3W** · Mode: **Solo**
 
-**Status:** 🟢 Week 1 infrastructure + Windows/Linux ingestion + Sigma/Wazuh detection source complete · 🟢 Windows custom rule verification complete · 🟡 dashboards, playbooks, attack baseline, and LLM assistant in progress
+**Status:** 🟢 Week 1–2 complete: infrastructure + Windows/Linux ingestion + Sigma/Wazuh detection source · 🟢 all Windows (100200–100206) and Linux (100100–100116) custom rules verified firing · 🟢 2 ATT&CK dashboards + 3 NIST 800-61 IR playbooks shipped · 🟡 unassisted baseline triage in progress · ⏳ Week 3 LLM assistant + impact measurement
 
 ---
 
@@ -109,26 +109,26 @@ Detections are deployed as Wazuh rules with a portable Sigma YAML source in `det
 
 **Linux (`linux-victim`) — auditd custom rule pack**
 
-Rules 100100 and 100116 are verified firing end-to-end; the remaining Linux rules are deployed (🟡 Configured) pending individual test triggers.
+All 17 Linux custom rules (100100–100116) are verified firing end-to-end (per-rule evidence EVID-LIN-002, EVID-LIN-004…018, EVID-LIN-003).
 
 | Detection | Key | ATT&CK | Rule | Status |
 |---|---|---|---|---|
 | `/etc/shadow` read | `t1003_008_shadow_read` | T1003.008 | 100100 | ✅ Verified |
-| User/group DB change | `t1136_accounts` | T1136 / T1098 | 100101 | 🟡 |
-| sudoers tampering | `t1548_003_sudoers` | T1548.003 | 100102 | 🟡 |
-| Cron persistence | `t1053_003_cron` | T1053.003 | 100103 | 🟡 |
-| systemd service | `t1543_002_systemd` | T1543.002 | 100104 | 🟡 |
-| Boot/init scripts | `t1037_init` | T1037 | 100105 | 🟡 |
-| Shell init files | `t1546_004_shell_init` | T1546.004 | 100106 | 🟡 |
-| LD_PRELOAD hijack | `t1574_006_ldpreload` | T1574.006 | 100107 | 🟡 |
-| Kernel module / rootkit | `t1547_006_kmod` | T1547.006 / T1014 | 100108 | 🟡 |
-| setuid/setgid change | `t1548_001_setuid` | T1548.001 / T1222.002 | 100109 | 🟡 |
-| auditd tampering | `t1562_001_audit_tamper` | T1562.001 | 100110 | 🟡 |
-| Login-log tampering | `t1070_logs` | T1070 | 100111 | 🟡 |
-| Timestomping | `t1070_006_timestomp` | T1070.006 | 100112 | 🟡 |
-| SSH key access | `t1552_004_ssh_keys` | T1552.004 | 100113 | 🟡 |
-| sshd_config change | `t1098_sshd_config` | T1098 *(tentative)* | 100114 | 🟡 |
-| Package mgr / repo config change | `t1195_001_apt_repo_config` | T1195.001 *(tentative)* | 100115 | 🟡 |
+| User/group DB change | `t1136_accounts` | T1136 / T1098 | 100101 | ✅ Verified (EVID-LIN-004) |
+| sudoers tampering | `t1548_003_sudoers` | T1548.003 | 100102 | ✅ Verified (EVID-LIN-005) |
+| Cron persistence | `t1053_003_cron` | T1053.003 | 100103 | ✅ Verified (EVID-LIN-006) |
+| systemd service | `t1543_002_systemd` | T1543.002 | 100104 | ✅ Verified (EVID-LIN-007) |
+| Boot/init scripts | `t1037_init` | T1037 | 100105 | ✅ Verified (EVID-LIN-008) |
+| Shell init files | `t1546_004_shell_init` | T1546.004 | 100106 | ✅ Verified (EVID-LIN-009) |
+| LD_PRELOAD hijack | `t1574_006_ldpreload` | T1574.006 | 100107 | ✅ Verified (EVID-LIN-010) |
+| Kernel module / rootkit | `t1547_006_kmod` | T1547.006 / T1014 | 100108 | ✅ Verified (EVID-LIN-011) |
+| setuid/setgid change | `t1548_001_setuid` | T1548.001 / T1222.002 | 100109 | ✅ Verified (EVID-LIN-012) |
+| auditd tampering | `t1562_001_audit_tamper` | T1562.001 | 100110 | ✅ Verified (EVID-LIN-013) |
+| Login-log tampering | `t1070_logs` | T1070 | 100111 | ✅ Verified (EVID-LIN-014) |
+| Timestomping | `t1070_006_timestomp` | T1070.006 | 100112 | ✅ Verified (EVID-LIN-015) |
+| SSH key access | `t1552_004_ssh_keys` | T1552.004 | 100113 | ✅ Verified (EVID-LIN-016) |
+| sshd_config change | `t1098_sshd_config` | T1098 *(tentative)* | 100114 | ✅ Verified (EVID-LIN-017) |
+| Package mgr / repo config change | `t1195_001_apt_repo_config` | T1195.001 *(tentative)* | 100115 | ✅ Verified (EVID-LIN-018) |
 | authorized_keys persistence | `t1552` + path *(child of 100113)* | T1098.004 | 100116 | ✅ Verified |
 
 ## 6. Quickstart
@@ -180,6 +180,21 @@ Every "Verified" claim above maps to a captured artifact in `evidence/`. (IDs ar
 | EVID-WIN-002 | Windows service creation (7045 → rule 61138) | `evidence/week1/win-system-7045-service.png` |
 | EVID-LIN-001 | Linux user creation detected | `evidence/week1/linux-useradd-t1136.png` |
 | EVID-LIN-002 | auditd `/etc/shadow` rule 100100 fired (T1003.008) | `evidence/week1/linux-shadow-t1003-008.png` |
+| EVID-LIN-004 | User/group DB modification, rule 100101 (T1136 / T1098) | `evidence/week2/lin_100101-useradd-T1136-T1098.png` |
+| EVID-LIN-005 | sudoers tampering, rule 100102 (T1548.003) | `evidence/week2/lin_100102-priv_escalation-T1548_003.png` |
+| EVID-LIN-006 | Cron persistence, rule 100103 (T1053.003) | `evidence/week2/lin_100103-scheduled_task-T1053_003.png` |
+| EVID-LIN-007 | systemd persistence, rule 100104 (T1543.002) | `evidence/week2/lin_100104-systemd_persistence-T1543_002.png` |
+| EVID-LIN-008 | Init-script modification, rule 100105 (T1037) | `evidence/week2/lin_100105-init_script_modification-t1037.png` |
+| EVID-LIN-009 | Shell-init modification, rule 100106 (T1546.004) | `evidence/week2/lin_100106-shell_init-T1546_004.png` |
+| EVID-LIN-010 | LD_PRELOAD hijack (ld.so.preload), rule 100107 (T1574.006) | `evidence/week2/lin_100107-ld_preload-T1574_006.png` |
+| EVID-LIN-011 | Kernel module / LKM rootkit, rule 100108 (T1547.006 / T1014) | `evidence/week2/lin_100108-lkm_rootkit-T1547_006-T1014.png` |
+| EVID-LIN-012 | setuid/setgid change, rule 100109 (T1548.001 / T1222.002) | `evidence/week2/lin_100109-setuid_bit_change-T1548_001.png` |
+| EVID-LIN-013 | auditd config tampering, rule 100110 (T1562.001) | `evidence/week2/lin_100110-auditd_config_T1562_001.png` |
+| EVID-LIN-014 | Session-log tampering, rule 100111 (T1070) | `evidence/week2/lin_100111-session_log_modification-t1070.png` |
+| EVID-LIN-015 | Timestomping, rule 100112 (T1070.006) | `evidence/week2/lin_100112-timestamp_modification-t1070_006.png` |
+| EVID-LIN-016 | SSH key access, rule 100113 (T1552.004) | `evidence/week2/lin_100113-authorized_keys_access-t1552_004.png` |
+| EVID-LIN-017 | sshd_config change, rule 100114 (T1098 broad) | `evidence/week2/lin_100114-sshd_access-t1098.png` |
+| EVID-LIN-018 | Package/repo config change, rule 100115 (T1195.001) | `evidence/week2/lin_100115-update_repo_config-t1195_001.png` |
 | EVID-RULES-001 | `local_rules.xml` validates + loads clean | `evidence/week1/wazuh-rules-load.png` |
 | EVID-LIN-003 | SSH `authorized_keys` persistence detected (rule 100116 / T1098.004) | `evidence/week2/linux-authorized-keys-t1098-004.png` |
 | EVID-WIN-003 | Encoded PowerShell detected (rule 100201 / T1059.001) | `evidence/week2/win-powershell-t1059-001.png` |
@@ -187,8 +202,8 @@ Every "Verified" claim above maps to a captured artifact in `evidence/`. (IDs ar
 | EVID-WIN-005 | Run-key persistence detected (rule 100205 / T1547.001) | `evidence/week2/win-runkey-t1547-001.png` |
 | EVID-WIN-006 | LSASS dump-grade access detected (rule 100203 / T1003.001) | `evidence/week2/win-lsass-t1003-001.png` |
 | EVID-WIN-007 | Office spawns shell detected (rule 100200 / T1566, T1059) | `evidence/week2/win-office-spawn-t1566.png` |
-| EVID-WIN-008 | PsExec service execution detected (rule 100204 / T1021.002, T1569.002) | `evidence/week3/win-psexec-t1021-002.png` |
-| EVID-WIN-009 | DNS tunneling heuristic detected (rule 100206 / T1048, T1071.004) | `evidence/week3/win-dns-tunnel-t1071-004.png` |
+| EVID-WIN-008 | PsExec service execution detected (rule 100204 / T1021.002, T1569.002) | `evidence/week2/win-psexec-t1021-002.png` |
+| EVID-WIN-009 | DNS tunneling heuristic detected (rule 100206 / T1048, T1071.004) | `evidence/week2/win-dns-tunnel-t1071-004.png` |
 
 
 ## 8. Measurement approach

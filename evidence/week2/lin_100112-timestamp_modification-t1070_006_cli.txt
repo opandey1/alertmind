@@ -1,0 +1,126 @@
+RULE_ID="100112"
+sudo grep "\"id\":\"$RULE_ID\"" /var/ossec/logs/alerts/alerts.json | tail -10 \
+| jq '
+def audit_meta:
+(.full_log | capture("audit\\((?<epoch>[0-9]+\\.[0-9]+):(?<serial>[0-9]+)\\)")?) as $m
+| if $m then
+{
+audit_epoch: $m.epoch,
+audit_serial: $m.serial,
+attack_time_utc: (($m.epoch | tonumber | floor) | todateiso8601)
+}
+else
+{
+audit_epoch: null,
+audit_serial: null,
+attack_time_utc: null
+}
+end;
+
+audit_meta as $audit
+| {
+attack_time_utc: $audit.attack_time_utc,
+audit_epoch: $audit.audit_epoch,
+audit_serial: $audit.audit_serial,
+alert_time: .timestamp,
+
+agent: .agent.name,
+rule: .rule.id,
+level: .rule.level,
+desc: .rule.description,
+mitre: .rule.mitre,
+
+audit_key: .data.audit.key,
+audit_type: .data.audit.type,
+syscall: .data.audit.syscall,
+success: .data.audit.success,
+exit: .data.audit.exit,
+
+command: .data.audit.command,
+exe: .data.audit.exe,
+cwd: .data.audit.cwd,
+file: .data.audit.file.name,
+
+auid: .data.audit.auid,
+uid: .data.audit.uid,
+euid: .data.audit.euid,
+gid: .data.audit.gid,
+tty: .data.audit.tty,
+pid: .data.audit.pid,
+ppid: .data.audit.ppid
+}'
+
+{
+  "attack_time_utc": "2026-07-08T18:47:57Z",
+  "audit_epoch": "1783536477.468",
+  "audit_serial": "78916",
+  "alert_time": "2026-07-09T00:17:57.747+0530",
+  "agent": "linux-victim",
+  "rule": "100112",
+  "level": 10,
+  "desc": "AlertMind: File timestamp modification by user - timestomping (T1070.006)",
+  "mitre": {
+    "id": [
+      "T1070.006"
+    ],
+    "tactic": [
+      "Defense Evasion"
+    ],
+    "technique": [
+      "Timestomp"
+    ]
+  },
+  "audit_key": "t1070_006_timestomp",
+  "audit_type": "SYSCALL",
+  "syscall": "280",
+  "success": "yes",
+  "exit": "0",
+  "command": "touch",
+  "exe": "/usr/bin/touch",
+  "cwd": null,
+  "file": null,
+  "auid": "1000",
+  "uid": "1000",
+  "euid": "1000",
+  "gid": "1000",
+  "tty": "pts0",
+  "pid": "55367",
+  "ppid": "4022"
+}
+{
+  "attack_time_utc": "2026-07-08T18:47:57Z",
+  "audit_epoch": "1783536477.462",
+  "audit_serial": "78914",
+  "alert_time": "2026-07-09T00:17:57.747+0530",
+  "agent": "linux-victim",
+  "rule": "100112",
+  "level": 10,
+  "desc": "AlertMind: File timestamp modification by user - timestomping (T1070.006)",
+  "mitre": {
+    "id": [
+      "T1070.006"
+    ],
+    "tactic": [
+      "Defense Evasion"
+    ],
+    "technique": [
+      "Timestomp"
+    ]
+  },
+  "audit_key": "t1070_006_timestomp",
+  "audit_type": "SYSCALL",
+  "syscall": "280",
+  "success": "yes",
+  "exit": "0",
+  "command": "touch",
+  "exe": "/usr/bin/touch",
+  "cwd": null,
+  "file": null,
+  "auid": "1000",
+  "uid": "1000",
+  "euid": "1000",
+  "gid": "1000",
+  "tty": "pts0",
+  "pid": "55366",
+  "ppid": "4022"
+}

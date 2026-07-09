@@ -84,7 +84,7 @@ The lab runs on VirtualBox with all VMs on an isolated NAT Network (`LabNet`, 10
 
 **Authoring model.** Sigma YAML is the portable source of truth (`detections/sigma/`, 25 rules, all validated with pySigma); each rule is converted to Wazuh-native form and any hand-translation logged in `detections/sigma/notes.md`. The Wazuh-native rules were authored first in `siem/wazuh/local_rules.xml`, with the Sigma source now complete and mapped 1:1 (one child-rule exception, documented).
 
-**Linux pack — implemented; 100100 and 100116 verified end-to-end.** Custom Wazuh rules 100100–100116 (17 rules) chain off base rule 80700 (with one child-rule exception, below), each matching one ATT&CK-encoded auditd key and tagging MITRE. Coverage spans credential access (T1003.008, T1552.004), persistence (T1136/T1098, T1053.003, T1543.002, T1037, T1546.004, T1098.004 authorized-keys), defense evasion (T1562.001, T1070/T1070.006), priv-esc (T1548.003, T1548.001/T1222.002), exec-flow hijack (T1574.006), rootkit/LKM (T1547.006/T1014), and config tampering (T1098 sshd_config and a tentatively-mapped package-config monitor). Rule 100100 verified firing end-to-end at level 12 on a real `/etc/shadow` read (EVID-LIN-002) and rule 100116 verified on an SSH `authorized_keys` write (T1098.004, EVID-LIN-003); the remaining rules are deployed and will be individually tested during the Atomic/baseline phase. _Full table: README §5._
+**Linux pack — implemented and fully verified (all 17 rules).** Custom Wazuh rules 100100–100116 (17 rules) chain off base rule 80700 (with one child-rule exception, below), each matching one ATT&CK-encoded auditd key and tagging MITRE. Coverage spans credential access (T1003.008, T1552.004), persistence (T1136/T1098, T1053.003, T1543.002, T1037, T1546.004, T1098.004 authorized-keys), defense evasion (T1562.001, T1070/T1070.006), priv-esc (T1548.003, T1548.001/T1222.002), exec-flow hijack (T1574.006), rootkit/LKM (T1547.006/T1014), and config tampering (T1098 sshd_config and a tentatively-mapped package-config monitor). All 17 rules are now verified firing end-to-end (per-rule evidence EVID-LIN-002 and EVID-LIN-004…018 for 100101–100115, EVID-LIN-003 for 100116) — exercised on `linux-victim` on 8 Jul via targeted triggers on each watched path. _Full table: README §5._
 
 **Notable detection-engineering issue (100116).** The authorized-keys persistence rule (T1098.004) initially did not fire. The cause was an auditd limitation, not a Wazuh error: two `-w` watches covering the same path (`/root/.ssh/`) cannot both apply their keys, so writes to `authorized_keys` were emitted under the broader `t1552_004_ssh_keys` key and matched only rule 100113. Rather than fight auditd with overlapping watches, the fix follows a standard SOC pattern — collect broadly at the sensor, differentiate in the SIEM: 100116 was re-implemented as a child of 100113 (`<if_sid>100113</if_sid>`) that narrows on the `authorized_keys` path. This is now verified firing end-to-end (EVID-LIN-003).
 
@@ -203,6 +203,21 @@ Every ✅ claim in this report maps to a captured artifact. (Consistent with REA
 | EVID-WIN-002 | Windows service creation (7045 → rule 61138, T1543.003) | `evidence/week1/win-system-7045-service.png` |
 | EVID-LIN-001 | Linux user creation detected | `evidence/week1/linux-useradd-t1136.png` |
 | EVID-LIN-002 | auditd `/etc/shadow` rule 100100 fired (T1003.008) | `evidence/week1/linux-shadow-t1003-008.png` |
+| EVID-LIN-004 | User/group DB modification, rule 100101 (T1136 / T1098) | `evidence/week2/lin_100101-useradd-T1136-T1098.png` |
+| EVID-LIN-005 | sudoers tampering, rule 100102 (T1548.003) | `evidence/week2/lin_100102-priv_escalation-T1548_003.png` |
+| EVID-LIN-006 | Cron persistence, rule 100103 (T1053.003) | `evidence/week2/lin_100103-scheduled_task-T1053_003.png` |
+| EVID-LIN-007 | systemd persistence, rule 100104 (T1543.002) | `evidence/week2/lin_100104-systemd_persistence-T1543_002.png` |
+| EVID-LIN-008 | Init-script modification, rule 100105 (T1037) | `evidence/week2/lin_100105-init_script_modification-t1037.png` |
+| EVID-LIN-009 | Shell-init modification, rule 100106 (T1546.004) | `evidence/week2/lin_100106-shell_init-T1546_004.png` |
+| EVID-LIN-010 | LD_PRELOAD hijack (ld.so.preload), rule 100107 (T1574.006) | `evidence/week2/lin_100107-ld_preload-T1574_006.png` |
+| EVID-LIN-011 | Kernel module / LKM rootkit, rule 100108 (T1547.006 / T1014) | `evidence/week2/lin_100108-lkm_rootkit-T1547_006-T1014.png` |
+| EVID-LIN-012 | setuid/setgid change, rule 100109 (T1548.001 / T1222.002) | `evidence/week2/lin_100109-setuid_bit_change-T1548_001.png` |
+| EVID-LIN-013 | auditd config tampering, rule 100110 (T1562.001) | `evidence/week2/lin_100110-auditd_config_T1562_001.png` |
+| EVID-LIN-014 | Session-log tampering, rule 100111 (T1070) | `evidence/week2/lin_100111-session_log_modification-t1070.png` |
+| EVID-LIN-015 | Timestomping, rule 100112 (T1070.006) | `evidence/week2/lin_100112-timestamp_modification-t1070_006.png` |
+| EVID-LIN-016 | SSH key access, rule 100113 (T1552.004) | `evidence/week2/lin_100113-authorized_keys_access-t1552_004.png` |
+| EVID-LIN-017 | sshd_config change, rule 100114 (T1098 broad) | `evidence/week2/lin_100114-sshd_access-t1098.png` |
+| EVID-LIN-018 | Package/repo config change, rule 100115 (T1195.001) | `evidence/week2/lin_100115-update_repo_config-t1195_001.png` |
 | EVID-LIN-003 | SSH `authorized_keys` persistence, rule 100116 fired (T1098.004) | `evidence/week2/linux-authorized-keys-t1098-004.png` |
 | EVID-WIN-003 | Encoded PowerShell, rule 100201 fired (T1059.001) | `evidence/week2/win_100201-powershell-T1059-001.png` |
 | EVID-WIN-004 | LOLBin execution, rule 100202 fired (T1218) | `evidence/week2/win_100202-lolbin-T1218.png` |

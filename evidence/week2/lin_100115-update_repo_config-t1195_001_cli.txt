@@ -1,0 +1,89 @@
+RULE_ID="100115"
+sudo grep "\"id\":\"$RULE_ID\"" /var/ossec/logs/alerts/alerts.json | tail -10 \
+| jq '
+def audit_meta:
+(.full_log | capture("audit\\((?<epoch>[0-9]+\\.[0-9]+):(?<serial>[0-9]+)\\)")?) as $m
+| if $m then
+{
+audit_epoch: $m.epoch,
+audit_serial: $m.serial,
+attack_time_utc: (($m.epoch | tonumber | floor) | todateiso8601)
+}
+else
+{
+audit_epoch: null,
+audit_serial: null,
+attack_time_utc: null
+}
+end;
+
+audit_meta as $audit
+| {
+attack_time_utc: $audit.attack_time_utc,
+audit_epoch: $audit.audit_epoch,
+audit_serial: $audit.audit_serial,
+alert_time: .timestamp,
+
+agent: .agent.name,
+rule: .rule.id,
+level: .rule.level,
+desc: .rule.description,
+mitre: .rule.mitre,
+
+audit_key: .data.audit.key,
+audit_type: .data.audit.type,
+syscall: .data.audit.syscall,
+success: .data.audit.success,
+exit: .data.audit.exit,
+
+command: .data.audit.command,
+exe: .data.audit.exe,
+cwd: .data.audit.cwd,
+file: .data.audit.file.name,
+
+auid: .data.audit.auid,
+uid: .data.audit.uid,
+euid: .data.audit.euid,
+gid: .data.audit.gid,
+tty: .data.audit.tty,
+pid: .data.audit.pid,
+ppid: .data.audit.ppid
+}'
+
+{
+  "attack_time_utc": "2026-07-08T19:09:44Z",
+  "audit_epoch": "1783537784.064",
+  "audit_serial": "79373",
+  "alert_time": "2026-07-09T00:39:45.619+0530",
+  "agent": "linux-victim",
+  "rule": "100115",
+  "level": 5,
+  "desc": "AlertMind: Package manager / repository configuration changed (low confidence; tentative T1195.001)",
+  "mitre": {
+    "id": [
+      "T1195.001"
+    ],
+    "tactic": [
+      "Initial Access"
+    ],
+    "technique": [
+      "Compromise Software Dependencies and Development Tools"
+    ]
+  },
+  "audit_key": "t1195_001_apt_repo_config",
+  "audit_type": "SYSCALL",
+  "syscall": "257",
+  "success": "yes",
+  "exit": "3",
+  "command": "tee",
+  "exe": "/usr/bin/tee",
+  "cwd": "/home/notroot",
+  "file": "/etc/apt/sources.list",
+  "auid": "1000",
+  "uid": "0",
+  "euid": "0",
+  "gid": "0",
+  "tty": "pts1",
+  "pid": "56262",
+  "ppid": "56261"
+}
