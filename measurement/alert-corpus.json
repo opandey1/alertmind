@@ -1,0 +1,750 @@
+{
+  "corpus_version": "week2-week3-baseline-draft-v3-windows-times",
+  "frozen_at_utc": "DRAFT_NOT_FROZEN",
+  "selection_summary": {
+    "total_alerts": 20,
+    "attack_alerts": 14,
+    "benign_salted_alerts": 6,
+    "linux_alerts": 10,
+    "windows_alerts": 10,
+    "selection_method": "balanced manual-random sample from uploaded Linux/Windows CLI alert extracts; shuffled with a fixed seed to mix attack and benign alerts",
+    "windows_true_positive_timestamps_added_from_screenshots": 7,
+    "remaining_null_t1_attack_utc": 3
+  },
+  "alerts": [
+    {
+      "alert_id": "A01",
+      "source": "linux_auditd_cli",
+      "rule_id": "100103",
+      "agent": "linux-victim",
+      "level": 8,
+      "t1_attack_utc": "2026-07-08T15:59:27Z",
+      "t2_alert_utc": "2026-07-08T15:59:29.485Z",
+      "time_source_note": "Linux t1_attack_utc comes from auditd msg=audit(epoch:serial); t2_alert_utc comes from Wazuh alert timestamp converted to UTC.",
+      "rule_description": "AlertMind: Cron configuration modified - scheduled-task persistence (T1053.003)",
+      "mitre": {
+        "id": [
+          "T1053.003"
+        ],
+        "tactic": [
+          "Execution",
+          "Persistence",
+          "Privilege Escalation"
+        ],
+        "technique": [
+          "Cron"
+        ]
+      },
+      "key_fields": {
+        "audit.key": "t1053_003_cron",
+        "audit.type": "SYSCALL",
+        "audit.syscall": "257",
+        "audit.success": "yes",
+        "audit.exit": "3",
+        "audit.command": "tee",
+        "audit.exe": "/usr/bin/tee",
+        "audit.cwd": "/home/notroot",
+        "audit.file": "/etc/cron.d/amtest",
+        "audit.auid": "1000",
+        "audit.uid": "0",
+        "audit.euid": "0",
+        "audit.tty": "pts1",
+        "audit.pid": "48762",
+        "audit.ppid": "48761",
+        "audit.epoch": "1783526367.815",
+        "audit.serial": "74996"
+      },
+      "detection_latency_seconds": 2.485
+    },
+    {
+      "alert_id": "A02",
+      "source": "windows_sysmon_cli",
+      "rule_id": "100205",
+      "agent": "win-victim",
+      "level": 10,
+      "t1_attack_utc": "2026-07-05T10:45:36.611Z",
+      "t2_alert_utc": "2026-07-05T10:45:40.678Z",
+      "time_source_note": "Windows CLI extract did not include data.win.eventdata.utcTime/systemTime, so t1_attack_utc is left null. Fill it from the expanded raw alert or screenshot before final timing analysis.",
+      "rule_description": "AlertMind: Run/RunOnce registry value set (HKU\\\\S-1-5-21-2783956757-1425684079-3775447278-1000\\\\Software\\\\Microsoft\\\\Windows\\\\CurrentVersion\\\\Run\\\\MicrosoftEdgeAutoLaunch_4BA50610520F860366FF3F962A4A3114) - autorun persistence (T1547.001)",
+      "mitre": {
+        "id": [
+          "T1547.001"
+        ],
+        "tactic": [
+          "Persistence",
+          "Privilege Escalation"
+        ],
+        "technique": [
+          "Registry Run Keys / Startup Folder"
+        ]
+      },
+      "key_fields": {
+        "image": "C:\\\\Program Files (x86)\\\\Microsoft\\\\Edge\\\\Application\\\\msedge.exe",
+        "targetObject": "HKU\\\\S-1-5-21-2783956757-1425684079-3775447278-1000\\\\Software\\\\Microsoft\\\\Windows\\\\CurrentVersion\\\\Run\\\\MicrosoftEdgeAutoLaunch_4BA50610520F860366FF3F962A4A3114"
+      },
+      "detection_latency_seconds": null
+    },
+    {
+      "alert_id": "A03",
+      "source": "windows_sysmon_cli",
+      "rule_id": "100202",
+      "agent": "win-victim",
+      "level": 8,
+      "t1_attack_utc": "2026-07-05T15:40:13.681Z",
+      "t2_alert_utc": "2026-07-05T15:40:42.917Z",
+      "time_source_note": "Windows t1_attack_utc comes from screenshot column data.win.eventdata.utcTime; t2_alert_utc comes from Wazuh Discover Time converted to UTC.",
+      "rule_description": "AlertMind: Living-off-the-land binary C:\\\\Windows\\\\System32\\\\mshta.exe executed - possible signed-binary proxy execution (T1218)",
+      "mitre": {
+        "id": [
+          "T1218"
+        ],
+        "tactic": [
+          "Defense Evasion"
+        ],
+        "technique": [
+          "System Binary Proxy Execution"
+        ]
+      },
+      "key_fields": {
+        "image": "C:\\\\Windows\\\\System32\\\\mshta.exe",
+        "commandLine": "mshta.exe  \\\"about:&lt;hta:application&gt;&lt;script language=\\\"VBScript\\\"&gt;Close(Execute(\\\"CreateObject(\\\"\\\"Wscript.Shell\\\"\\\").Run%%20\\\"\\\"powershell.exe%%20-nop%%20-Command%%20Write-Host%%20Hello,%%20MSHTA!;Start-Sleep%%20-Seconds%%205\\\"\\\"\\\"))&lt;/script&gt;'\\\"",
+        "data.win.eventdata.utcTime": "2026-07-05 15:40:13.681",
+        "data.win.system.systemTime": "2026-07-05T15:40:13.6831243Z"
+      },
+      "evidence_file": "win_100202-lolbin-T1218.png",
+      "detection_latency_seconds": 29.236
+    },
+    {
+      "alert_id": "A04",
+      "source": "linux_auditd_cli",
+      "rule_id": "100105",
+      "agent": "linux-victim",
+      "level": 8,
+      "t1_attack_utc": "2026-07-08T19:42:45Z",
+      "t2_alert_utc": "2026-07-08T19:42:46.711Z",
+      "time_source_note": "Linux t1_attack_utc comes from auditd msg=audit(epoch:serial); t2_alert_utc comes from Wazuh alert timestamp converted to UTC.",
+      "rule_description": "AlertMind: Boot/logon init script modified (rc.local / init.d) (T1037)",
+      "mitre": {
+        "id": [
+          "T1037"
+        ],
+        "tactic": [
+          "Persistence",
+          "Privilege Escalation"
+        ],
+        "technique": [
+          "Boot or Logon Initialization Scripts"
+        ]
+      },
+      "key_fields": {
+        "audit.key": "t1037_init",
+        "audit.type": "SYSCALL",
+        "audit.syscall": "257",
+        "audit.success": "yes",
+        "audit.exit": "3",
+        "audit.command": "tee",
+        "audit.exe": "/usr/bin/tee",
+        "audit.cwd": "/home/notroot",
+        "audit.file": "/etc/init.d/amtest_t1037_AM-LIN-T1037-20260708194238",
+        "audit.auid": "1000",
+        "audit.uid": "0",
+        "audit.euid": "0",
+        "audit.tty": "pts1",
+        "audit.pid": "57504",
+        "audit.ppid": "57503",
+        "audit.epoch": "1783539765.038",
+        "audit.serial": "79937"
+      },
+      "detection_latency_seconds": 1.711
+    },
+    {
+      "alert_id": "A05",
+      "source": "windows_sysmon_cli",
+      "rule_id": "100205",
+      "agent": "win-victim",
+      "level": 10,
+      "t1_attack_utc": "2026-07-05T16:05:21.898Z",
+      "t2_alert_utc": "2026-07-05T16:05:26.372Z",
+      "time_source_note": "Windows t1_attack_utc comes from screenshot column data.win.eventdata.utcTime; t2_alert_utc comes from Wazuh Discover Time converted to UTC.",
+      "rule_description": "AlertMind: Run/RunOnce registry value set (HKU\\\\S-1-5-21-2783956757-1425684079-3775447278-1000\\\\Software\\\\Microsoft\\\\Windows\\\\CurrentVersion\\\\Run\\\\AMTest) - autorun persistence (T1547.001)",
+      "mitre": {
+        "id": [
+          "T1547.001"
+        ],
+        "tactic": [
+          "Persistence",
+          "Privilege Escalation"
+        ],
+        "technique": [
+          "Registry Run Keys / Startup Folder"
+        ]
+      },
+      "key_fields": {
+        "image": "C:\\\\WINDOWS\\\\system32\\\\reg.exe",
+        "targetObject": "HKU\\\\S-1-5-21-2783956757-1425684079-3775447278-1000\\\\Software\\\\Microsoft\\\\Windows\\\\CurrentVersion\\\\Run\\\\AMTest",
+        "data.win.eventdata.utcTime": "2026-07-05 16:05:21.898",
+        "data.win.system.systemTime": "2026-07-05T16:05:21.9064865Z"
+      },
+      "evidence_file": "win_100205-runkey-T1547-001.png",
+      "detection_latency_seconds": 4.474
+    },
+    {
+      "alert_id": "A06",
+      "source": "linux_auditd_cli",
+      "rule_id": "100116",
+      "agent": "linux-victim",
+      "level": 10,
+      "t1_attack_utc": "2026-07-08T10:35:08Z",
+      "t2_alert_utc": "2026-07-08T10:35:09.734Z",
+      "time_source_note": "Linux t1_attack_utc comes from auditd msg=audit(epoch:serial); t2_alert_utc comes from Wazuh alert timestamp converted to UTC.",
+      "rule_description": "AlertMind: /root/.ssh/authorized_keys accessed/modified - possible SSH authorized-keys persistence (T1098.004)",
+      "mitre": {
+        "id": [
+          "T1098.004"
+        ],
+        "tactic": [
+          "Persistence"
+        ],
+        "technique": [
+          "SSH Authorized Keys"
+        ]
+      },
+      "key_fields": {
+        "audit.key": "t1552_004_ssh_keys",
+        "audit.type": "SYSCALL",
+        "audit.syscall": "257",
+        "audit.success": "yes",
+        "audit.exit": "3",
+        "audit.command": "bash",
+        "audit.exe": "/usr/bin/bash",
+        "audit.cwd": "/home/notroot",
+        "audit.file": "/root/.ssh/authorized_keys",
+        "audit.auid": "1000",
+        "audit.uid": "0",
+        "audit.euid": "0",
+        "audit.tty": "pts1",
+        "audit.pid": "43536",
+        "audit.ppid": "43535",
+        "audit.epoch": "1783506908.070",
+        "audit.serial": "73567"
+      },
+      "detection_latency_seconds": 1.734
+    },
+    {
+      "alert_id": "A07",
+      "source": "linux_auditd_cli",
+      "rule_id": "100109",
+      "agent": "linux-victim",
+      "level": 8,
+      "t1_attack_utc": "2026-07-08T17:19:54Z",
+      "t2_alert_utc": "2026-07-08T17:19:54.669Z",
+      "time_source_note": "Linux t1_attack_utc comes from auditd msg=audit(epoch:serial); t2_alert_utc comes from Wazuh alert timestamp converted to UTC.",
+      "rule_description": "AlertMind: setuid/setgid bit change by user - possible privilege escalation (T1548.001)",
+      "mitre": {
+        "id": [
+          "T1548.001"
+        ],
+        "tactic": [
+          "Privilege Escalation",
+          "Defense Evasion"
+        ],
+        "technique": [
+          "Setuid and Setgid"
+        ]
+      },
+      "key_fields": {
+        "audit.key": "t1548_001_setuid",
+        "audit.type": "SYSCALL",
+        "audit.syscall": "90",
+        "audit.success": "yes",
+        "audit.exit": "0",
+        "audit.command": "dconf-service",
+        "audit.exe": "/usr/libexec/dconf-service",
+        "audit.cwd": "/home/notroot",
+        "audit.file": "/home/notroot/.config/dconf/user",
+        "audit.auid": "1000",
+        "audit.uid": "1000",
+        "audit.euid": "1000",
+        "audit.tty": "(none)",
+        "audit.pid": "3627",
+        "audit.ppid": "2936",
+        "audit.epoch": "1783531194.273",
+        "audit.serial": "76247"
+      },
+      "detection_latency_seconds": 0.669
+    },
+    {
+      "alert_id": "A08",
+      "source": "windows_sysmon_cli",
+      "rule_id": "100203",
+      "agent": "win-victim",
+      "level": 12,
+      "t1_attack_utc": "2026-07-05T19:31:04.376Z",
+      "t2_alert_utc": "2026-07-05T19:31:06.116Z",
+      "time_source_note": "Windows CLI extract did not include data.win.eventdata.utcTime/systemTime, so t1_attack_utc is left null. Fill it from the expanded raw alert or screenshot before final timing analysis.",
+      "rule_description": "AlertMind: LSASS access by C:\\\\ProgramData\\\\Microsoft\\\\Windows Defender\\\\Platform\\\\4.18.26050.15-0\\\\MsMpEng.exe (granted 0x3600) - possible credential dumping (T1003.001)",
+      "mitre": {
+        "id": [
+          "T1003.001"
+        ],
+        "tactic": [
+          "Credential Access"
+        ],
+        "technique": [
+          "LSASS Memory"
+        ]
+      },
+      "key_fields": {
+        "sourceImage_from_description": "C:\\\\ProgramData\\\\Microsoft\\\\Windows Defender\\\\Platform\\\\4.18.26050.15-0\\\\MsMpEng.exe",
+        "grantedAccess_from_description": "0x3600"
+      },
+      "detection_latency_seconds": null
+    },
+    {
+      "alert_id": "A09",
+      "source": "linux_auditd_cli",
+      "rule_id": "100102",
+      "agent": "linux-victim",
+      "level": 12,
+      "t1_attack_utc": "2026-07-08T15:53:51Z",
+      "t2_alert_utc": "2026-07-08T15:53:52.816Z",
+      "time_source_note": "Linux t1_attack_utc comes from auditd msg=audit(epoch:serial); t2_alert_utc comes from Wazuh alert timestamp converted to UTC.",
+      "rule_description": "AlertMind: sudoers modified - privilege-escalation persistence (T1548.003)",
+      "mitre": {
+        "id": [
+          "T1548.003"
+        ],
+        "tactic": [
+          "Privilege Escalation",
+          "Defense Evasion"
+        ],
+        "technique": [
+          "Sudo and Sudo Caching"
+        ]
+      },
+      "key_fields": {
+        "audit.key": "t1548_003_sudoers",
+        "audit.type": "SYSCALL",
+        "audit.syscall": "257",
+        "audit.success": "yes",
+        "audit.exit": "3",
+        "audit.command": "tee",
+        "audit.exe": "/usr/bin/tee",
+        "audit.cwd": "/home/notroot",
+        "audit.file": "/etc/sudoers.d/amtest",
+        "audit.auid": "1000",
+        "audit.uid": "0",
+        "audit.euid": "0",
+        "audit.tty": "pts1",
+        "audit.pid": "48553",
+        "audit.ppid": "48552",
+        "audit.epoch": "1783526031.814",
+        "audit.serial": "74926"
+      },
+      "detection_latency_seconds": 1.816
+    },
+    {
+      "alert_id": "A10",
+      "source": "windows_sysmon_cli",
+      "rule_id": "100200",
+      "agent": "win-victim",
+      "level": 12,
+      "t1_attack_utc": "2026-07-04T18:31:22.294Z",
+      "t2_alert_utc": "2026-07-04T18:31:21.946Z",
+      "time_source_note": "Windows t1_attack_utc comes from screenshot column data.win.eventdata.utcTime; t2_alert_utc comes from Wazuh Discover Time converted to UTC. Sub-second clock skew can make alert time appear slightly earlier than event time.",
+      "rule_description": "AlertMind: Office app C:\\\\Users\\\\user1\\\\AppData\\\\Local\\\\Temp\\\\winword.exe spawned interpreter C:\\\\Windows\\\\System32\\\\cmd.exe - possible malicious macro (T1566/T1059)",
+      "mitre": {
+        "id": [
+          "T1566",
+          "T1059"
+        ],
+        "tactic": [
+          "Initial Access",
+          "Execution"
+        ],
+        "technique": [
+          "Phishing",
+          "Command and Scripting Interpreter"
+        ]
+      },
+      "key_fields": {
+        "image": "C:\\\\Windows\\\\System32\\\\cmd.exe",
+        "commandLine": "cmd.exe  /c whoami",
+        "data.win.eventdata.utcTime": "2026-07-04 18:31:22.294",
+        "data.win.system.systemTime": "2026-07-04T18:31:22.3193565Z"
+      },
+      "evidence_file": "win_100200-office_shell-T1566_T1059.png",
+      "detection_latency_seconds": 0.0,
+      "detection_latency_seconds_raw": -0.348,
+      "latency_note": "Raw timestamps produce a small negative value due to endpoint/manager/OpenSearch sub-second clock skew; report as <1s / immediate, not negative MTTD."
+    },
+    {
+      "alert_id": "A11",
+      "source": "windows_sysmon_cli",
+      "rule_id": "100203",
+      "agent": "win-victim",
+      "level": 12,
+      "t1_attack_utc": "2026-07-05T19:30:15.23Z",
+      "t2_alert_utc": "2026-07-05T19:30:17.657Z",
+      "time_source_note": "Windows CLI extract did not include data.win.eventdata.utcTime/systemTime, so t1_attack_utc is left null. Fill it from the expanded raw alert or screenshot before final timing analysis.",
+      "rule_description": "AlertMind: LSASS access by C:\\\\Program Files (x86)\\\\ossec-agent\\\\wazuh-agent.exe (granted 0x1fffff) - possible credential dumping (T1003.001)",
+      "mitre": {
+        "id": [
+          "T1003.001"
+        ],
+        "tactic": [
+          "Credential Access"
+        ],
+        "technique": [
+          "LSASS Memory"
+        ]
+      },
+      "key_fields": {
+        "sourceImage_from_description": "C:\\\\Program Files (x86)\\\\ossec-agent\\\\wazuh-agent.exe",
+        "grantedAccess_from_description": "0x1fffff"
+      },
+      "detection_latency_seconds": null
+    },
+    {
+      "alert_id": "A12",
+      "source": "linux_auditd_cli",
+      "rule_id": "100104",
+      "agent": "linux-victim",
+      "level": 8,
+      "t1_attack_utc": "2026-07-08T11:41:52Z",
+      "t2_alert_utc": "2026-07-08T11:41:53.842Z",
+      "time_source_note": "Linux t1_attack_utc comes from auditd msg=audit(epoch:serial); t2_alert_utc comes from Wazuh alert timestamp converted to UTC.",
+      "rule_description": "AlertMind: systemd unit modified - service persistence (T1543.002)",
+      "mitre": {
+        "id": [
+          "T1543.002"
+        ],
+        "tactic": [
+          "Persistence",
+          "Privilege Escalation"
+        ],
+        "technique": [
+          "Systemd Service"
+        ]
+      },
+      "key_fields": {
+        "audit.key": "t1543_002_systemd",
+        "audit.type": "SYSCALL",
+        "audit.syscall": "257",
+        "audit.success": "yes",
+        "audit.exit": "19",
+        "audit.command": "snapd",
+        "audit.exe": "/usr/lib/snapd/snapd",
+        "audit.cwd": "/",
+        "audit.file": "/etc/systemd/system/snap-snapd-27406.mount.Ph97MJnHTvYL~",
+        "audit.auid": "4294967295",
+        "audit.uid": "0",
+        "audit.euid": "0",
+        "audit.tty": "(none)",
+        "audit.pid": "767",
+        "audit.ppid": "1",
+        "audit.epoch": "1783510912.470",
+        "audit.serial": "74009"
+      },
+      "detection_latency_seconds": 1.842
+    },
+    {
+      "alert_id": "A13",
+      "source": "linux_auditd_cli",
+      "rule_id": "100101",
+      "agent": "linux-victim",
+      "level": 10,
+      "t1_attack_utc": "2026-07-08T11:19:33Z",
+      "t2_alert_utc": "2026-07-08T11:19:34.418Z",
+      "time_source_note": "Linux t1_attack_utc comes from auditd msg=audit(epoch:serial); t2_alert_utc comes from Wazuh alert timestamp converted to UTC.",
+      "rule_description": "AlertMind: Modification of user/group database (passwd/shadow/group) (T1136 / T1098)",
+      "mitre": {
+        "id": [
+          "T1136",
+          "T1098"
+        ],
+        "tactic": [
+          "Persistence"
+        ],
+        "technique": [
+          "Create Account",
+          "Account Manipulation"
+        ]
+      },
+      "key_fields": {
+        "audit.key": "t1136_accounts",
+        "audit.type": "SYSCALL",
+        "audit.syscall": "257",
+        "audit.success": "yes",
+        "audit.exit": "5",
+        "audit.command": "useradd",
+        "audit.exe": "/usr/sbin/useradd",
+        "audit.cwd": "/home/notroot",
+        "audit.file": "/etc/passwd",
+        "audit.auid": "1000",
+        "audit.uid": "0",
+        "audit.euid": "0",
+        "audit.tty": "pts1",
+        "audit.pid": "45112",
+        "audit.ppid": "45111",
+        "audit.epoch": "1783509573.142",
+        "audit.serial": "73864"
+      },
+      "detection_latency_seconds": 1.418
+    },
+    {
+      "alert_id": "A14",
+      "source": "windows_sysmon_cli",
+      "rule_id": "100203",
+      "agent": "win-victim",
+      "level": 12,
+      "t1_attack_utc": "2026-07-05T19:33:38.621Z",
+      "t2_alert_utc": "2026-07-05T19:33:40.750Z",
+      "time_source_note": "Windows t1_attack_utc comes from screenshot column data.win.eventdata.utcTime for the rundll32.exe 0x1fffff row; t2_alert_utc comes from Wazuh Discover Time converted to UTC.",
+      "rule_description": "AlertMind: LSASS access by C:\\\\WINDOWS\\\\system32\\\\rundll32.exe (granted 0x1fffff) - possible credential dumping (T1003.001)",
+      "mitre": {
+        "id": [
+          "T1003.001"
+        ],
+        "tactic": [
+          "Credential Access"
+        ],
+        "technique": [
+          "LSASS Memory"
+        ]
+      },
+      "key_fields": {
+        "sourceImage_from_description": "C:\\\\WINDOWS\\\\system32\\\\rundll32.exe",
+        "grantedAccess_from_description": "0x1fffff",
+        "data.win.eventdata.utcTime": "2026-07-05 19:33:38.621",
+        "data.win.system.systemTime": "2026-07-05T19:33:38.6220985Z"
+      },
+      "evidence_file": "win_100203-Lsass_Access-T1003_001.png",
+      "detection_latency_seconds": 2.129
+    },
+    {
+      "alert_id": "A15",
+      "source": "windows_sysmon_cli",
+      "rule_id": "100206",
+      "agent": "win-victim",
+      "level": 6,
+      "t1_attack_utc": "2026-07-06T16:20:19.424Z",
+      "t2_alert_utc": "2026-07-06T16:20:22.901Z",
+      "time_source_note": "Windows t1_attack_utc comes from screenshot column data.win.eventdata.utcTime for the PowerShell long-label DNS query; t2_alert_utc comes from Wazuh Discover Time converted to UTC.",
+      "rule_description": "AlertMind: DNS query with long label (aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-am-t1071dns-20260706214941.alertmind-lab.invalid) - possible DNS tunneling (heuristic; T1048/T1071.004)",
+      "mitre": {
+        "id": [
+          "T1048",
+          "T1071.004"
+        ],
+        "tactic": [
+          "Exfiltration",
+          "Command and Control"
+        ],
+        "technique": [
+          "Exfiltration Over Alternative Protocol",
+          "DNS"
+        ]
+      },
+      "key_fields": {
+        "image": "C:\\\\Program Files\\\\WindowsApps\\\\Microsoft.PowerShell_7.6.3.0_x64__8wekyb3d8bbwe\\\\pwsh.exe",
+        "queryName": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-am-t1071dns-20260706214941.alertmind-lab.invalid",
+        "data.win.eventdata.utcTime": "2026-07-06 16:20:19.424",
+        "data.win.system.systemTime": "2026-07-06T16:20:21.7688783Z"
+      },
+      "evidence_file": "win_100206-DNS_tunneling-T1071_004.png",
+      "detection_latency_seconds": 3.477
+    },
+    {
+      "alert_id": "A16",
+      "source": "linux_auditd_cli",
+      "rule_id": "100111",
+      "agent": "linux-victim",
+      "level": 10,
+      "t1_attack_utc": "2026-07-08T17:53:17Z",
+      "t2_alert_utc": "2026-07-08T17:53:19.590Z",
+      "time_source_note": "Linux t1_attack_utc comes from auditd msg=audit(epoch:serial); t2_alert_utc comes from Wazuh alert timestamp converted to UTC.",
+      "rule_description": "AlertMind: Login/session log modified (wtmp/btmp/utmp) - indicator removal (T1070)",
+      "mitre": {
+        "id": [
+          "T1070"
+        ],
+        "tactic": [
+          "Defense Evasion"
+        ],
+        "technique": [
+          "Indicator Removal"
+        ]
+      },
+      "key_fields": {
+        "audit.key": "t1070_logs",
+        "audit.type": "SYSCALL",
+        "audit.syscall": "257",
+        "audit.success": "yes",
+        "audit.exit": "3",
+        "audit.command": "bash",
+        "audit.exe": "/usr/bin/bash",
+        "audit.cwd": "/home/notroot",
+        "audit.file": "/var/log/btmp",
+        "audit.auid": "1000",
+        "audit.uid": "0",
+        "audit.euid": "0",
+        "audit.tty": "pts1",
+        "audit.pid": "53346",
+        "audit.ppid": "53345",
+        "audit.epoch": "1783533197.822",
+        "audit.serial": "77955"
+      },
+      "detection_latency_seconds": 2.59
+    },
+    {
+      "alert_id": "A17",
+      "source": "linux_auditd_cli",
+      "rule_id": "100108",
+      "agent": "linux-victim",
+      "level": 12,
+      "t1_attack_utc": "2026-07-08T17:29:09Z",
+      "t2_alert_utc": "2026-07-08T17:29:11.354Z",
+      "time_source_note": "Linux t1_attack_utc comes from auditd msg=audit(epoch:serial); t2_alert_utc comes from Wazuh alert timestamp converted to UTC.",
+      "rule_description": "AlertMind: Kernel module load/unload or modprobe config change - possible LKM rootkit (T1547.006 / T1014)",
+      "mitre": {
+        "id": [
+          "T1547.006",
+          "T1014"
+        ],
+        "tactic": [
+          "Persistence",
+          "Privilege Escalation",
+          "Defense Evasion"
+        ],
+        "technique": [
+          "Kernel Modules and Extensions",
+          "Rootkit"
+        ]
+      },
+      "key_fields": {
+        "audit.key": "t1547_006_kmod",
+        "audit.type": "SYSCALL",
+        "audit.syscall": "313",
+        "audit.success": "yes",
+        "audit.exit": "0",
+        "audit.command": "modprobe",
+        "audit.exe": "/usr/bin/kmod",
+        "audit.auid": "1000",
+        "audit.uid": "0",
+        "audit.euid": "0",
+        "audit.tty": "pts1",
+        "audit.pid": "51813",
+        "audit.ppid": "51812",
+        "audit.epoch": "1783531749.723",
+        "audit.serial": "76435"
+      },
+      "detection_latency_seconds": 2.354
+    },
+    {
+      "alert_id": "A18",
+      "source": "windows_sysmon_cli",
+      "rule_id": "100201",
+      "agent": "win-victim",
+      "level": 12,
+      "t1_attack_utc": "2026-07-05T10:21:38.629Z",
+      "t2_alert_utc": "2026-07-05T10:21:42.689Z",
+      "time_source_note": "Windows t1_attack_utc comes from screenshot column data.win.eventdata.utcTime; t2_alert_utc comes from Wazuh Discover Time converted to UTC.",
+      "rule_description": "AlertMind: PowerShell encoded command executed - possible obfuscated payload (T1059.001)",
+      "mitre": {
+        "id": [
+          "T1059.001"
+        ],
+        "tactic": [
+          "Execution"
+        ],
+        "technique": [
+          "PowerShell"
+        ]
+      },
+      "key_fields": {
+        "image": "C:\\\\Windows\\\\System32\\\\WindowsPowerShell\\\\v1.0\\\\powershell.exe",
+        "commandLine": "\\\"C:\\\\WINDOWS\\\\System32\\\\WindowsPowerShell\\\\v1.0\\\\powershell.exe\\\" -NoProfile -EncodedCommand QQBsAGUAcgB0AE0AaQBuAGQAIABFAG4AYwBvAGQAZQBkACAAUABvAHcAZQByAFMAaABlAGwAbAAgAFQAZQBzAHQA",
+        "data.win.eventdata.utcTime": "2026-07-05 10:21:38.629",
+        "data.win.system.systemTime": "2026-07-05T10:21:38.8550404Z"
+      },
+      "evidence_file": "win_100201-powershell-T1059-001.png",
+      "detection_latency_seconds": 4.06
+    },
+    {
+      "alert_id": "A19",
+      "source": "windows_sysmon_cli",
+      "rule_id": "100204",
+      "agent": "win-victim",
+      "level": 12,
+      "t1_attack_utc": "2026-07-06T13:34:40.469Z",
+      "t2_alert_utc": "2026-07-06T13:34:42.750Z",
+      "time_source_note": "Windows t1_attack_utc comes from screenshot column data.win.eventdata.utcTime; t2_alert_utc comes from Wazuh Discover Time converted to UTC.",
+      "rule_description": "AlertMind: PsExec service binary executed - possible remote service execution / lateral movement (T1021.002/T1569.002)",
+      "mitre": {
+        "id": [
+          "T1021.002",
+          "T1569.002"
+        ],
+        "tactic": [
+          "Lateral Movement",
+          "Execution"
+        ],
+        "technique": [
+          "SMB/Windows Admin Shares",
+          "Service Execution"
+        ]
+      },
+      "key_fields": {
+        "image": "C:\\\\Windows\\\\PSEXESVC.exe",
+        "commandLine": "C:\\\\WINDOWS\\\\PSEXESVC.exe",
+        "data.win.eventdata.utcTime": "2026-07-06 13:34:40.469",
+        "data.win.system.systemTime": "2026-07-06T13:34:40.4711276Z"
+      },
+      "evidence_file": "win_100204-PsExec-T1021_002.png",
+      "detection_latency_seconds": 2.281
+    },
+    {
+      "alert_id": "A20",
+      "source": "linux_auditd_cli",
+      "rule_id": "100100",
+      "agent": "linux-victim",
+      "level": 12,
+      "t1_attack_utc": "2026-07-08T10:45:01Z",
+      "t2_alert_utc": "2026-07-08T10:45:03.428Z",
+      "time_source_note": "Linux t1_attack_utc comes from auditd msg=audit(epoch:serial); t2_alert_utc comes from Wazuh alert timestamp converted to UTC.",
+      "rule_description": "AlertMind: /etc/shadow or /etc/gshadow read - possible credential access (T1003.008)",
+      "mitre": {
+        "id": [
+          "T1003.008"
+        ],
+        "tactic": [
+          "Credential Access"
+        ],
+        "technique": [
+          "/etc/passwd and /etc/shadow"
+        ]
+      },
+      "key_fields": {
+        "audit.key": "t1003_008_shadow_read",
+        "audit.type": "SYSCALL",
+        "audit.syscall": "257",
+        "audit.success": "yes",
+        "audit.exit": "7",
+        "audit.command": "cron",
+        "audit.exe": "/usr/sbin/cron",
+        "audit.cwd": "/var/spool/cron",
+        "audit.file": "/etc/shadow",
+        "audit.auid": "4294967295",
+        "audit.uid": "0",
+        "audit.euid": "0",
+        "audit.tty": "(none)",
+        "audit.pid": "43800",
+        "audit.ppid": "769",
+        "audit.epoch": "1783507501.191",
+        "audit.serial": "73613"
+      },
+      "detection_latency_seconds": 2.428
+    }
+  ]
+}
