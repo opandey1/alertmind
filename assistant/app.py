@@ -4,14 +4,15 @@ app.py — AlertMind assistant, analyst-friendly Streamlit UI.
 
 Run:  streamlit run app.py
 
-Shows, for a chosen alert:
-  - the RAW alert and the REDACTED alert side by side (redaction is visible),
-  - the assistant's four deliverables (summary, ATT&CK tag, queries, draft msg),
-  - a persistent DRAFT / human-review / no-action guardrail banner,
-  - an optional batch tab that scores the whole corpus vs ground truth.
+Two modes (feedback #9 — experimental integrity):
+  Analyst mode   (default) no ground truth, no correctness scores. This is what
+                 you use during an ASSISTED triage timing run.
+  Evaluator mode reveals ground truth + scoring. Use it only AFTER the assisted
+                 run, never during it.
 
-The default provider is `mock` so the UI runs with zero setup; pick a real
-provider in the sidebar (set the relevant env var first — see .env.example).
+For a chosen alert it shows the RAW alert and the REDACTED + view-applied alert
+side by side (redaction is visible), then the assistant's four deliverables with
+a persistent DRAFT / no-action / no-secrets banner and the output schema status.
 """
 import csv
 import json
@@ -20,9 +21,11 @@ import os
 import streamlit as st
 
 from redact import redact_alert
+from views import apply_view
 from prompts import SYSTEM_PROMPT, build_user_prompt
 from llm import call_llm, parse_response
-from runner import score, load_ground_truth
+from schema import validate_output
+from scoring import score_alert, aggregate
 
 CORPUS = os.environ.get("ALERTMIND_CORPUS", "../measurement/alert-corpus.json")
 TIMING = os.environ.get("ALERTMIND_TIMING", "../measurement/timing-log.csv")
@@ -36,19 +39,33 @@ def load_corpus(path):
     return data["alerts"] if isinstance(data, dict) else data
 
 
+def load_ground_truth(path):
+    gt = {}
+    if path and os.path.exists(path):
+        with open(path, newline="", encoding="utf-8-sig") as f:
+            for row in csv.DictReader(f):
+                gt[row["alert_id"].strip()] = row.get("ground_truth", "").strip()
+    return gt
+
+
 def disposition_color(disp):
     return {"likely_true_positive": "red", "likely_benign": "green",
             "needs_investigation": "orange"}.get(disp, "gray")
 
 
-# ----- sidebar: provider + model -----
+# ----- sidebar -----
 st.sidebar.title("🛡️ AlertMind")
 st.sidebar.caption("Tier-1 SOC triage assistant")
-provider = st.sidebar.selectbox("Provider", ["mock", "ollama", "openai", "anthropic"],
-                                help="mock runs offline with no key. Others read env vars (.env.example).")
+mode = st.sidebar.radio("Mode", ["Analyst", "Evaluator"],
+                        help="Analyst hides ground truth (use during assisted timing). "
+                             "Evaluator reveals scoring (use only after the run).")
+provider = st.sidebar.selectbox("Provider", ["mock", "ollama", "openai", "anthropic"])
 default_model = {"mock": "mock", "ollama": "llama3.1", "openai": "gpt-4o-mini",
                  "anthropic": "claude-3-5-sonnet-latest"}[provider]
 model = st.sidebar.text_input("Model", value=default_model)
+view = st.sidebar.selectbox("View", ["operational", "evaluation"],
+                            help="operational = full alert (metadata consistency). "
+                                 "evaluation = ATT&CK metadata stripped (true classification).")
 st.sidebar.divider()
 st.sidebar.info("Every output is a **DRAFT**. The assistant takes **no action** and "
                 "receives **no secrets** (redacted first).")
@@ -60,90 +77,88 @@ except Exception as e:
     st.stop()
 by_id = {a["alert_id"]: a for a in alerts}
 
-tab_triage, tab_batch = st.tabs(["🔎 Triage one alert", "📊 Batch scoring"])
+tabs = ["🔎 Triage one alert"] + (["📊 Evaluator scoring"] if mode == "Evaluator" else [])
+rendered = st.tabs(tabs)
 
 # ================= single-alert triage =================
-with tab_triage:
-    ids = [f"{a['alert_id']} · rule {a.get('rule_id')} · {str(a.get('rule_description',''))[:60]}"
+with rendered[0]:
+    ids = [f"{a['alert_id']} · rule {a.get('rule_id')} · {str(a.get('rule_description',''))[:55]}"
            for a in alerts]
     choice = st.selectbox("Alert", ids)
     aid = choice.split(" ")[0]
     alert = by_id[aid]
-    redacted = redact_alert(alert)
+    viewed = apply_view(redact_alert(alert), view)
 
     c1, c2 = st.columns(2)
     with c1:
         st.subheader("Raw alert")
         st.json(alert, expanded=False)
     with c2:
-        st.subheader("Redacted (what the model receives)")
-        st.json(redacted, expanded=False)
+        st.subheader(f"Redacted · {view} view (what the model receives)")
+        st.json(viewed, expanded=False)
 
     if st.button("🤖 Triage with assistant", type="primary"):
         with st.spinner(f"Calling {provider}/{model} …"):
-            user = build_user_prompt(redacted)
             try:
-                raw = call_llm(provider, SYSTEM_PROMPT, user, model)
+                raw = call_llm(provider, SYSTEM_PROMPT, build_user_prompt(viewed), model)
                 out = parse_response(raw)
             except Exception as e:
                 out = {"_error": str(e)}
-
         if out.get("_error"):
             st.error(f"Model call failed: {out['_error']}")
         elif out.get("_parse_error"):
-            st.warning("Model did not return valid JSON. Raw response:")
+            st.warning("Model did not return valid JSON:")
             st.code(out.get("_raw", ""))
         else:
+            ok, errors, out = validate_output(out)
             st.warning("⚠️ DRAFT — analyst must review. The assistant took no action and received no secrets.")
+            if not ok:
+                st.error(f"Output failed schema validation: {errors}")
             disp = out.get("disposition_suggestion", "needs_investigation")
             m1, m2, m3 = st.columns(3)
             m1.metric("ATT&CK", out.get("attack_technique_id") or "—", out.get("attack_technique_name", ""))
             m2.markdown(f"**Disposition**  \n:{disposition_color(disp)}[{disp}]")
             m3.metric("Confidence", out.get("confidence", "—"))
-
             st.markdown("#### Summary")
             for line in (out.get("summary") or []):
                 st.markdown(f"- {line}")
-
             st.markdown("#### Suggested investigation queries")
             for q in (out.get("investigation_queries") or []):
                 st.code(q, language="text")
-
             st.markdown("#### Draft user message *(editable — review before sending)*")
             st.text_area("draft", value=out.get("draft_user_message", ""), height=100,
                          label_visibility="collapsed")
-
             if out.get("caveats"):
                 st.markdown(f"**Caveats:** {out['caveats']}")
             with st.expander("Raw assistant JSON"):
                 st.json(out)
 
-# ================= batch scoring =================
-with tab_batch:
-    st.caption("Runs the whole corpus and scores the assistant's tag/disposition against "
-               "the ground truth in timing-log.csv. Benign alerts count as correct only "
-               "when the assistant says `likely_benign`.")
-    if st.button("Run batch over corpus"):
-        ground = load_ground_truth(TIMING)
-        rows, prog = [], st.progress(0.0)
-        for i, a in enumerate(alerts):
-            red = redact_alert(a)
-            try:
-                out = parse_response(call_llm(provider, SYSTEM_PROMPT, build_user_prompt(red), model))
-            except Exception as e:
-                out = {"_error": str(e)}
-            gt = ground.get(a["alert_id"], "")
-            rows.append({"alert_id": a["alert_id"], "ground_truth": gt,
-                         "assistant_tag": out.get("attack_technique_id"),
-                         "disposition": out.get("disposition_suggestion"),
-                         "confidence": out.get("confidence"),
-                         "correct": score(gt, out)})
-            prog.progress((i + 1) / len(alerts))
-        ok = sum(1 for r in rows if r["correct"])
-        benign = [r for r in rows if r["ground_truth"].lower() == "benign"]
-        benign_ok = sum(1 for r in benign if r["correct"])
-        a, b, c = st.columns(3)
-        a.metric("Overall correct", f"{ok}/{len(rows)}", f"{100*ok//max(len(rows),1)}%")
-        b.metric("Benign identified", f"{benign_ok}/{len(benign)}")
-        c.metric("Provider", f"{provider}")
-        st.dataframe(rows, use_container_width=True)
+# ================= evaluator scoring (hidden in Analyst mode) =================
+if mode == "Evaluator":
+    with rendered[1]:
+        st.error("⚠️ Evaluator mode reveals ground truth. Do NOT use during an assisted-triage timing run.")
+        st.caption("Runs the whole corpus and scores each output vs ground truth with separated "
+                   "technique / disposition / consistency metrics.")
+        if st.button("Run batch over corpus"):
+            ground = load_ground_truth(TIMING)
+            rows, prog = [], st.progress(0.0)
+            for i, a in enumerate(alerts):
+                viewed_a = apply_view(redact_alert(a), view)
+                try:
+                    out = parse_response(call_llm(provider, SYSTEM_PROMPT, build_user_prompt(viewed_a), model))
+                    _, _, out = validate_output(out)
+                except Exception as e:
+                    out = {"_error": str(e)}
+                gt = ground.get(a["alert_id"], "")
+                sc = score_alert(gt, out)
+                rows.append({"alert_id": a["alert_id"], "ground_truth": gt, **sc})
+                prog.progress((i + 1) / len(alerts))
+            agg = aggregate(rows)
+            n = agg["n"] or 1
+            cols = st.columns(5)
+            cols[0].metric("Technique exact", f"{agg['technique_exact_correct']}/{n}")
+            cols[1].metric("Technique relaxed", f"{agg['technique_relaxed_correct']}/{n}")
+            cols[2].metric("Disposition", f"{agg['disposition_correct']}/{n}")
+            cols[3].metric("Consistent", f"{agg['response_consistent']}/{n}")
+            cols[4].metric("Overall", f"{agg['overall_correct']}/{n}")
+            st.dataframe(rows, use_container_width=True)
