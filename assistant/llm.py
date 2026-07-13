@@ -2,44 +2,79 @@
 llm.py — provider-agnostic LLM client for the AlertMind assistant.
 
 Providers:
-  mock       - offline, deterministic; no API key or network. Lets graders run
-               the whole pipeline with zero setup and lets CI test it.
+  mock       - offline, deterministic; no API key or network.
   anthropic  - Anthropic Messages API (needs ANTHROPIC_API_KEY).
   openai     - any OpenAI-compatible /v1/chat/completions endpoint. Works for
-               OpenAI (OPENAI_API_KEY) AND for a local Ollama server
-               (base_url=http://localhost:11434/v1, key not required).
+               OpenAI (OPENAI_API_KEY) AND a local Ollama server
+               (OPENAI_BASE_URL=http://localhost:11434/v1, key not required).
 
-Only the standard library + `requests` are used, so there is no SDK-version drift.
-The instructor confirmed a hosted API is acceptable PROVIDED redaction is in place
-(it is — see redact.py, applied before this module is ever called).
+Reliability (feedback #12): configurable timeout + max tokens, retry with backoff
+on transient errors, and clear messages for the two failures that actually bite —
+a wrong model name (404) and a too-slow local model (timeout).
+
+Env knobs:
+  ALERTMIND_LLM_TIMEOUT   per-call timeout seconds (default 300)
+  ALERTMIND_MAX_TOKENS    max response tokens      (default 1024)
+  ALERTMIND_LLM_RETRIES   retries on transient err (default 2)
 """
 import os
 import json
 import re
+import time
 
 try:
     import requests
-except ImportError:  # requests only needed for the non-mock providers
+except ImportError:
     requests = None
+
+_TIMEOUT = int(os.environ.get("ALERTMIND_LLM_TIMEOUT", "300"))
+_MAX_TOKENS = int(os.environ.get("ALERTMIND_MAX_TOKENS", "1024"))
+_RETRIES = int(os.environ.get("ALERTMIND_LLM_RETRIES", "2"))
+_RETRYABLE = {429, 500, 502, 503, 504}
+
+
+def _post(url, headers, payload):
+    """POST with retry/backoff and actionable errors. Returns the response object."""
+    delay = 1.0
+    for attempt in range(_RETRIES + 1):
+        try:
+            r = requests.post(url, headers=headers, json=payload, timeout=_TIMEOUT)
+        except requests.exceptions.Timeout:
+            raise RuntimeError(
+                f"LLM call timed out after {_TIMEOUT}s. The model is likely too large/slow "
+                f"for local inference. Use a smaller model (e.g. 'llama3.1:8b') or raise "
+                f"ALERTMIND_LLM_TIMEOUT.")
+        except requests.exceptions.ConnectionError as e:
+            if attempt < _RETRIES:
+                time.sleep(delay); delay *= 2; continue
+            raise RuntimeError(f"Could not connect to {url} ({e}). Is the server running?")
+        if r.status_code == 404:
+            raise RuntimeError(
+                f"404 Not Found for {url}. Model '{payload.get('model')}' not found. "
+                f"Check the exact tag with `ollama list` or GET /v1/models — use e.g. "
+                f"'llama3.1:8b' or 'llama4:latest' (colon), not 'llama4-latest'. "
+                f"Server said: {r.text[:200]}")
+        if r.status_code in _RETRYABLE and attempt < _RETRIES:
+            time.sleep(delay); delay *= 2; continue
+        r.raise_for_status()
+        return r
+    raise RuntimeError("unreachable")
 
 
 def _mock(system: str, user: str, model: str) -> str:
     """
-    Deterministic offline response derived from the alert's own fields. This is
-    NOT a real inference — it exists so the pipeline is runnable without a model.
-    It reads the ATT&CK id straight from the alert, so mock runs will show ~100%
-    tag accuracy; use a real provider for the actual hallucination measurement.
+    Deterministic offline response derived from the alert's own fields. NOT a real
+    inference. It copies the ATT&CK id from the alert and always answers
+    'needs_investigation', so in the OPERATIONAL view it gets attacks "right" but
+    fails all benign alerts (~14/20); in the EVALUATION view the metadata is
+    stripped, so it cannot tag at all. Use a real provider for measurement.
     """
     m = re.search(r'"mitre":\s*{[^}]*"id":\s*\[\s*"([^"]+)"', user)
     tid = m.group(1) if m else None
-    desc = ""
     dm = re.search(r'"rule_description":\s*"([^"]+)"', user)
-    if dm:
-        desc = dm.group(1)
-    rid = ""
+    desc = dm.group(1) if dm else ""
     rm = re.search(r'"rule_id":\s*"?(\d+)', user)
-    if rm:
-        rid = rm.group(1)
+    rid = rm.group(1) if rm else ""
     return json.dumps({
         "summary": [
             f"[MOCK] Wazuh rule {rid} fired: {desc[:80]}",
@@ -68,30 +103,21 @@ def _anthropic(system: str, user: str, model: str) -> str:
     key = os.environ.get("ANTHROPIC_API_KEY")
     if not key:
         raise RuntimeError("ANTHROPIC_API_KEY not set")
-    r = requests.post(
-        "https://api.anthropic.com/v1/messages",
-        headers={"x-api-key": key, "anthropic-version": "2023-06-01",
-                 "content-type": "application/json"},
-        json={"model": model, "max_tokens": 1024, "system": system,
-              "messages": [{"role": "user", "content": user}]},
-        timeout=60,
-    )
-    r.raise_for_status()
+    r = _post("https://api.anthropic.com/v1/messages",
+              {"x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json"},
+              {"model": model, "max_tokens": _MAX_TOKENS, "temperature": 0, "system": system,
+               "messages": [{"role": "user", "content": user}]})
     return r.json()["content"][0]["text"]
 
 
 def _openai_compatible(system: str, user: str, model: str) -> str:
     base = os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1")
     key = os.environ.get("OPENAI_API_KEY", "ollama")  # Ollama ignores the key
-    r = requests.post(
-        base.rstrip("/") + "/chat/completions",
-        headers={"Authorization": f"Bearer {key}", "content-type": "application/json"},
-        json={"model": model, "temperature": 0,
-              "messages": [{"role": "system", "content": system},
-                           {"role": "user", "content": user}]},
-        timeout=120,
-    )
-    r.raise_for_status()
+    r = _post(base.rstrip("/") + "/chat/completions",
+              {"Authorization": f"Bearer {key}", "content-type": "application/json"},
+              {"model": model, "temperature": 0, "max_tokens": _MAX_TOKENS,
+               "messages": [{"role": "system", "content": system},
+                            {"role": "user", "content": user}]})
     return r.json()["choices"][0]["message"]["content"]
 
 

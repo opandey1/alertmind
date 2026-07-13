@@ -30,6 +30,11 @@ def _base(code: str):
 
 
 def score_alert(ground_truth: str, parsed: dict) -> dict:
+    # An errored or unparseable response is correct on nothing.
+    if not isinstance(parsed, dict) or parsed.get("_error") or parsed.get("_parse_error"):
+        return {"technique_exact_correct": False, "technique_relaxed_correct": False,
+                "disposition_correct": False, "response_consistent": False,
+                "overall_correct": False, "assistant_tag": None, "assistant_disposition": None}
     gt = (ground_truth or "").strip()
     is_benign = gt.lower() == "benign"
     gt_codes = codes(gt)

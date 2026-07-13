@@ -65,11 +65,15 @@ Real model (this is what the measurement uses), e.g. local Ollama:
 
 ```bash
 export OPENAI_BASE_URL=http://localhost:11434/v1
-python runner.py --provider ollama --model llama3.1 --view operational
-python runner.py --provider ollama --model llama3.1 --view evaluation
-python tests/test_injection.py ollama llama3.1    # the REAL injection proof
+python runner.py --provider ollama --model llama3.1:8b --view operational
+python runner.py --provider ollama --model llama3.1:8b --view evaluation
+python tests/test_injection.py ollama llama3.1:8b   # the REAL injection proof
 ```
 (Anthropic: `--provider anthropic` + `ANTHROPIC_API_KEY`. OpenAI: `--provider openai` + `OPENAI_API_KEY`.)
+
+**Model name + performance notes:**
+- Use the **exact** Ollama tag (`ollama list` / `GET /v1/models`): `llama3.1:8b`, or `llama4:latest` — *with a colon*. `llama4-latest` (hyphen) returns a 404.
+- Prefer a **small, fast** model for a 20-alert experiment. `llama3.1:8b` runs in seconds locally; large MoE models like `llama4` are impractically slow and will hit the timeout. Raise `ALERTMIND_LLM_TIMEOUT` only if you truly need a big model.
 
 ## 5. Two views — why they matter
 

@@ -60,7 +60,7 @@ mode = st.sidebar.radio("Mode", ["Analyst", "Evaluator"],
                         help="Analyst hides ground truth (use during assisted timing). "
                              "Evaluator reveals scoring (use only after the run).")
 provider = st.sidebar.selectbox("Provider", ["mock", "ollama", "openai", "anthropic"])
-default_model = {"mock": "mock", "ollama": "llama3.1", "openai": "gpt-4o-mini",
+default_model = {"mock": "mock", "ollama": "llama3.1:8b", "openai": "gpt-4o-mini",
                  "anthropic": "claude-3-5-sonnet-latest"}[provider]
 model = st.sidebar.text_input("Model", value=default_model)
 view = st.sidebar.selectbox("View", ["operational", "evaluation"],
