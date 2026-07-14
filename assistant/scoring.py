@@ -38,25 +38,25 @@ def score_alert(ground_truth: str, parsed: dict) -> dict:
     gt = (ground_truth or "").strip()
     is_benign = gt.lower() == "benign"
     gt_codes = codes(gt)
-    tid = (parsed.get("attack_technique_id") or "").strip().upper()
-    tid = tid if re.fullmatch(r"T\d{4}(?:\.\d{3})?", tid) else ""   # ignore null/garbage
+    a_codes = codes(parsed.get("attack_technique_id"))   # handles single OR multi (e.g. T1136/T1098)
     disp = (parsed.get("disposition_suggestion") or "").strip().lower()
 
     if is_benign:
-        technique_exact = (tid == "")            # benign: should assert no technique
+        technique_exact = not a_codes            # benign: should assert no technique
         technique_relaxed = technique_exact
         disposition_correct = (disp == "likely_benign")
     else:
-        technique_exact = bool(tid) and tid in gt_codes
-        technique_relaxed = technique_exact or (bool(tid) and _base(tid) in {_base(c) for c in gt_codes})
+        technique_exact = bool(a_codes & gt_codes)                        # sub-technique overlap
+        technique_relaxed = technique_exact or bool(
+            {_base(c) for c in a_codes} & {_base(c) for c in gt_codes})   # parent-technique overlap
         disposition_correct = disp in _ATTACK_OK_DISP
 
     # consistency: benign disposition must not carry an attack technique; a
     # confident true-positive must carry one.
     consistent = True
-    if disp == "likely_benign" and tid:
+    if disp == "likely_benign" and a_codes:
         consistent = False
-    if disp == "likely_true_positive" and not tid:
+    if disp == "likely_true_positive" and not a_codes:
         consistent = False
 
     overall = disposition_correct and technique_relaxed and consistent
@@ -67,7 +67,7 @@ def score_alert(ground_truth: str, parsed: dict) -> dict:
         "disposition_correct": disposition_correct,
         "response_consistent": consistent,
         "overall_correct": overall,
-        "assistant_tag": tid or None,
+        "assistant_tag": "/".join(sorted(a_codes)) or None,
         "assistant_disposition": disp or None,
     }
 

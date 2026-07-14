@@ -14,7 +14,7 @@ import re
 
 DISPOSITIONS = {"likely_true_positive", "likely_benign", "needs_investigation"}
 CONFIDENCES = {"high", "medium", "low"}
-_TID = re.compile(r"^T\d{4}(?:\.\d{3})?$")
+_TID = re.compile(r"^T\d{4}(?:\.\d{3})?(?:\s*[/,]\s*T\d{4}(?:\.\d{3})?)*$")  # single or slash/comma-joined
 
 # Formal schema (documentation / optional jsonschema use).
 JSON_SCHEMA = {
