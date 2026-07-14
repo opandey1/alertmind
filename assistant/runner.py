@@ -33,10 +33,19 @@ from datetime import datetime, timezone
 
 from redact import redact_alert
 from views import apply_view
-from prompts import SYSTEM_PROMPT, build_user_prompt
+from prompts import get_system_prompt, build_user_prompt
 from llm import call_llm, parse_response
 from scoring import score_alert, aggregate
 from schema import validate_output
+
+
+def _win_long(path):
+    """Windows MAX_PATH(260) workaround: use the \\\\?\\ extended-length prefix.
+    No-op off Windows."""
+    if os.name == "nt":
+        p = os.path.abspath(path)
+        return p if p.startswith("\\\\?\\") else "\\\\?\\" + p
+    return path
 
 
 def _sha(s: str) -> str:
@@ -65,6 +74,7 @@ def main():
     ap.add_argument("--provider", default="mock", choices=["mock", "anthropic", "openai", "ollama"])
     ap.add_argument("--model", default="mock")
     ap.add_argument("--view", default="operational", choices=["operational", "evaluation"])
+    ap.add_argument("--prompt", default="baseline", choices=["baseline", "benign_aware"])
     ap.add_argument("--corpus", default="../measurement/alert-corpus.json")
     ap.add_argument("--timing-log", default="../measurement/timing-log.csv")
     ap.add_argument("--outdir", default="outputs")
@@ -77,15 +87,16 @@ def main():
         alerts = alerts[: args.limit]
     ground = load_ground_truth(args.timing_log)
 
-    prompt_version = _sha(SYSTEM_PROMPT)
+    system = get_system_prompt(args.prompt)
+    prompt_version = _sha(system)
     redaction_version = _sha(open(os.path.join(os.path.dirname(__file__), "redact.py")).read())
     git_commit = _git_commit()
-    run_id = f"{datetime.now(timezone.utc):%Y%m%dT%H%M%SZ}_{args.provider}_{args.view}"
+    run_id = f"{datetime.now(timezone.utc):%Y%m%d_%H%M%S}_{args.provider}_{args.view[:4]}_{args.prompt}"
     run_dir = os.path.join(args.outdir, "runs", run_id)
-    os.makedirs(run_dir, exist_ok=True)
+    os.makedirs(_win_long(run_dir), exist_ok=True)
 
     outputs, score_rows = {}, []
-    with open(os.path.join(run_dir, "audit-log.jsonl"), "w", encoding="utf-8") as audit:
+    with open(_win_long(os.path.join(run_dir, "audit-log.jsonl")), "w", encoding="utf-8") as audit:
         for a in alerts:
             aid = a["alert_id"]
             redacted = redact_alert(a)                       # GUARDRAIL: secrets stripped first
@@ -94,7 +105,7 @@ def main():
 
             t0 = time.time()
             try:
-                raw = call_llm(args.provider, SYSTEM_PROMPT, user, args.model)
+                raw = call_llm(args.provider, system, user, args.model)
                 err = None
             except Exception as e:
                 raw, err = json.dumps({"_error": str(e)}), str(e)
@@ -116,7 +127,7 @@ def main():
             audit.write(json.dumps({
                 "run_id": run_id, "ts": datetime.now(timezone.utc).isoformat(),
                 "alert_id": aid, "provider": args.provider, "model": args.model,
-                "view": args.view, "prompt_version": prompt_version,
+                "view": args.view, "prompt_name": args.prompt, "prompt_version": prompt_version,
                 "redaction_version": redaction_version, "git_commit": git_commit,
                 "input_hash": _sha(json.dumps(a, sort_keys=True)),
                 "redacted_prompt": user,                      # proof: exactly what was sent
@@ -128,8 +139,8 @@ def main():
             print(f"  {aid}: tag={sc['assistant_tag']} disp={sc['assistant_disposition']} "
                   f"overall={sc['overall_correct']} ({parse_status})")
 
-    json.dump(outputs, open(os.path.join(run_dir, "assistant_outputs.json"), "w", encoding="utf-8"), indent=2)
-    with open(os.path.join(run_dir, "assistant_scoring.csv"), "w", newline="", encoding="utf-8") as f:
+    json.dump(outputs, open(_win_long(os.path.join(run_dir, "assistant_outputs.json")), "w", encoding="utf-8"), indent=2)
+    with open(_win_long(os.path.join(run_dir, "assistant_scoring.csv")), "w", newline="", encoding="utf-8") as f:
         cols = ["alert_id", "ground_truth", "assistant_tag", "assistant_disposition", "confidence",
                 "technique_exact_correct", "technique_relaxed_correct", "disposition_correct",
                 "response_consistent", "overall_correct"]
@@ -137,13 +148,13 @@ def main():
         w.writeheader()
         w.writerows(score_rows)
     try:
-        os.chmod(os.path.join(run_dir, "audit-log.jsonl"), 0o600)  # even redacted logs are sensitive
+        os.chmod(_win_long(os.path.join(run_dir, "audit-log.jsonl")), 0o600)  # even redacted logs are sensitive
     except OSError:
         pass
 
     agg = aggregate(score_rows)
     n = agg["n"] or 1
-    print(f"\n[{args.provider}/{args.model} · {args.view} view] {agg['n']} alerts")
+    print(f"\n[{args.provider}/{args.model} · {args.view} view · {args.prompt} prompt] {agg['n']} alerts")
     print(f"  technique exact:   {agg['technique_exact_correct']}/{n}")
     print(f"  technique relaxed: {agg['technique_relaxed_correct']}/{n}")
     print(f"  disposition:       {agg['disposition_correct']}/{n}")

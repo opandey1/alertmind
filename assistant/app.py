@@ -22,7 +22,7 @@ import streamlit as st
 
 from redact import redact_alert
 from views import apply_view
-from prompts import SYSTEM_PROMPT, build_user_prompt
+from prompts import get_system_prompt, build_user_prompt
 from llm import call_llm, parse_response
 from schema import validate_output
 from scoring import score_alert, aggregate
@@ -66,6 +66,9 @@ model = st.sidebar.text_input("Model", value=default_model)
 view = st.sidebar.selectbox("View", ["operational", "evaluation"],
                             help="operational = full alert (metadata consistency). "
                                  "evaluation = ATT&CK metadata stripped (true classification).")
+prompt_name = st.sidebar.selectbox("Prompt", ["baseline", "benign_aware"],
+                                   help="benign_aware adds disposition discipline to reduce over-confirmation.")
+system = get_system_prompt(prompt_name)
 st.sidebar.divider()
 st.sidebar.info("Every output is a **DRAFT**. The assistant takes **no action** and "
                 "receives **no secrets** (redacted first).")
@@ -100,7 +103,7 @@ with rendered[0]:
     if st.button("🤖 Triage with assistant", type="primary"):
         with st.spinner(f"Calling {provider}/{model} …"):
             try:
-                raw = call_llm(provider, SYSTEM_PROMPT, build_user_prompt(viewed), model)
+                raw = call_llm(provider, system, build_user_prompt(viewed), model)
                 out = parse_response(raw)
             except Exception as e:
                 out = {"_error": str(e)}
@@ -145,7 +148,7 @@ if mode == "Evaluator":
             for i, a in enumerate(alerts):
                 viewed_a = apply_view(redact_alert(a), view)
                 try:
-                    out = parse_response(call_llm(provider, SYSTEM_PROMPT, build_user_prompt(viewed_a), model))
+                    out = parse_response(call_llm(provider, system, build_user_prompt(viewed_a), model))
                     _, _, out = validate_output(out)
                 except Exception as e:
                     out = {"_error": str(e)}
