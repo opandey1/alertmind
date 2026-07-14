@@ -126,8 +126,14 @@ with rendered[0]:
             for line in (out.get("summary") or []):
                 st.markdown(f"- {line}")
             st.markdown("#### Suggested investigation queries")
-            for q in (out.get("investigation_queries") or []):
-                st.code(q, language="text")
+            queries = out.get("investigation_queries")
+            if isinstance(queries, str):
+                queries = [queries]
+            if not queries:
+                st.caption("_The model returned no investigation queries for this alert._")
+            else:
+                for q in queries:
+                    st.code(q if isinstance(q, str) else json.dumps(q), language="text")
             st.markdown("#### Draft user message *(editable — review before sending)*")
             st.text_area("draft", value=out.get("draft_user_message", ""), height=100,
                          label_visibility="collapsed")
