@@ -71,6 +71,16 @@ python tests/test_injection.py ollama llama3.1:8b   # the REAL injection proof
 ```
 (Anthropic: `--provider anthropic` + `ANTHROPIC_API_KEY`. OpenAI: `--provider openai` + `OPENAI_API_KEY`.)
 
+**Configuring keys.** Copy `.env.example` to `.env` and fill it in (loaded automatically;
+shell env wins; `.env` is gitignored), or set the vars in your shell, or type them into the
+Streamlit sidebar's **🔑 Connection** panel. Verify any provider before a batch run:
+
+```bash
+python preflight.py --provider openai --model meta/llama-3.3-70b-instruct
+```
+Preflight resolves the URL/key/model, lists available models, and does one tiny call with a
+short timeout — so a misconfiguration fails in ~20s instead of hanging 300s per alert.
+
 **Model name + performance notes:**
 - Use the **exact** Ollama tag (`ollama list` / `GET /v1/models`): `llama3.1:8b`, or `llama4:latest` — *with a colon*. `llama4-latest` (hyphen) returns a 404.
 - Prefer a **small, fast** model for a 20-alert experiment. `llama3.1:8b` runs in seconds locally; large MoE models like `llama4` are impractically slow and will hit the timeout. Raise `ALERTMIND_LLM_TIMEOUT` only if you truly need a big model.

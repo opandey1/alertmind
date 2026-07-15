@@ -27,6 +27,35 @@ try:
 except ImportError:
     requests = None
 
+
+def load_env_file(path=None):
+    """
+    Minimal .env loader (no python-dotenv dependency).
+
+    Reads KEY=VALUE lines from `.env` next to this module (or `path`) and puts them
+    in os.environ WITHOUT overwriting variables already set in the shell — so an
+    explicit `$env:OPENAI_API_KEY=...` always wins over the file.
+    Called automatically on import, so runner.py and app.py both pick it up.
+    """
+    path = path or os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
+    if not os.path.exists(path):
+        return {}
+    loaded = {}
+    with open(path, encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            k, v = line.split("=", 1)
+            k, v = k.strip(), v.strip().strip('"').strip("'")
+            if k and k not in os.environ:      # shell env wins
+                os.environ[k] = v
+                loaded[k] = v
+    return loaded
+
+
+load_env_file()
+
 _TIMEOUT = int(os.environ.get("ALERTMIND_LLM_TIMEOUT", "300"))
 _MAX_TOKENS = int(os.environ.get("ALERTMIND_MAX_TOKENS", "1024"))
 _RETRIES = int(os.environ.get("ALERTMIND_LLM_RETRIES", "2"))

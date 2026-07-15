@@ -63,6 +63,32 @@ provider = st.sidebar.selectbox("Provider", ["mock", "ollama", "openai", "anthro
 default_model = {"mock": "mock", "ollama": "llama3.1:8b", "openai": "gpt-4o-mini",
                  "anthropic": "claude-3-5-sonnet-latest"}[provider]
 model = st.sidebar.text_input("Model", value=default_model)
+
+# --- connection settings (API key / base URL) ---
+# Precedence: what you type here > shell env var > .env file (loaded by llm.py).
+if provider != "mock":
+    with st.sidebar.expander("🔑 Connection", expanded=False):
+        key_var = "ANTHROPIC_API_KEY" if provider == "anthropic" else "OPENAI_API_KEY"
+        default_base = {"ollama": "http://localhost:11434/v1",
+                        "openai": os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1"),
+                        "anthropic": "(fixed)"}[provider]
+        if provider != "anthropic":
+            base = st.text_input("Base URL", value=default_base,
+                                 help="Ollama: http://localhost:11434/v1 · "
+                                      "NVIDIA: https://integrate.api.nvidia.com/v1 · "
+                                      "OpenAI: https://api.openai.com/v1")
+            if base:
+                os.environ["OPENAI_BASE_URL"] = base.strip()
+        existing = os.environ.get(key_var, "")
+        api_key = st.text_input(f"{key_var}", value="", type="password",
+                                placeholder="already set from env/.env" if existing else "paste key")
+        if api_key:
+            os.environ[key_var] = api_key.strip()
+        src = ("typed here" if api_key else ("env/.env" if existing else "NOT SET"))
+        if provider == "ollama" and not existing:
+            st.caption("Ollama needs no key.")
+        else:
+            st.caption(f"Key source: **{src}**")
 view = st.sidebar.selectbox("View", ["operational", "evaluation"],
                             help="operational = full alert (metadata consistency). "
                                  "evaluation = ATT&CK metadata stripped (true classification).")
