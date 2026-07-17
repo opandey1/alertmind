@@ -110,6 +110,11 @@ def main():
                 err = None
             except Exception as e:
                 raw, err = json.dumps({"_error": str(e)}), str(e)
+                # ProviderError carries the request config, and the response
+                # metadata (usage / reasoning_tokens / finish_reason) when a
+                # response was received — keep it: this is the failure the
+                # diagnostics exist for.
+                call_meta = getattr(e, "meta", {}) or {}
             latency_ms = int((time.time() - t0) * 1000)
 
             parsed = parse_response(raw)

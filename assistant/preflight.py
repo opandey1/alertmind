@@ -161,6 +161,17 @@ def main():
     except Exception as e:
         print(f"      -> FAILED in {time.time()-t0:.1f}s")
         print(f"      -> {str(e)[:800]}")
+        meta = getattr(e, "meta", {}) or {}
+        cfg = meta.get("request_config", {})
+        if cfg:
+            print(f"      -> effective request: {cfg.get('token_parameter')}="
+                  f"{cfg.get('token_budget')} · reasoning_effort="
+                  f"{cfg.get('reasoning_effort')} · temperature={cfg.get('temperature')}")
+        if meta.get("usage"):
+            print(f"      -> usage: {meta['usage']}  finish_reason={meta.get('finish_reason')}")
+            if (meta['usage'] or {}).get("reasoning_tokens"):
+                print("         Reasoning consumed the output budget — raise "
+                      "ALERTMIND_MAX_TOKENS or lower ALERTMIND_OPENAI_REASONING_EFFORT.")
         return 1
 
 

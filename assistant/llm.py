@@ -17,12 +17,12 @@ Env knobs:
   ALERTMIND_LLM_RETRIES   retries on transient err (default 2)
   ALERTMIND_OPENAI_REASONING_EFFORT
                           GPT-5/o-series reasoning effort. UNSET by default, so the
-                          model's own vendor default applies (gpt-5.5 = medium).
-                          Set explicitly (none|minimal|low|medium|high|xhigh —
-                          model-dependent) only as a deliberate, disclosed choice;
-                          forcing "none" disables reasoning and handicaps accuracy
-                          comparisons. Reasoning tokens count toward
-                          ALERTMIND_MAX_TOKENS, so raise it when effort > none.
+                          model's own vendor default applies (gpt-5.5 defaults to
+                          medium and supports none|low|medium|high|xhigh; the valid
+                          set is model-dependent). Set it only as a deliberate,
+                          disclosed choice: it changes the inference configuration
+                          and may reduce quality on multi-step triage. Reasoning
+                          tokens consume ALERTMIND_MAX_TOKENS.
 """
 import os
 import json
@@ -74,6 +74,22 @@ _OPENAI_REASONING_EFFORT = os.environ.get(
     "ALERTMIND_OPENAI_REASONING_EFFORT", ""
 ).strip()
 _RETRYABLE = {429, 500, 502, 503, 504}
+
+
+class ProviderError(RuntimeError):
+    """
+    A provider call failed. Carries whatever metadata was available at failure
+    time — always the request config, plus response metadata (usage, reasoning
+    tokens, finish_reason) when a response was actually received.
+
+    Without this, the empty-content failure (reasoning consumed the whole output
+    budget) raised an actionable message but discarded the very fields needed to
+    diagnose it. runner.py reads `.meta`; preflight prints it.
+    """
+
+    def __init__(self, message, meta=None):
+        super().__init__(message)
+        self.meta = meta or {}
 
 
 @contextmanager
@@ -141,7 +157,7 @@ def _post(url, headers, payload):
     raise RuntimeError("unreachable")
 
 
-def _mock(system: str, user: str, model: str) -> str:
+def _mock(system: str, user: str, model: str) -> tuple[str, dict]:
     """
     Deterministic offline response derived from the alert's own fields. NOT a real
     inference. It copies the ATT&CK id from the alert and always answers
@@ -179,20 +195,32 @@ def _mock(system: str, user: str, model: str) -> str:
     }), {"model_actual": "mock", "request_config": {"provider": "mock"}}
 
 
-def _anthropic(system: str, user: str, model: str) -> str:
+def _anthropic(system: str, user: str, model: str) -> tuple[str, dict]:
     key = os.environ.get("ANTHROPIC_API_KEY")
     if not key:
         raise RuntimeError("ANTHROPIC_API_KEY not set")
     payload = {"model": model, "max_tokens": _MAX_TOKENS, "temperature": 0, "system": system,
                "messages": [{"role": "user", "content": user}]}
-    r = _post("https://api.anthropic.com/v1/messages",
-              {"x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json"},
-              payload)
+    request_config = {"provider": "anthropic", "model_requested": model,
+                      "endpoint": "https://api.anthropic.com/v1/messages",
+                      "token_parameter": "max_tokens", "token_budget": _MAX_TOKENS,
+                      "temperature": 0}
+    try:
+        r = _post("https://api.anthropic.com/v1/messages",
+                  {"x-api-key": key, "anthropic-version": "2023-06-01",
+                   "content-type": "application/json"},
+                  payload)
+    except Exception as exc:
+        raise ProviderError(str(exc), meta={"request_config": request_config}) from exc
     body = r.json()
     meta = _anthropic_meta(body)
-    meta["request_config"] = {"provider": "anthropic", "model_requested": model,
-                              "max_tokens": _MAX_TOKENS, "temperature": 0}
-    return body["content"][0]["text"], meta
+    meta["request_config"] = request_config
+    try:
+        text = body["content"][0]["text"]
+    except (KeyError, IndexError, TypeError) as exc:
+        raise ProviderError("Anthropic returned an unexpected response shape.",
+                            meta=meta) from exc
+    return text, meta
 
 
 def _api_root(base: str, variable: str) -> str:
@@ -315,7 +343,7 @@ def provider_request_info(provider: str, model: str) -> dict:
     raise ValueError(f"provider request info is unavailable for {provider!r}")
 
 
-def _openai(system: str, user: str, model: str) -> str:
+def _openai(system: str, user: str, model: str) -> tuple[str, dict]:
     info = provider_request_info("openai", model)
     key = os.environ.get("OPENAI_API_KEY")
     if not key:
@@ -328,48 +356,64 @@ def _openai(system: str, user: str, model: str) -> str:
             {"role": "user", "content": user},
         ],
     }
+    reasoning_model = info["official_openai"] and _uses_reasoning_effort(model)
     if info["official_openai"]:
-        # GPT-5.5 rejects legacy max_tokens and non-default temperature.
-        # NOTE: temperature is therefore NOT pinned to 0 for official OpenAI models,
-        # so these runs are NOT deterministic (unlike the temp=0 Ollama runs).
+        # Official OpenAI rejects legacy max_tokens.
         payload["max_completion_tokens"] = _MAX_TOKENS
-        if _OPENAI_REASONING_EFFORT and _uses_reasoning_effort(model):
-            payload["reasoning_effort"] = _OPENAI_REASONING_EFFORT
+        if reasoning_model:
+            # Reasoning models reject temperature; leave it unset (stochastic).
+            if _OPENAI_REASONING_EFFORT:
+                payload["reasoning_effort"] = _OPENAI_REASONING_EFFORT
+        else:
+            # Non-reasoning official models (e.g. gpt-4o) DO support temperature —
+            # pin it to 0 so this path keeps the determinism the Ollama path has.
+            payload["temperature"] = 0
     else:
         # Preserve compatibility with NVIDIA and other Chat Completions APIs.
         payload.update({"temperature": 0, "max_tokens": _MAX_TOKENS})
 
-    response = _post(
-        info["url"],
-        {
-            "Authorization": f"Bearer {key}",
-            "content-type": "application/json",
-        },
-        payload,
-    )
-    text = _completion_text(response)
-    meta = _completion_meta(response)
-    meta["request_config"] = {
+    # Built BEFORE the request so it survives a timeout, a connection failure, or
+    # an empty-content response.
+    request_config = {
         "provider": "openai",
         "model_requested": model,
         "endpoint": info["url"],
         "official_openai": info["official_openai"],
+        "reasoning_model": reasoning_model,
         "token_parameter": info["token_parameter"],
         "token_budget": _MAX_TOKENS,
-        # Interpretation of the results depends on these two — record them explicitly.
         "reasoning_effort": (
             payload.get("reasoning_effort", "unset (vendor default)")
-            if info["official_openai"] and _uses_reasoning_effort(model)
+            if reasoning_model
             else "n/a (non-reasoning model or third-party endpoint)"
         ),
         "temperature": payload.get(
-            "temperature", "omitted (unsupported on official OpenAI reasoning models)"
+            "temperature",
+            "omitted (unsupported on official OpenAI reasoning models)",
         ),
     }
+
+    try:
+        response = _post(
+            info["url"],
+            {"Authorization": f"Bearer {key}", "content-type": "application/json"},
+            payload,
+        )
+    except Exception as exc:  # timeout / connection / HTTP error
+        raise ProviderError(str(exc), meta={"request_config": request_config}) from exc
+
+    # Extract metadata BEFORE validating content, so an empty-content failure
+    # still reports usage/reasoning_tokens/finish_reason.
+    meta = _completion_meta(response)
+    meta["request_config"] = request_config
+    try:
+        text = _completion_text(response)
+    except RuntimeError as exc:
+        raise ProviderError(str(exc), meta=meta) from exc
     return text, meta
 
 
-def _ollama(system: str, user: str, model: str) -> str:
+def _ollama(system: str, user: str, model: str) -> tuple[str, dict]:
     info = provider_request_info("ollama", model)
     key = os.environ.get("OLLAMA_API_KEY", "ollama")  # Ollama ignores it.
     payload = {
@@ -381,17 +425,7 @@ def _ollama(system: str, user: str, model: str) -> str:
             {"role": "user", "content": user},
         ],
     }
-    response = _post(
-        info["url"],
-        {
-            "Authorization": f"Bearer {key}",
-            "content-type": "application/json",
-        },
-        payload,
-    )
-    text = _completion_text(response)
-    meta = _completion_meta(response)
-    meta["request_config"] = {
+    request_config = {
         "provider": "ollama",
         "model_requested": model,
         "endpoint": info["url"],
@@ -399,6 +433,21 @@ def _ollama(system: str, user: str, model: str) -> str:
         "token_budget": _MAX_TOKENS,
         "temperature": 0,
     }
+    try:
+        response = _post(
+            info["url"],
+            {"Authorization": f"Bearer {key}", "content-type": "application/json"},
+            payload,
+        )
+    except Exception as exc:
+        raise ProviderError(str(exc), meta={"request_config": request_config}) from exc
+
+    meta = _completion_meta(response)
+    meta["request_config"] = request_config
+    try:
+        text = _completion_text(response)
+    except RuntimeError as exc:
+        raise ProviderError(str(exc), meta=meta) from exc
     return text, meta
 
 

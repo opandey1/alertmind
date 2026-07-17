@@ -177,8 +177,16 @@ class ReasoningEffortTests(unittest.TestCase):
             },
             clear=False,
         ), patch.object(llm, "_OPENAI_REASONING_EFFORT", "high"):
-            llm._openai("system", "user", "gpt-4o")
-        self.assertNotIn("reasoning_effort", post.call_args.args[2])
+            _, meta = llm._openai("system", "user", "gpt-4o")
+        payload = post.call_args.args[2]
+        self.assertNotIn("reasoning_effort", payload)
+        # gpt-4o is NOT a reasoning model: temperature IS supported, so pin it to 0
+        # and record it accurately (it used to claim "unsupported ... reasoning models").
+        self.assertEqual(payload["temperature"], 0)
+        cfg = meta["request_config"]
+        self.assertEqual(cfg["temperature"], 0)
+        self.assertFalse(cfg["reasoning_model"])
+        self.assertNotIn("unsupported", str(cfg["temperature"]))
 
 
 class EmptyCompletionTests(unittest.TestCase):
@@ -273,6 +281,67 @@ class ResponseMetadataTests(unittest.TestCase):
         self.assertEqual(cfg["token_budget"], llm._MAX_TOKENS)
         self.assertEqual(cfg["reasoning_effort"], "unset (vendor default)")
         self.assertIn("omitted", cfg["temperature"])
+
+
+class FailurePathMetadataTests(unittest.TestCase):
+    """P2: the empty-content failure (reasoning ate the output budget) is exactly
+    when usage/reasoning_tokens/finish_reason are needed — they must survive."""
+
+    @patch.object(llm, "_post")
+    def test_empty_content_error_carries_usage_and_config(self, post: Mock) -> None:
+        response = Mock()
+        response.json.return_value = {
+            "id": "chatcmpl-empty",
+            "model": "gpt-5.5-2026-04-23",
+            "choices": [{"finish_reason": "length", "message": {"content": ""}}],
+            "usage": {
+                "prompt_tokens": 900,
+                "completion_tokens": 1024,
+                "total_tokens": 1924,
+                "completion_tokens_details": {"reasoning_tokens": 1024},
+            },
+        }
+        post.return_value = response
+        with patch.dict(
+            os.environ,
+            {
+                "OPENAI_BASE_URL": "https://api.openai.com/v1",
+                "OPENAI_API_KEY": "test-key",
+            },
+            clear=False,
+        ):
+            with self.assertRaises(llm.ProviderError) as ctx:
+                llm._openai("system", "user", "gpt-5.5-2026-04-23")
+
+        meta = ctx.exception.meta
+        self.assertEqual(meta["usage"]["reasoning_tokens"], 1024)
+        self.assertEqual(meta["finish_reason"], "length")
+        self.assertEqual(meta["model_actual"], "gpt-5.5-2026-04-23")
+        self.assertEqual(
+            meta["request_config"]["token_parameter"], "max_completion_tokens"
+        )
+        self.assertIn("ALERTMIND_MAX_TOKENS", str(ctx.exception))
+
+    def test_transport_failure_still_reports_request_config(self) -> None:
+        fake_requests = SimpleNamespace(
+            post=Mock(side_effect=TimeoutError()),
+            exceptions=SimpleNamespace(
+                Timeout=TimeoutError, ConnectionError=ConnectionError
+            ),
+        )
+        with patch.object(llm, "requests", fake_requests), patch.dict(
+            os.environ,
+            {
+                "OPENAI_BASE_URL": "https://api.openai.com/v1",
+                "OPENAI_API_KEY": "test-key",
+            },
+            clear=False,
+        ):
+            with self.assertRaises(llm.ProviderError) as ctx:
+                llm._openai("system", "user", "gpt-5.5-2026-04-23")
+        cfg = ctx.exception.meta["request_config"]
+        self.assertEqual(cfg["model_requested"], "gpt-5.5-2026-04-23")
+        self.assertEqual(cfg["token_budget"], llm._MAX_TOKENS)
 
 
 if __name__ == "__main__":
