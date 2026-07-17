@@ -76,23 +76,35 @@ Hosted OpenAI GPT-5.5:
 ```powershell
 $env:OPENAI_BASE_URL="https://api.openai.com/v1"
 $env:OPENAI_API_KEY="sk-proj-..."
-python preflight.py --provider openai --model gpt-5.5
-python runner.py --provider openai --model gpt-5.5 --view operational --limit 1
+$env:ALERTMIND_MAX_TOKENS="25000"          # reasoning tokens consume this budget
+python preflight.py --provider openai --model gpt-5.5-2026-04-23
+python runner.py --provider openai --model gpt-5.5-2026-04-23 --view evaluation --limit 1
 ```
+
+**Pin the snapshot, not the alias.** Use `gpt-5.5-2026-04-23`; the bare `gpt-5.5` alias
+floats and can change the underlying model between runs. Snapshots exist precisely to keep
+behaviour consistent, and the served model is recorded per call as `model_actual` in the
+audit log.
 
 After the one-alert run succeeds, remove `--limit 1` for the frozen corpus.
 
-**Two caveats that affect the measurement, not just the plumbing:**
+**Three caveats that affect the measurement, not just the plumbing:**
 - **Reasoning effort.** This client sends **no** `reasoning_effort` by default, so the
-  model's own vendor default applies (gpt-5.5 defaults to *medium*). Set
-  `ALERTMIND_OPENAI_REASONING_EFFORT` (`none|minimal|low|medium|high|xhigh`, model-dependent)
-  only as a deliberate, **disclosed** choice — forcing `none` disables reasoning and
-  handicaps any accuracy comparison. Reasoning tokens count toward
-  `ALERTMIND_MAX_TOKENS`, so raise it (e.g. 4096) when effort is above `none`, or the
-  budget can be consumed before any content is emitted.
-- **Determinism.** Official OpenAI reasoning models reject `temperature`, so GPT-5.5 runs
-  are **not** deterministic — unlike the `temperature=0` Ollama runs. A single hosted run
-  is one sample; report it as such.
+  model's own vendor default applies (gpt-5.5 supports `none|low|medium|high|xhigh` and
+  defaults to **medium**). Set `ALERTMIND_OPENAI_REASONING_EFFORT` only as a deliberate,
+  **disclosed** choice: forcing `none` changes the inference configuration and may reduce
+  performance on this multi-step triage task — disclose it in any comparison. (`none` is a
+  legitimate setting for latency-critical classification; it is simply not the default, and
+  silently applying it would make a model-capability comparison unfair.)
+- **Token budget.** Reasoning tokens consume the output budget and can exhaust it before any
+  visible content is emitted. Reserve a generous `ALERTMIND_MAX_TOKENS` (OpenAI's reasoning
+  guidance suggests starting around 25,000; gpt-5.5 permits up to 128,000 output tokens). A
+  smaller budget may suffice for AlertMind's compact JSON — validate it with `preflight.py`,
+  which now prints `reasoning_tokens` usage, and with a `--limit 1` run.
+- **Determinism.** Official OpenAI reasoning models reject `temperature`, so hosted runs are
+  **stochastic**; a single hosted run is one sample and should be reported as such. By
+  contrast, the two recorded Ollama runs at `temperature=0` were empirically byte-identical
+  — that observation, not the parameter alone, is the evidence for reproducibility there.
 
 (Anthropic: `--provider anthropic` + `ANTHROPIC_API_KEY`.)
 
@@ -101,7 +113,7 @@ shell env wins; `.env` is gitignored), or set the vars in your shell, or type th
 Streamlit sidebar's **🔑 Connection** panel. Verify any provider before a batch run:
 
 ```bash
-python preflight.py --provider openai --model gpt-5.5
+python preflight.py --provider openai --model gpt-5.5-2026-04-23
 ```
 Preflight resolves the URL/key/model, lists available models, and does one tiny call with a
 short timeout — so a misconfiguration fails in ~20s instead of hanging 300s per alert.

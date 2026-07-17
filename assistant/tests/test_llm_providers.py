@@ -42,9 +42,12 @@ class ProviderPayloadTests(unittest.TestCase):
             },
             clear=False,
         ):
-            output = llm._openai("system", "user", "gpt-5.5")
+            output, meta = llm._openai("system", "user", "gpt-5.5")
 
         self.assertEqual(output, "pong")
+        self.assertEqual(
+            meta["request_config"]["reasoning_effort"], "unset (vendor default)"
+        )
         url, headers, payload = post.call_args.args
         self.assertEqual(
             url, "https://api.openai.com/v1/chat/completions"
@@ -200,6 +203,76 @@ class EmptyCompletionTests(unittest.TestCase):
                 RuntimeError, "ALERTMIND_MAX_TOKENS"
             ):
                 llm._openai("system", "user", "gpt-5.5")
+
+
+class TimeoutOverrideTests(unittest.TestCase):
+    """P1 regression: preflight's --timeout must govern the completion request,
+    not just GET /models. Previously _post always used the global 300s value."""
+
+    def test_timeout_override_is_passed_to_post_and_restored(self) -> None:
+        captured = {}
+
+        def fake_post(url, headers=None, json=None, timeout=None):
+            captured["timeout"] = timeout
+            return completion_response()
+
+        fake_requests = SimpleNamespace(
+            post=fake_post,
+            exceptions=SimpleNamespace(
+                Timeout=TimeoutError, ConnectionError=ConnectionError
+            ),
+        )
+        original = llm._TIMEOUT
+        with patch.object(llm, "requests", fake_requests):
+            with llm.timeout_override(7):
+                llm._post("https://example.test/v1/chat/completions", {}, {"model": "m"})
+        self.assertEqual(captured["timeout"], 7)
+        self.assertEqual(llm._TIMEOUT, original)  # restored
+
+    def test_timeout_override_restores_on_exception(self) -> None:
+        original = llm._TIMEOUT
+        with self.assertRaises(ValueError):
+            with llm.timeout_override(5):
+                raise ValueError("boom")
+        self.assertEqual(llm._TIMEOUT, original)
+
+
+class ResponseMetadataTests(unittest.TestCase):
+    @patch.object(llm, "_post")
+    def test_openai_metadata_captures_model_usage_and_config(self, post: Mock) -> None:
+        response = Mock()
+        response.json.return_value = {
+            "id": "chatcmpl-abc",
+            "model": "gpt-5.5-2026-04-23",
+            "system_fingerprint": "fp_test",
+            "choices": [{"finish_reason": "stop", "message": {"content": "pong"}}],
+            "usage": {
+                "prompt_tokens": 11,
+                "completion_tokens": 22,
+                "total_tokens": 33,
+                "completion_tokens_details": {"reasoning_tokens": 9},
+            },
+        }
+        post.return_value = response
+        with patch.dict(
+            os.environ,
+            {
+                "OPENAI_BASE_URL": "https://api.openai.com/v1",
+                "OPENAI_API_KEY": "test-key",
+            },
+            clear=False,
+        ):
+            _, meta = llm._openai("system", "user", "gpt-5.5-2026-04-23")
+
+        self.assertEqual(meta["model_actual"], "gpt-5.5-2026-04-23")
+        self.assertEqual(meta["response_id"], "chatcmpl-abc")
+        self.assertEqual(meta["system_fingerprint"], "fp_test")
+        self.assertEqual(meta["usage"]["reasoning_tokens"], 9)
+        cfg = meta["request_config"]
+        self.assertEqual(cfg["token_parameter"], "max_completion_tokens")
+        self.assertEqual(cfg["token_budget"], llm._MAX_TOKENS)
+        self.assertEqual(cfg["reasoning_effort"], "unset (vendor default)")
+        self.assertIn("omitted", cfg["temperature"])
 
 
 if __name__ == "__main__":

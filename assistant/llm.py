@@ -28,6 +28,7 @@ import os
 import json
 import re
 import time
+from contextlib import contextmanager
 from urllib.parse import urlparse
 
 try:
@@ -73,6 +74,23 @@ _OPENAI_REASONING_EFFORT = os.environ.get(
     "ALERTMIND_OPENAI_REASONING_EFFORT", ""
 ).strip()
 _RETRYABLE = {429, 500, 502, 503, 504}
+
+
+@contextmanager
+def timeout_override(seconds):
+    """
+    Temporarily override the per-call timeout (used by preflight.py so that its
+    --timeout applies to the completion request too, not just GET /models).
+    Restores the previous value on exit, including on exception.
+    """
+    global _TIMEOUT
+    previous = _TIMEOUT
+    if seconds:
+        _TIMEOUT = int(seconds)
+    try:
+        yield _TIMEOUT
+    finally:
+        _TIMEOUT = previous
 
 
 def _server_error(response) -> str:
@@ -158,18 +176,23 @@ def _mock(system: str, user: str, model: str) -> str:
                               "monitoring flagged for review; please confirm if this was you.",
         "caveats": "Mock output; not a real model inference.",
         "_model": "mock",
-    })
+    }), {"model_actual": "mock", "request_config": {"provider": "mock"}}
 
 
 def _anthropic(system: str, user: str, model: str) -> str:
     key = os.environ.get("ANTHROPIC_API_KEY")
     if not key:
         raise RuntimeError("ANTHROPIC_API_KEY not set")
+    payload = {"model": model, "max_tokens": _MAX_TOKENS, "temperature": 0, "system": system,
+               "messages": [{"role": "user", "content": user}]}
     r = _post("https://api.anthropic.com/v1/messages",
               {"x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json"},
-              {"model": model, "max_tokens": _MAX_TOKENS, "temperature": 0, "system": system,
-               "messages": [{"role": "user", "content": user}]})
-    return r.json()["content"][0]["text"]
+              payload)
+    body = r.json()
+    meta = _anthropic_meta(body)
+    meta["request_config"] = {"provider": "anthropic", "model_requested": model,
+                              "max_tokens": _MAX_TOKENS, "temperature": 0}
+    return body["content"][0]["text"], meta
 
 
 def _api_root(base: str, variable: str) -> str:
@@ -209,6 +232,49 @@ def _completion_text(response) -> str:
             "ALERTMIND_MAX_TOKENS or lower reasoning effort."
         )
     return content
+
+
+def _completion_meta(response) -> dict:
+    """
+    Response metadata the experiment's interpretation depends on: which model
+    actually served the request, its id/fingerprint, and token usage including
+    reasoning tokens (which consume the output budget).
+    """
+    try:
+        body = response.json()
+    except Exception:
+        return {}
+    if not isinstance(body, dict):
+        return {}
+    usage = body.get("usage") or {}
+    details = usage.get("completion_tokens_details") or {}
+    choices = body.get("choices") or [{}]
+    meta = {
+        "response_id": body.get("id"),
+        "model_actual": body.get("model"),
+        "system_fingerprint": body.get("system_fingerprint"),
+        "finish_reason": (choices[0] or {}).get("finish_reason"),
+        "usage": {
+            "prompt_tokens": usage.get("prompt_tokens"),
+            "completion_tokens": usage.get("completion_tokens"),
+            "total_tokens": usage.get("total_tokens"),
+            "reasoning_tokens": details.get("reasoning_tokens"),
+        },
+    }
+    return {k: v for k, v in meta.items() if v is not None}
+
+
+def _anthropic_meta(body: dict) -> dict:
+    usage = body.get("usage") or {}
+    return {k: v for k, v in {
+        "response_id": body.get("id"),
+        "model_actual": body.get("model"),
+        "finish_reason": body.get("stop_reason"),
+        "usage": {
+            "prompt_tokens": usage.get("input_tokens"),
+            "completion_tokens": usage.get("output_tokens"),
+        },
+    }.items() if v is not None}
 
 
 def provider_request_info(provider: str, model: str) -> dict:
@@ -281,29 +347,59 @@ def _openai(system: str, user: str, model: str) -> str:
         },
         payload,
     )
-    return _completion_text(response)
+    text = _completion_text(response)
+    meta = _completion_meta(response)
+    meta["request_config"] = {
+        "provider": "openai",
+        "model_requested": model,
+        "endpoint": info["url"],
+        "official_openai": info["official_openai"],
+        "token_parameter": info["token_parameter"],
+        "token_budget": _MAX_TOKENS,
+        # Interpretation of the results depends on these two — record them explicitly.
+        "reasoning_effort": (
+            payload.get("reasoning_effort", "unset (vendor default)")
+            if info["official_openai"] and _uses_reasoning_effort(model)
+            else "n/a (non-reasoning model or third-party endpoint)"
+        ),
+        "temperature": payload.get(
+            "temperature", "omitted (unsupported on official OpenAI reasoning models)"
+        ),
+    }
+    return text, meta
 
 
 def _ollama(system: str, user: str, model: str) -> str:
     info = provider_request_info("ollama", model)
     key = os.environ.get("OLLAMA_API_KEY", "ollama")  # Ollama ignores it.
+    payload = {
+        "model": model,
+        "temperature": 0,
+        "max_tokens": _MAX_TOKENS,
+        "messages": [
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ],
+    }
     response = _post(
         info["url"],
         {
             "Authorization": f"Bearer {key}",
             "content-type": "application/json",
         },
-        {
-            "model": model,
-            "temperature": 0,
-            "max_tokens": _MAX_TOKENS,
-            "messages": [
-                {"role": "system", "content": system},
-                {"role": "user", "content": user},
-            ],
-        },
+        payload,
     )
-    return _completion_text(response)
+    text = _completion_text(response)
+    meta = _completion_meta(response)
+    meta["request_config"] = {
+        "provider": "ollama",
+        "model_requested": model,
+        "endpoint": info["url"],
+        "token_parameter": info["token_parameter"],
+        "token_budget": _MAX_TOKENS,
+        "temperature": 0,
+    }
+    return text, meta
 
 
 _PROVIDERS = {
@@ -314,12 +410,23 @@ _PROVIDERS = {
 }
 
 
-def call_llm(provider: str, system: str, user: str, model: str) -> str:
+def call_llm_meta(provider: str, system: str, user: str, model: str):
+    """Return (text, metadata). Metadata carries the effective request config and
+    the provider's response metadata (actual model, id, fingerprint, token usage
+    including reasoning tokens) — needed to interpret and reproduce a run."""
     if provider not in _PROVIDERS:
         raise ValueError(f"unknown provider {provider}; choose from {list(_PROVIDERS)}")
     if provider != "mock" and requests is None:
         raise RuntimeError("`requests` is required for non-mock providers (pip install requests)")
-    return _PROVIDERS[provider](system, user, model)
+    result = _PROVIDERS[provider](system, user, model)
+    if isinstance(result, tuple):
+        return result
+    return result, {}
+
+
+def call_llm(provider: str, system: str, user: str, model: str) -> str:
+    """Text-only convenience wrapper (UI, tests, preflight)."""
+    return call_llm_meta(provider, system, user, model)[0]
 
 
 def parse_response(raw: str) -> dict:

@@ -134,9 +134,24 @@ def main():
     print(f"[2/2] one 'ping' completion  (timeout {args.timeout}s)")
     t0 = time.time()
     try:
-        out = llm.call_llm(args.provider, "Reply with the single word: pong.", "ping", args.model)
+        # P1: --timeout must apply to the completion request as well, not just
+        # GET /models. Without this the banner says 20s while the call waits 300s.
+        with llm.timeout_override(args.timeout):
+            out, meta = llm.call_llm_meta(
+                args.provider, "Reply with the single word: pong.", "ping", args.model
+            )
         dt = time.time() - t0
         print(f"      -> OK in {dt:.1f}s | response: {out.strip()[:80]!r}")
+        cfg = meta.get("request_config", {})
+        if cfg:
+            print(f"      -> effective: {cfg.get('token_parameter')}={cfg.get('token_budget')}"
+                  f" · reasoning_effort={cfg.get('reasoning_effort')}"
+                  f" · temperature={cfg.get('temperature')}")
+        if meta.get("model_actual"):
+            print(f"      -> served by model: {meta['model_actual']}"
+                  f"  (pin this snapshot for the measured run)")
+        if meta.get("usage"):
+            print(f"      -> usage: {meta['usage']}")
         print()
         per20 = dt * 20
         print(f"Estimated batch of 20 alerts ~ {per20/60:.1f} min "

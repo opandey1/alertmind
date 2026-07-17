@@ -34,7 +34,7 @@ from datetime import datetime, timezone
 from redact import redact_alert
 from views import apply_view
 from prompts import get_system_prompt, build_user_prompt
-from llm import call_llm, parse_response
+from llm import call_llm_meta, parse_response
 from scoring import score_alert, aggregate
 from schema import validate_output
 
@@ -104,8 +104,9 @@ def main():
             user = build_user_prompt(viewed)
 
             t0 = time.time()
+            call_meta = {}
             try:
-                raw = call_llm(args.provider, system, user, args.model)
+                raw, call_meta = call_llm_meta(args.provider, system, user, args.model)
                 err = None
             except Exception as e:
                 raw, err = json.dumps({"_error": str(e)}), str(e)
@@ -134,6 +135,15 @@ def main():
                 "redacted_prompt_hash": _sha(user),
                 "response_hash": _sha(raw), "latency_ms": latency_ms,
                 "parse_status": parse_status, "schema_errors": errors,
+                # Effective request config + provider response metadata: the run's
+                # interpretation depends on reasoning effort and token allocation,
+                # and on WHICH model snapshot actually served the request.
+                "request_config": call_meta.get("request_config"),
+                "model_actual": call_meta.get("model_actual"),
+                "response_id": call_meta.get("response_id"),
+                "system_fingerprint": call_meta.get("system_fingerprint"),
+                "finish_reason": call_meta.get("finish_reason"),
+                "usage": call_meta.get("usage"),
                 "parsed_output": parsed, "raw_response": raw,
             }) + "\n")
             print(f"  {aid}: tag={sc['assistant_tag']} disp={sc['assistant_disposition']} "
