@@ -81,9 +81,18 @@ python runner.py --provider openai --model gpt-5.5 --view operational --limit 1
 ```
 
 After the one-alert run succeeds, remove `--limit 1` for the frozen corpus.
-GPT-5.5 uses `max_completion_tokens`, omits `temperature`, and defaults to
-`reasoning_effort=none` in this client. Override the last setting with
-`ALERTMIND_OPENAI_REASONING_EFFORT` if the experiment calls for more reasoning.
+
+**Two caveats that affect the measurement, not just the plumbing:**
+- **Reasoning effort.** This client sends **no** `reasoning_effort` by default, so the
+  model's own vendor default applies (gpt-5.5 defaults to *medium*). Set
+  `ALERTMIND_OPENAI_REASONING_EFFORT` (`none|minimal|low|medium|high|xhigh`, model-dependent)
+  only as a deliberate, **disclosed** choice — forcing `none` disables reasoning and
+  handicaps any accuracy comparison. Reasoning tokens count toward
+  `ALERTMIND_MAX_TOKENS`, so raise it (e.g. 4096) when effort is above `none`, or the
+  budget can be consumed before any content is emitted.
+- **Determinism.** Official OpenAI reasoning models reject `temperature`, so GPT-5.5 runs
+  are **not** deterministic — unlike the `temperature=0` Ollama runs. A single hosted run
+  is one sample; report it as such.
 
 (Anthropic: `--provider anthropic` + `ANTHROPIC_API_KEY`.)
 

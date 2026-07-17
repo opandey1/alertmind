@@ -87,7 +87,7 @@ def main():
     if args.provider == "openai" and "nvidia" in base and not base.rstrip("/").endswith("/v1"):
         problems.append("NVIDIA base URL should be exactly https://integrate.api.nvidia.com/v1")
     for p in problems:
-        print(f"  ⚠  {p}")
+        print(f"  [WARN] {p}")
     if problems:
         print()
 

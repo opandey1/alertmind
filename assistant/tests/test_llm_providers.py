@@ -51,9 +51,10 @@ class ProviderPayloadTests(unittest.TestCase):
         )
         self.assertEqual(headers["Authorization"], "Bearer test-key")
         self.assertEqual(payload["max_completion_tokens"], llm._MAX_TOKENS)
-        self.assertEqual(payload["reasoning_effort"], "none")
         self.assertNotIn("max_tokens", payload)
         self.assertNotIn("temperature", payload)
+        # Unset by default -> the model's vendor default effort applies.
+        self.assertNotIn("reasoning_effort", payload)
 
     @patch.object(llm, "_post")
     def test_third_party_openai_compatible_keeps_legacy_parameters(
@@ -141,6 +142,64 @@ class ProviderPayloadTests(unittest.TestCase):
                     {},
                     {"model": "gpt-5.5"},
                 )
+
+
+class ReasoningEffortTests(unittest.TestCase):
+    @patch.object(llm, "_post")
+    def test_reasoning_effort_sent_only_when_explicitly_configured(
+        self, post: Mock
+    ) -> None:
+        post.return_value = completion_response()
+        with patch.dict(
+            os.environ,
+            {
+                "OPENAI_BASE_URL": "https://api.openai.com/v1",
+                "OPENAI_API_KEY": "test-key",
+            },
+            clear=False,
+        ), patch.object(llm, "_OPENAI_REASONING_EFFORT", "low"):
+            llm._openai("system", "user", "gpt-5.5")
+        self.assertEqual(post.call_args.args[2]["reasoning_effort"], "low")
+
+    @patch.object(llm, "_post")
+    def test_non_reasoning_model_never_gets_reasoning_effort(
+        self, post: Mock
+    ) -> None:
+        post.return_value = completion_response()
+        with patch.dict(
+            os.environ,
+            {
+                "OPENAI_BASE_URL": "https://api.openai.com/v1",
+                "OPENAI_API_KEY": "test-key",
+            },
+            clear=False,
+        ), patch.object(llm, "_OPENAI_REASONING_EFFORT", "high"):
+            llm._openai("system", "user", "gpt-4o")
+        self.assertNotIn("reasoning_effort", post.call_args.args[2])
+
+
+class EmptyCompletionTests(unittest.TestCase):
+    @patch.object(llm, "_post")
+    def test_empty_content_raises_actionable_error(self, post: Mock) -> None:
+        response = Mock()
+        response.json.return_value = {
+            "choices": [
+                {"finish_reason": "length", "message": {"content": ""}}
+            ]
+        }
+        post.return_value = response
+        with patch.dict(
+            os.environ,
+            {
+                "OPENAI_BASE_URL": "https://api.openai.com/v1",
+                "OPENAI_API_KEY": "test-key",
+            },
+            clear=False,
+        ):
+            with self.assertRaisesRegex(
+                RuntimeError, "ALERTMIND_MAX_TOKENS"
+            ):
+                llm._openai("system", "user", "gpt-5.5")
 
 
 if __name__ == "__main__":

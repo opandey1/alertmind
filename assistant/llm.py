@@ -16,7 +16,13 @@ Env knobs:
   ALERTMIND_MAX_TOKENS    max response tokens      (default 1024)
   ALERTMIND_LLM_RETRIES   retries on transient err (default 2)
   ALERTMIND_OPENAI_REASONING_EFFORT
-                          GPT-5/o-series effort     (default none)
+                          GPT-5/o-series reasoning effort. UNSET by default, so the
+                          model's own vendor default applies (gpt-5.5 = medium).
+                          Set explicitly (none|minimal|low|medium|high|xhigh —
+                          model-dependent) only as a deliberate, disclosed choice;
+                          forcing "none" disables reasoning and handicaps accuracy
+                          comparisons. Reasoning tokens count toward
+                          ALERTMIND_MAX_TOKENS, so raise it when effort > none.
 """
 import os
 import json
@@ -61,8 +67,10 @@ load_env_file()
 _TIMEOUT = int(os.environ.get("ALERTMIND_LLM_TIMEOUT", "300"))
 _MAX_TOKENS = int(os.environ.get("ALERTMIND_MAX_TOKENS", "1024"))
 _RETRIES = int(os.environ.get("ALERTMIND_LLM_RETRIES", "2"))
+# Unset by default: send no reasoning_effort so the model's vendor default applies.
+# Overriding it silently would change measured accuracy without disclosure.
 _OPENAI_REASONING_EFFORT = os.environ.get(
-    "ALERTMIND_OPENAI_REASONING_EFFORT", "none"
+    "ALERTMIND_OPENAI_REASONING_EFFORT", ""
 ).strip()
 _RETRYABLE = {429, 500, 502, 503, 504}
 
@@ -256,6 +264,8 @@ def _openai(system: str, user: str, model: str) -> str:
     }
     if info["official_openai"]:
         # GPT-5.5 rejects legacy max_tokens and non-default temperature.
+        # NOTE: temperature is therefore NOT pinned to 0 for official OpenAI models,
+        # so these runs are NOT deterministic (unlike the temp=0 Ollama runs).
         payload["max_completion_tokens"] = _MAX_TOKENS
         if _OPENAI_REASONING_EFFORT and _uses_reasoning_effort(model):
             payload["reasoning_effort"] = _OPENAI_REASONING_EFFORT
