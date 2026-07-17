@@ -37,19 +37,41 @@ def main():
     print("AlertMind preflight")
     print("=" * 62)
 
+    request_info = None
     if args.provider == "anthropic":
         base = "https://api.anthropic.com/v1"
         key = os.environ.get("ANTHROPIC_API_KEY", "")
         key_var = "ANTHROPIC_API_KEY"
     else:
-        base = os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1")
-        key = os.environ.get("OPENAI_API_KEY", "")
-        key_var = "OPENAI_API_KEY"
+        try:
+            request_info = llm.provider_request_info(
+                args.provider, args.model
+            )
+        except Exception as exc:
+            print(f"CONFIG ERROR: {exc}")
+            return 1
+        base = request_info["base"]
+        if args.provider == "ollama":
+            key = os.environ.get("OLLAMA_API_KEY", "")
+            key_var = "OLLAMA_API_KEY"
+        else:
+            key = os.environ.get("OPENAI_API_KEY", "")
+            key_var = "OPENAI_API_KEY"
 
     print(f"provider     : {args.provider}")
     print(f"model        : {args.model}")
     print(f"base URL     : {base}")
-    print(f"{key_var:13}: {'set (' + key[:6] + '…, len ' + str(len(key)) + ')' if key else 'NOT SET'}")
+    if args.provider == "ollama" and not key:
+        key_status = "not required"
+    else:
+        key_status = (
+            "set (" + key[:6] + "…, len " + str(len(key)) + ")"
+            if key else "NOT SET"
+        )
+    print(f"{key_var:13}: {key_status}")
+    if request_info:
+        print(f"request URL  : {request_info['url']}")
+        print(f"token field  : {request_info['token_parameter']}")
     print()
 
     # --- sanity checks on the resolved config -------------------------------
@@ -62,8 +84,6 @@ def main():
             "     or 404. Set the hosted URL in THIS shell before running.")
     if args.provider == "openai" and "localhost" not in base and not key:
         problems.append(f"{key_var} is not set in this shell — hosted endpoints will reject or hang.")
-    if base.endswith("/chat/completions"):
-        problems.append("base URL should end at /v1 — the code appends /chat/completions itself.")
     if args.provider == "openai" and "nvidia" in base and not base.rstrip("/").endswith("/v1"):
         problems.append("NVIDIA base URL should be exactly https://integrate.api.nvidia.com/v1")
     for p in problems:
@@ -89,9 +109,9 @@ def main():
                     ids = [m["id"] for m in r.json().get("data", [])]
                     print(f"      -> {len(ids)} models available")
                     if args.model in ids:
-                        print(f"      -> '{args.model}' IS available ✓")
+                        print(f"      -> '{args.model}' IS available [OK]")
                     else:
-                        print(f"      -> '{args.model}' NOT in the list ✗")
+                        print(f"      -> '{args.model}' NOT in the list [FAIL]")
                         for i in ids[:8]:
                             print(f"           {i}")
                 except Exception:
@@ -110,7 +130,7 @@ def main():
             return 1
         print()
 
-    # --- 2. one tiny chat completion ---------------------------------------
+    # --- 2. one tiny provider completion -----------------------------------
     print(f"[2/2] one 'ping' completion  (timeout {args.timeout}s)")
     t0 = time.time()
     try:
@@ -119,13 +139,13 @@ def main():
         print(f"      -> OK in {dt:.1f}s | response: {out.strip()[:80]!r}")
         print()
         per20 = dt * 20
-        print(f"Estimated batch of 20 alerts ≈ {per20/60:.1f} min "
+        print(f"Estimated batch of 20 alerts ~ {per20/60:.1f} min "
               f"(responses are longer than 'pong', so treat as a floor).")
         print("Preflight PASSED — safe to run runner.py.")
         return 0
     except Exception as e:
         print(f"      -> FAILED in {time.time()-t0:.1f}s")
-        print(f"      -> {str(e)[:400]}")
+        print(f"      -> {str(e)[:800]}")
         return 1
 
 

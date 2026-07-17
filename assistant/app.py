@@ -60,25 +60,39 @@ mode = st.sidebar.radio("Mode", ["Analyst", "Evaluator"],
                         help="Analyst hides ground truth (use during assisted timing). "
                              "Evaluator reveals scoring (use only after the run).")
 provider = st.sidebar.selectbox("Provider", ["mock", "ollama", "openai", "anthropic"])
-default_model = {"mock": "mock", "ollama": "llama3.1:8b", "openai": "gpt-4o-mini",
-                 "anthropic": "claude-3-5-sonnet-latest"}[provider]
+default_model = {"mock": "mock", "ollama": "llama3.1:8b", "openai": "gpt-5.5",
+                  "anthropic": "claude-3-5-sonnet-latest"}[provider]
 model = st.sidebar.text_input("Model", value=default_model)
 
 # --- connection settings (API key / base URL) ---
 # Precedence: what you type here > shell env var > .env file (loaded by llm.py).
 if provider != "mock":
     with st.sidebar.expander("🔑 Connection", expanded=False):
-        key_var = "ANTHROPIC_API_KEY" if provider == "anthropic" else "OPENAI_API_KEY"
-        default_base = {"ollama": "http://localhost:11434/v1",
-                        "openai": os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1"),
-                        "anthropic": "(fixed)"}[provider]
+        key_var = {
+            "anthropic": "ANTHROPIC_API_KEY",
+            "openai": "OPENAI_API_KEY",
+            "ollama": "OLLAMA_API_KEY",
+        }[provider]
+        base_var = {
+            "openai": "OPENAI_BASE_URL",
+            "ollama": "OLLAMA_BASE_URL",
+        }.get(provider)
+        default_base = {
+            "ollama": os.environ.get(
+                "OLLAMA_BASE_URL", "http://localhost:11434/v1"
+            ),
+            "openai": os.environ.get(
+                "OPENAI_BASE_URL", "https://api.openai.com/v1"
+            ),
+            "anthropic": "(fixed)",
+        }[provider]
         if provider != "anthropic":
             base = st.text_input("Base URL", value=default_base,
                                  help="Ollama: http://localhost:11434/v1 · "
                                       "NVIDIA: https://integrate.api.nvidia.com/v1 · "
                                       "OpenAI: https://api.openai.com/v1")
             if base:
-                os.environ["OPENAI_BASE_URL"] = base.strip()
+                os.environ[base_var] = base.strip()
         existing = os.environ.get(key_var, "")
         api_key = st.text_input(f"{key_var}", value="", type="password",
                                 placeholder="already set from env/.env" if existing else "paste key")

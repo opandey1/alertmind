@@ -43,7 +43,8 @@ assistant/
 ├── requirements.txt · .env.example
 ├── tests/
 │   ├── test_redact.py       # redaction proof (plants secrets, asserts none leak)
-│   └── test_injection.py    # prompt-injection resistance proof
+│   ├── test_injection.py    # prompt-injection resistance proof
+│   └── test_llm_providers.py # offline endpoint/payload regression tests
 └── outputs/
     ├── redaction_proof.md · injection_proof.md
     └── runs/<run_id>/       # assistant_outputs.json, assistant_scoring.csv, audit-log.jsonl
@@ -64,25 +65,42 @@ streamlit run app.py                              # analyst UI (Analyst / Evalua
 Real model (this is what the measurement uses), e.g. local Ollama:
 
 ```bash
-export OPENAI_BASE_URL=http://localhost:11434/v1
+export OLLAMA_BASE_URL=http://localhost:11434/v1
 python runner.py --provider ollama --model llama3.1:8b --view operational
 python runner.py --provider ollama --model llama3.1:8b --view evaluation
 python tests/test_injection.py ollama llama3.1:8b   # the REAL injection proof
 ```
-(Anthropic: `--provider anthropic` + `ANTHROPIC_API_KEY`. OpenAI: `--provider openai` + `OPENAI_API_KEY`.)
+
+Hosted OpenAI GPT-5.5:
+
+```powershell
+$env:OPENAI_BASE_URL="https://api.openai.com/v1"
+$env:OPENAI_API_KEY="sk-proj-..."
+python preflight.py --provider openai --model gpt-5.5
+python runner.py --provider openai --model gpt-5.5 --view operational --limit 1
+```
+
+After the one-alert run succeeds, remove `--limit 1` for the frozen corpus.
+GPT-5.5 uses `max_completion_tokens`, omits `temperature`, and defaults to
+`reasoning_effort=none` in this client. Override the last setting with
+`ALERTMIND_OPENAI_REASONING_EFFORT` if the experiment calls for more reasoning.
+
+(Anthropic: `--provider anthropic` + `ANTHROPIC_API_KEY`.)
 
 **Configuring keys.** Copy `.env.example` to `.env` and fill it in (loaded automatically;
 shell env wins; `.env` is gitignored), or set the vars in your shell, or type them into the
 Streamlit sidebar's **🔑 Connection** panel. Verify any provider before a batch run:
 
 ```bash
-python preflight.py --provider openai --model meta/llama-3.3-70b-instruct
+python preflight.py --provider openai --model gpt-5.5
 ```
 Preflight resolves the URL/key/model, lists available models, and does one tiny call with a
 short timeout — so a misconfiguration fails in ~20s instead of hanging 300s per alert.
 
 **Model name + performance notes:**
 - Use the **exact** Ollama tag (`ollama list` / `GET /v1/models`): `llama3.1:8b`, or `llama4:latest` — *with a colon*. `llama4-latest` (hyphen) returns a 404.
+- Keep provider base URLs at the API root: `https://api.openai.com/v1`, not
+  `.../v1/responses` or `.../v1/chat/completions`.
 - Prefer a **small, fast** model for a 20-alert experiment. `llama3.1:8b` runs in seconds locally; large MoE models like `llama4` are impractically slow and will hit the timeout. Raise `ALERTMIND_LLM_TIMEOUT` only if you truly need a big model.
 
 ## 5. Two views — why they matter

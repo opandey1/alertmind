@@ -4,9 +4,8 @@ llm.py — provider-agnostic LLM client for the AlertMind assistant.
 Providers:
   mock       - offline, deterministic; no API key or network.
   anthropic  - Anthropic Messages API (needs ANTHROPIC_API_KEY).
-  openai     - any OpenAI-compatible /v1/chat/completions endpoint. Works for
-               OpenAI (OPENAI_API_KEY) AND a local Ollama server
-               (OPENAI_BASE_URL=http://localhost:11434/v1, key not required).
+  openai     - OpenAI or a third-party OpenAI-compatible endpoint.
+  ollama     - local OpenAI-compatible Ollama server.
 
 Reliability (feedback #12): configurable timeout + max tokens, retry with backoff
 on transient errors, and clear messages for the two failures that actually bite —
@@ -16,11 +15,14 @@ Env knobs:
   ALERTMIND_LLM_TIMEOUT   per-call timeout seconds (default 300)
   ALERTMIND_MAX_TOKENS    max response tokens      (default 1024)
   ALERTMIND_LLM_RETRIES   retries on transient err (default 2)
+  ALERTMIND_OPENAI_REASONING_EFFORT
+                          GPT-5/o-series effort     (default none)
 """
 import os
 import json
 import re
 import time
+from urllib.parse import urlparse
 
 try:
     import requests
@@ -59,7 +61,31 @@ load_env_file()
 _TIMEOUT = int(os.environ.get("ALERTMIND_LLM_TIMEOUT", "300"))
 _MAX_TOKENS = int(os.environ.get("ALERTMIND_MAX_TOKENS", "1024"))
 _RETRIES = int(os.environ.get("ALERTMIND_LLM_RETRIES", "2"))
+_OPENAI_REASONING_EFFORT = os.environ.get(
+    "ALERTMIND_OPENAI_REASONING_EFFORT", "none"
+).strip()
 _RETRYABLE = {429, 500, 502, 503, 504}
+
+
+def _server_error(response) -> str:
+    """Return useful provider error text without exposing request headers."""
+    try:
+        body = response.json()
+        error = body.get("error", body)
+        if isinstance(error, dict):
+            message = error.get("message")
+            param = error.get("param")
+            code = error.get("code")
+            details = [str(message)] if message else []
+            if param:
+                details.append(f"parameter={param}")
+            if code:
+                details.append(f"code={code}")
+            if details:
+                return "; ".join(details)
+        return json.dumps(error, ensure_ascii=False)[:500]
+    except Exception:
+        return (response.text or response.reason or "no response body")[:500]
 
 
 def _post(url, headers, payload):
@@ -77,15 +103,14 @@ def _post(url, headers, payload):
             if attempt < _RETRIES:
                 time.sleep(delay); delay *= 2; continue
             raise RuntimeError(f"Could not connect to {url} ({e}). Is the server running?")
-        if r.status_code == 404:
-            raise RuntimeError(
-                f"404 Not Found for {url}. Model '{payload.get('model')}' not found. "
-                f"Check the exact tag with `ollama list` or GET /v1/models — use e.g. "
-                f"'llama3.1:8b' or 'llama4:latest' (colon), not 'llama4-latest'. "
-                f"Server said: {r.text[:200]}")
         if r.status_code in _RETRYABLE and attempt < _RETRIES:
             time.sleep(delay); delay *= 2; continue
-        r.raise_for_status()
+        if not r.ok:
+            model = payload.get("model", "(unknown)")
+            raise RuntimeError(
+                f"HTTP {r.status_code} for {url} using model '{model}': "
+                f"{_server_error(r)}"
+            )
         return r
     raise RuntimeError("unreachable")
 
@@ -139,18 +164,144 @@ def _anthropic(system: str, user: str, model: str) -> str:
     return r.json()["content"][0]["text"]
 
 
-def _openai_compatible(system: str, user: str, model: str) -> str:
-    base = os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1")
-    key = os.environ.get("OPENAI_API_KEY", "ollama")  # Ollama ignores the key
-    r = _post(base.rstrip("/") + "/chat/completions",
-              {"Authorization": f"Bearer {key}", "content-type": "application/json"},
-              {"model": model, "temperature": 0, "max_tokens": _MAX_TOKENS,
-               "messages": [{"role": "system", "content": system},
-                            {"role": "user", "content": user}]})
-    return r.json()["choices"][0]["message"]["content"]
+def _api_root(base: str, variable: str) -> str:
+    """Validate that a configured base URL stops at the API root."""
+    root = base.rstrip("/")
+    if root.endswith(("/chat/completions", "/responses")):
+        raise RuntimeError(
+            f"{variable} must stop at the API root (normally .../v1), not at "
+            f"an endpoint. Current value: {root}"
+        )
+    return root
 
 
-_PROVIDERS = {"mock": _mock, "anthropic": _anthropic, "openai": _openai_compatible, "ollama": _openai_compatible}
+def _is_official_openai(base: str) -> bool:
+    return (urlparse(base).hostname or "").lower() == "api.openai.com"
+
+
+def _uses_reasoning_effort(model: str) -> bool:
+    lowered = model.lower()
+    return lowered.startswith(("gpt-5", "o1", "o3", "o4"))
+
+
+def _completion_text(response) -> str:
+    """Extract text from Chat Completions with a useful empty-output error."""
+    body = response.json()
+    try:
+        choice = body["choices"][0]
+        content = choice["message"]["content"]
+    except (KeyError, IndexError, TypeError) as exc:
+        raise RuntimeError(
+            "Provider returned an unexpected Chat Completions response shape."
+        ) from exc
+    if not content:
+        raise RuntimeError(
+            "Provider returned no text content "
+            f"(finish_reason={choice.get('finish_reason')!r}). Increase "
+            "ALERTMIND_MAX_TOKENS or lower reasoning effort."
+        )
+    return content
+
+
+def provider_request_info(provider: str, model: str) -> dict:
+    """Resolve the endpoint and request family used by a provider."""
+    if provider == "openai":
+        base = _api_root(
+            os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1"),
+            "OPENAI_BASE_URL",
+        )
+        official = _is_official_openai(base)
+        return {
+            "url": base + "/chat/completions",
+            "base": base,
+            "official_openai": official,
+            "token_parameter": (
+                "max_completion_tokens" if official else "max_tokens"
+            ),
+            "model": model,
+        }
+    if provider == "ollama":
+        # OPENAI_BASE_URL remains a compatibility fallback for older .env files.
+        base = _api_root(
+            os.environ.get(
+                "OLLAMA_BASE_URL",
+                os.environ.get(
+                    "OPENAI_BASE_URL", "http://localhost:11434/v1"
+                ),
+            ),
+            "OLLAMA_BASE_URL",
+        )
+        return {
+            "url": base + "/chat/completions",
+            "base": base,
+            "official_openai": False,
+            "token_parameter": "max_tokens",
+            "model": model,
+        }
+    raise ValueError(f"provider request info is unavailable for {provider!r}")
+
+
+def _openai(system: str, user: str, model: str) -> str:
+    info = provider_request_info("openai", model)
+    key = os.environ.get("OPENAI_API_KEY")
+    if not key:
+        raise RuntimeError("OPENAI_API_KEY not set")
+
+    payload = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ],
+    }
+    if info["official_openai"]:
+        # GPT-5.5 rejects legacy max_tokens and non-default temperature.
+        payload["max_completion_tokens"] = _MAX_TOKENS
+        if _OPENAI_REASONING_EFFORT and _uses_reasoning_effort(model):
+            payload["reasoning_effort"] = _OPENAI_REASONING_EFFORT
+    else:
+        # Preserve compatibility with NVIDIA and other Chat Completions APIs.
+        payload.update({"temperature": 0, "max_tokens": _MAX_TOKENS})
+
+    response = _post(
+        info["url"],
+        {
+            "Authorization": f"Bearer {key}",
+            "content-type": "application/json",
+        },
+        payload,
+    )
+    return _completion_text(response)
+
+
+def _ollama(system: str, user: str, model: str) -> str:
+    info = provider_request_info("ollama", model)
+    key = os.environ.get("OLLAMA_API_KEY", "ollama")  # Ollama ignores it.
+    response = _post(
+        info["url"],
+        {
+            "Authorization": f"Bearer {key}",
+            "content-type": "application/json",
+        },
+        {
+            "model": model,
+            "temperature": 0,
+            "max_tokens": _MAX_TOKENS,
+            "messages": [
+                {"role": "system", "content": system},
+                {"role": "user", "content": user},
+            ],
+        },
+    )
+    return _completion_text(response)
+
+
+_PROVIDERS = {
+    "mock": _mock,
+    "anthropic": _anthropic,
+    "openai": _openai,
+    "ollama": _ollama,
+}
 
 
 def call_llm(provider: str, system: str, user: str, model: str) -> str:
