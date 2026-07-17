@@ -344,5 +344,36 @@ class FailurePathMetadataTests(unittest.TestCase):
         self.assertEqual(cfg["token_budget"], llm._MAX_TOKENS)
 
 
+class BudgetExhaustionTests(unittest.TestCase):
+    """P3: reasoning tokens alone must not be diagnosed as budget exhaustion."""
+
+    def test_reasoning_tokens_without_exhaustion_is_not_flagged(self) -> None:
+        meta = {
+            "finish_reason": "stop",
+            "usage": {"completion_tokens": 300, "reasoning_tokens": 250},
+            "request_config": {"token_budget": 25000},
+        }
+        self.assertFalse(llm.budget_exhausted(meta))
+
+    def test_length_finish_at_budget_is_flagged(self) -> None:
+        meta = {
+            "finish_reason": "length",
+            "usage": {"completion_tokens": 1024, "reasoning_tokens": 1024},
+            "request_config": {"token_budget": 1024},
+        }
+        self.assertTrue(llm.budget_exhausted(meta))
+
+    def test_length_finish_below_budget_is_not_flagged(self) -> None:
+        meta = {
+            "finish_reason": "length",
+            "usage": {"completion_tokens": 10, "reasoning_tokens": 0},
+            "request_config": {"token_budget": 25000},
+        }
+        self.assertFalse(llm.budget_exhausted(meta))
+
+    def test_missing_metadata_is_not_flagged(self) -> None:
+        self.assertFalse(llm.budget_exhausted({}))
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

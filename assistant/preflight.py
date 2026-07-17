@@ -169,8 +169,14 @@ def main():
                   f"{cfg.get('reasoning_effort')} · temperature={cfg.get('temperature')}")
         if meta.get("usage"):
             print(f"      -> usage: {meta['usage']}  finish_reason={meta.get('finish_reason')}")
-            if (meta['usage'] or {}).get("reasoning_tokens"):
-                print("         Reasoning consumed the output budget — raise "
+            # Only diagnose exhaustion when the budget was genuinely hit —
+            # reasoning tokens are present on every reasoning-model call.
+            if llm.budget_exhausted(meta):
+                usage = meta["usage"]
+                print(f"         Output budget exhausted: finish_reason=length and "
+                      f"completion_tokens={usage.get('completion_tokens')} >= budget="
+                      f"{cfg.get('token_budget')} "
+                      f"(reasoning_tokens={usage.get('reasoning_tokens')}). Raise "
                       "ALERTMIND_MAX_TOKENS or lower ALERTMIND_OPENAI_REASONING_EFFORT.")
         return 1
 

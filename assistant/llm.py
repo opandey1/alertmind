@@ -292,6 +292,26 @@ def _completion_meta(response) -> dict:
     return {k: v for k, v in meta.items() if v is not None}
 
 
+def budget_exhausted(meta: dict) -> bool:
+    """
+    True only when the output budget was actually exhausted: the provider stopped
+    because it hit the cap AND completion tokens reached the configured budget.
+
+    Nonzero `reasoning_tokens` alone does NOT mean exhaustion — a reasoning model
+    emits them on every successful call. Diagnosing on that signal alone would
+    misreport an ordinary response as a budget failure.
+    """
+    usage = meta.get("usage") or {}
+    budget = (meta.get("request_config") or {}).get("token_budget")
+    completion = usage.get("completion_tokens")
+    return (
+        meta.get("finish_reason") == "length"
+        and isinstance(completion, int)
+        and isinstance(budget, int)
+        and completion >= budget
+    )
+
+
 def _anthropic_meta(body: dict) -> dict:
     usage = body.get("usage") or {}
     return {k: v for k, v in {
@@ -366,7 +386,7 @@ def _openai(system: str, user: str, model: str) -> tuple[str, dict]:
                 payload["reasoning_effort"] = _OPENAI_REASONING_EFFORT
         else:
             # Non-reasoning official models (e.g. gpt-4o) DO support temperature —
-            # pin it to 0 so this path keeps the determinism the Ollama path has.
+            # pin it to 0 to align the sampling configuration with the Ollama path.
             payload["temperature"] = 0
     else:
         # Preserve compatibility with NVIDIA and other Chat Completions APIs.
