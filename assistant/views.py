@@ -53,13 +53,30 @@ def _strip_tcodes(obj):
     return obj
 
 
+# Explicit detection-label denylist (exact field names authored by the detection
+# engineer). Kept narrow so legitimate raw evidence like a registry key is retained.
+_LABEL_DENYLIST = ("audit.key",)
+
+
+def _looks_like_technique_label(v) -> bool:
+    return isinstance(v, str) and bool(_TCODE_ANY.search(v))
+
+
 def _drop_label_subkeys(obj):
-    """Recursively drop detection-authored label fields such as `audit.key`."""
+    """
+    Drop detection-authored label fields. A field is removed only if it is on the
+    explicit denylist (e.g. `audit.key`), OR it is named `key`/`*_key`/`*.key`
+    AND its value looks like an ATT&CK technique label. This is value-aware, so a
+    legitimate registry `key` carrying real evidence is preserved.
+    """
     if isinstance(obj, dict):
         out = {}
         for k, v in obj.items():
             kl = k.lower()
-            if kl == "key" or kl.endswith(".key") or kl.endswith("_key"):
+            if kl in _LABEL_DENYLIST:
+                continue
+            key_shaped = kl == "key" or kl.endswith(".key") or kl.endswith("_key")
+            if key_shaped and _looks_like_technique_label(v):
                 continue  # e.g. audit.key = "t1053_003_cron"
             out[k] = _drop_label_subkeys(v)
         return out

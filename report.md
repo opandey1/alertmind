@@ -31,7 +31,7 @@ AlertMind is a mini-SOC pilot testing whether a guardrailed LLM tier-1 assistant
 
 **The headline is conditional, and the aggregate figure misleads.** Median triage time fell 10.5→8.0 min (−24%) — but that averages two opposite effects. Split by whether the assistant was correct, all 14 attacks (assistant correct) were triaged faster and all six false positives (assistant wrong) slower. Because alert class and assistant correctness coincide in this sample, this is an **association**, not an isolated causal effect — but the association is categorical (20/20). Analyst accuracy held at 20/20 in both conditions: the analyst overrode all six wrong dispositions, so human review worked, at a measured cost of a paired-median **+1.68 min** per false positive.
 
-**The failure was model-dependent, not intrinsic to LLM triage.** `llama3.1:8b` confirmed all 20 alerts as likely true positives and never returned "benign" (0/6 false positives identified). On the same corpus, `gpt-5.5-2026-04-23` identified false positives without confidently misclassifying any, at 18/20 disposition vs 14/20. Under a **label-free evaluation view** (proven leak-free by test), the two diverge sharply: llama3.1's genuine ATT&CK classification collapses to 1/14 attacks — it was largely copying the rule's label — while GPT-5.5 holds at 8/14 exact, 12/14 relaxed.
+**The failure was model-dependent, not intrinsic to LLM triage.** `llama3.1:8b` confirmed all 20 alerts as likely true positives and never returned "benign" (0/6 false positives identified). On the same corpus, `gpt-5.5-2026-04-23` identified false positives without confidently misclassifying any, at 18/20 disposition vs 14/20. Under a **strict label-reduced evaluation view** (the tested code and detection-label classes verified removed), the two diverge sharply: llama3.1's genuine ATT&CK classification collapses to 1/14 attacks — it was largely copying the rule's label — while GPT-5.5 holds at 8/14 exact, 12/14 relaxed.
 
 **Recommendation (two-part).** *`llama3.1:8b`:* do not deploy for false-positive triage (0/6). *GPT-5.5:* a promising candidate for further evaluation, but not deployment-approved from this experiment — tested once per view, free-text outputs not yet fully grounded, and no assisted-timing run was conducted with it.
 
@@ -146,7 +146,7 @@ The design principle is that every guardrail is **enforced in code and proved by
 | Guardrail | Enforcement in code | Proof artifact |
 |---|---|---|
 | Tested credential classes redacted before prompt construction | `redact_alert()` runs before prompt construction | `assistant/outputs/redaction_proof.md` — **0/7 planted secrets leaked**; unsupported formats are residual risk |
-| Never takes autonomous action | Model has no tools; text-only response; read-only service identity; every output stamped `analyst_review_required: true` | Code + UI banner |
+| Never takes autonomous action | **Implemented + tested:** model has no tools, text-only response, every output stamped `analyst_review_required: true`. **Planned (production):** an alert-scoped read-only `assistant-svc` API identity (not yet created — see §3, §4). | Code + UI banner |
 | Resisted the planted injection scenario | Alert wrapped in an `<ALERT_DATA>` untrusted-data block; system prompt instructs analyse-don't-obey | `assistant/outputs/injection_proof.md` — **RESISTED**, attempt flagged (one scenario, not a general guarantee) |
 | Human review on every output | All output labelled DRAFT; UI banner; draft message editable | Streamlit UI |
 | Output validated | `schema.py` — keys, types, enums, ATT&CK-ID syntax, ≤5 summary lines | `parse_status` per call |
@@ -170,7 +170,7 @@ A design consequence worth recording: **the audit log is the source of truth**, 
 ### 8.5 Model and provider choice
 The client is provider-agnostic (`mock` / `ollama` / `openai` / `anthropic`) over plain `requests`, so there is no SDK version drift. The **measured artifact is `ollama/llama3.1:8b`, temperature 0, running locally** — no alert content left the lab during the measured runs.
 
-Llama 4 was evaluated and rejected: a 100B+ mixture-of-experts model, it exceeded a 300-second per-alert timeout on local CPU inference. `llama3.1:8b` — the Llama 3 family the brief suggests — completes an alert in roughly 75 seconds. Hosted APIs are supported and, per instructor guidance, acceptable *provided the redaction guardrail is in place*; a hosted GPU endpoint is materially faster — the measured GPT-5.5 median was **~14 seconds** (§9.7), not negligible but far below local CPU — and is the obvious production choice. `preflight.py` validates provider configuration in about 20 seconds, which matters because the most common failure is a stale `OPENAI_BASE_URL` (the variable is shared by the local and hosted OpenAI-compatible providers).
+Llama 4 was evaluated and rejected: a 100B+ mixture-of-experts model, it exceeded a 300-second per-alert timeout on local CPU inference. `llama3.1:8b` — the Llama 3 family the brief suggests — completes an alert in about 60 seconds on the strict-view run (median 60.4 s). Hosted APIs are supported and, per instructor guidance, acceptable *provided the redaction guardrail is in place*; a hosted GPU endpoint is materially faster — the measured GPT-5.5 median was **~11 seconds** (§9.7), not negligible but far below local CPU — and is the obvious production choice. `preflight.py` validates provider configuration in about 20 seconds, which matters because the most common failure is a stale `OPENAI_BASE_URL` (the variable is shared by the local and hosted OpenAI-compatible providers).
 
 ### 8.6 Output validation and reliability
 `schema.py` validates required keys, field types, permitted dispositions and confidence levels, ATT&CK-ID syntax and the ≤5-line summary bound. Invalid output is recorded as `schema_invalid` rather than silently scored.
@@ -186,9 +186,9 @@ Reliability controls: configurable timeout, response-token cap, and retry with e
 ### 9.1 Definitions and protocol
 Per instructor clarification, the clock starts from **when the attack actually occurred as recorded in the logs**, not from log ingestion. Each alert carries four timestamps: (1) attack occurred, (2) alert fired in Wazuh, (3) analyst opened the alert, (4) disposition reached. From these, **MTTD = (2) − (1)** and **time-to-triage = (4) − (3)**. Timestamps are captured manually in `measurement/timing-log.csv`, which the instructor confirmed is sufficient.
 
-**Model inference latency is excluded from triage time and reported separately.** The experiment asks whether the assistant's *output* helps an analyst triage faster, not how fast an 8B model runs on a laptop CPU. Local inference took roughly 75 seconds per alert; the hosted GPT-5.5 median was ~14 seconds (§9.7). Counting that latency as "triage time" would measure the test hardware rather than the assistant. Accordingly, assistant outputs were **pre-generated in batch** and the analyst was timed reading them — which also means the timed pass required no new inference.
+**Model inference latency is excluded from triage time and reported separately.** The experiment asks whether the assistant's *output* helps an analyst triage faster, not how fast an 8B model runs on a laptop CPU. Local llama3.1 inference took ~60 seconds per alert (strict run); the hosted GPT-5.5 median was ~11 seconds (§9.7). Counting that latency as "triage time" would measure the test hardware rather than the assistant. Accordingly, assistant outputs were **pre-generated in batch** and the analyst was timed reading them — which also means the timed pass required no new inference.
 
-**Corpus design.** Twenty alerts drawn from the lab's own Atomic runs: **14 real attacks and 6 real false positives** (`measurement/alert-corpus.json`, frozen before measurement). The false positives are genuine historical alerts from the tuning history — a Windows Defender LSASS read at `0x3600`, a Wazuh-agent LSASS read at `0x1fffff`, an Edge auto-launch Run-key write, a dconf setuid change, a snapd systemd unit write, and a cron read of `/etc/shadow`. **This salt is the methodological core of the experiment:** without false positives, an assistant that confirms everything would score 100%, and the measurement would be worthless. Several of these alerts would no longer fire under the final tuned rules — which is itself evidence the tuning worked — but they remain valid triage tests.
+**Corpus design.** Twenty alerts drawn from controlled adversary-simulation and detection-validation runs, including selected Atomic Red Team tests: **14 attack alerts and 6 real false positives** (`measurement/alert-corpus.json`, frozen before measurement). The false positives are genuine historical alerts from the tuning history — a Windows Defender LSASS read at `0x3600`, a Wazuh-agent LSASS read at `0x1fffff`, an Edge auto-launch Run-key write, a dconf setuid change, a snapd systemd unit write, and a cron read of `/etc/shadow`. **This salt is the methodological core of the experiment:** without false positives, an assistant that confirms everything would score 100%, and the measurement would be worthless. Several of these alerts would no longer fire under the final tuned rules — which is itself evidence the tuning worked — but they remain valid triage tests.
 
 ### 9.2 What the assistant cannot change
 MTTD median is **2.28 seconds** across the corpus. In a single-host lab with real-time agent forwarding, detection latency is essentially instantaneous and is a property of the *detection rules*, not the assistant. The assistant cannot alter the attack timestamp or the alert-generation timestamp, and this report makes no claim that it improves MTTD. Its measurable value lies entirely in the analyst workflow after the alert is seen.
@@ -199,11 +199,11 @@ MTTD median is **2.28 seconds** across the corpus. In a single-host lab with rea
 The corpus alert carries the rule's own ATT&CK label in three places: `mitre.id`, a T-code inside `rule_description`, and detection-authored key fields such as `audit.key = "t1053_003_cron"`. If the model sees any of these, "did it return the right technique?" only tests whether it can **copy a label**. The assistant therefore supports two views, applied after redaction:
 
 - **operational** — the full alert including rule metadata. Realistic for a Wazuh-integrated assistant; the technique metric here is *ATT&CK metadata consistency*, not classification.
-- **evaluation** — a strict, label-free view that removes `mitre`, `rule_id`, `rule_description`, `evidence_file` and every `*.key` field, then strips any surviving technique codes. A regression test (`tests/test_views_leakage.py`) asserts **zero** technique codes (any case, `.` or `_` separator) survive in all 20 alerts; raw evidence (executable, command, path, user, registry object, access mask, syscall) is retained. *An earlier version of this view leaked labels through `audit.key` and `rule_description`; the numbers below are from the corrected, test-proven label-free view.*
+- **evaluation** — a strict, label-reduced view that removes `mitre`, `rule_id`, `rule_description`, `evidence_file` and every `*.key` field, then strips any surviving technique codes. A regression test (`tests/test_views_leakage.py`) asserts that the tested ATT&CK-code and detection-label classes are removed from all 20 corpus alerts (zero technique codes, any case or separator, survive); raw evidence (executable, command, path, user, registry object, access mask, syscall) is retained. *This removes the tested leakage classes for these 20 alerts; it is not a proof of semantic label-freeness for arbitrary future alerts. An earlier version leaked through `audit.key` and `rule_description`; the figures below are from the corrected strict label-reduced view.*
 
 Technique accuracy on the 14 attack alerts:
 
-| Model | exact — operational | exact — label-free | relaxed — operational | relaxed — label-free |
+| Model | exact — operational | exact — reduced | relaxed — operational | relaxed — reduced |
 |---|---|---|---|---|
 | llama3.1:8b | **13/14** | **1/14** | 14/14 | **1/14** |
 | gpt-5.5 | 11/14 | **8/14** | 14/14 | **12/14** |
@@ -213,14 +213,14 @@ Technique accuracy on the 14 attack alerts:
 *(Technique credit is **exact-ID overlap** — the assistant's technique set overlaps the ground-truth set — not full-set exact matching.)*
 
 ### 9.4 Disposition on the benign salt — the decisive comparison
-Disposition assigned to the six benign false positives, label-free view:
+Disposition assigned to the six benign false positives, strict label-reduced view:
 
 | Model | confidently wrong (`likely_true_positive`) | hedged (`needs_investigation`) | correct (`likely_benign`) | disposition (all 20) |
 |---|---|---|---|---|
 | llama3.1:8b | 4 | 2 | **0** | 14/20 |
 | gpt-5.5 | 0 | 3 | **3** | **16/20** |
 
-**llama3.1 never returns "benign"** — 0/6, consistent with its operational behaviour, and it confidently confirms four of the six false positives outright. **GPT-5.5 confidently clears three and hedges the other three to "needs investigation," misclassifying none.** (In the operational view, where it can also read `rule_description`, GPT-5.5 clears 5/6; with that context removed it becomes appropriately more conservative rather than wrong — a defensible degradation, not a failure.) Its disposition accuracy is 16/20 label-free and 18/20 operational, versus 14/20 for llama3.1 in both.
+**llama3.1 never returns "benign"** — 0/6, consistent with its operational behaviour, and it confidently confirms four of the six false positives outright. **GPT-5.5 confidently clears three and refers the other three to "needs investigation," confidently misclassifying none.** A `needs_investigation` call is *not* a correct benign disposition under our scoring — it is safer than a confident true-positive but leaves the alert unresolved. In the operational view, where it can also read `rule_description`, GPT-5.5 clears 5/6; with that context removed it becomes more conservative. Its disposition accuracy is 16/20 strict-reduced and 18/20 operational, versus 14/20 for llama3.1 in both.
 
 **Interpretation, bounded.** The 0/6 result is **not an inherent property of LLM triage**; under the tested configuration it is model- and inference-configuration-dependent. The experiment does not isolate model capability as the sole cause — GPT-5.5 differs from llama3.1:8b in scale, training, reasoning configuration, hosting and sampling at once, and is one stochastic sample per view (§9.7 caveat).
 
@@ -257,14 +257,14 @@ The analyst's contemporaneous notes corroborate the split independently: every "
 | Triage time, false positives (median) | 5.58 min | 7.70 min | Assistant hurts (paired +1.68 min) |
 | Analyst disposition accuracy | 20/20 | 20/20 | Unchanged — human review absorbed 6 AI errors |
 
-| Assistant quality (label-free view) | `llama3.1:8b` | `gpt-5.5-2026-04-23` |
+| Assistant quality (strict label-reduced view) | `llama3.1:8b` | `gpt-5.5-2026-04-23` |
 |---|---|---|
 | Technique, attacks — exact / relaxed | 1/14 · 1/14 | **8/14 · 12/14** |
 | Disposition (all 20) | 14/20 | **16/20** |
 | Benign FPs identified (cleared) | **0/6** | **3/6** (+3 hedged, 0 wrong) |
 | Attacks classified benign (false negatives) | 0 | 1 (A18 — §11) |
-| Valid JSON, matched baseline runs | 39/40 | **40/40** |
-| Median latency · reasoning tokens | ~75 s · n/a | **~14.0 s** · ~291 |
+| Valid JSON, matched operational+eval runs | **40/40** | **40/40** |
+| Median latency · reasoning tokens (strict run) | ~60.4 s · n/a | **~10.7 s** · ~338 |
 
 **Comparison fairness.** This is an **exploratory system-level comparison, not a controlled model benchmark**: model scale, training, reasoning configuration, hosting, output budgets and sampling behaviour differ simultaneously. Both GPT-5.5 runs used the same baseline prompt, evaluation transform, redaction version, corpus, schema and scoring code as the llama3.1 runs; only the provider/model and inference configuration differ. Full derivation and re-runnable computation: `measurement/analysis.ipynb`.
 
@@ -272,11 +272,11 @@ The analyst's contemporaneous notes corroborate the split independently: every "
 
 | Tool / model | Used for | How output was verified |
 |---|---|---|
-| **`llama3.1:8b` via Ollama** (local, `temperature=0`) — primary measured artifact | The assistant: alert summarisation, ATT&CK tagging, suggested queries, draft user messages; and the assisted-timing pass | Every output scored against known Atomic ground truth on separated technique/disposition/consistency metrics; all responses retained verbatim in per-run audit logs and re-derivable offline. Ran locally — **no alert content left the lab**. The two recorded runs were byte-identical. |
+| **`llama3.1:8b` via Ollama** (local, `temperature=0`) — primary measured artifact | The assistant: alert summarisation, ATT&CK tagging, suggested queries, draft user messages; and the assisted-timing pass | Every output scored against frozen corpus ground truth (controlled simulations and historical false positives) on separated technique/disposition/consistency metrics; all responses retained verbatim in per-run audit logs and re-derivable offline. Ran locally — **no alert content left the lab**. The two recorded runs were byte-identical. |
 | **`gpt-5.5-2026-04-23` via OpenAI** (hosted, pinned snapshot, `max_completion_tokens=25000`, vendor-default reasoning effort) — comparison artifact | Same four outputs, on the same frozen corpus, in both views, to test whether the disposition bias was model-dependent | Scored identically. Temperature is unsupported on reasoning models, so these runs are **stochastic single samples**, reported as such. Redacted alerts (synthetic lab data, no real secrets) were sent to a hosted API — permitted per instructor guidance conditional on the redaction guardrail (§8.3). The audit log records the effective request configuration and the model actually served. |
 | **Claude (Anthropic)** | Pair-programming and review aid during development of the assistant package, the measurement design, and drafting of this report | All code executed and tested by the author; every technical claim validated against system behaviour and re-runnable artifacts. No result in this report is an AI assertion — each derives from a committed audit log or timing record. |
 
-No real credentials, customer data, or copyrighted content was provided to any model. Lab alerts are synthetic, and the redaction layer (§8.3) strips tested credential patterns before any prompt is constructed. Measured hosted API cost was **$1.11** for the two GPT-5.5 runs (operational + evaluation; 42 requests including preflight, 42,562 input tokens) — roughly $0.03 per alert. Prompts, prompt-version hashes, model versions and raw responses for every reported number are committed under `assistant/outputs/runs/`.
+No real credentials, customer data, or copyrighted content was provided to any model. Lab alerts are synthetic, and the redaction layer (§8.3) strips tested credential patterns before any prompt is constructed. Measured hosted API cost was **$1.11** for the two GPT-5.5 runs (operational + evaluation; 42 requests including preflight, 42,562 input tokens) — roughly $0.03 per alert. Prompts, prompt-version hashes, model versions and raw responses for every reported number are retained locally under `assistant/outputs/runs/` and integrity-checked by SHA-256 (run manifest, Appendix A.1).
 
 ---
 
@@ -284,7 +284,7 @@ No real credentials, customer data, or copyrighted content was provided to any m
 
 **Measurement**
 
-- **ATT&CK label leakage (identified in our own method).** The operational view shows the model the rule's own label, so llama3.1's 13/14 attack-technique accuracy is largely copying. A first "evaluation" view still leaked labels through `audit.key` and `rule_description`; only a leakage-proof view (test-verified) exposed the honest figure — **1/14 for llama3.1, 8/14 for GPT-5.5**. This report leads with the label-free number. §9.3.
+- **ATT&CK label leakage (identified in our own method).** The operational view shows the model the rule's own label, so llama3.1's 13/14 attack-technique accuracy is largely copying. A first "evaluation" view still leaked labels through `audit.key` and `rule_description`; only a leakage-proof view (test-verified) exposed the honest figure — **1/14 for llama3.1, 8/14 for GPT-5.5**. This report leads with the label-reduced number. §9.3.
 - **Self-generation bias.** The analyst authored the attacks and therefore knew the ground truth. The unassisted 20/20 disposition accuracy is an optimistic ceiling that a real Tier-1 analyst on unfamiliar traffic would not reach, and it means the assistant could only match or worsen accuracy, never improve it. The six deliberately deceptive false positives partially counter this, but do not eliminate it.
 - **Learning effect — with its bias direction stated.** The assisted pass is a second exposure to the same corpus; a washout period and randomised order mitigate but do not eliminate familiarity. Critically, this confound biases **toward** an apparent assistant speed-up — so the finding that the assistant *slowed down* false-positive triage is robust despite a learning tailwind. The categorical 14-of-14 versus 0-of-6 split is also not explicable by memory, which would not align itself with assistant correctness.
 - **Small n, single analyst, single environment; two models, one run per condition.** The `llama3.1` runs used `temperature=0` and were repeatable across the two recorded runs; the hosted GPT-5.5 runs are one stochastic sample per view (temperature is unsupported on reasoning models). Temperature 0 reduces sampling variability but does not guarantee determinism. Results are directional, not statistically powered.
@@ -303,7 +303,7 @@ No real credentials, customer data, or copyrighted content was provided to any m
 **Build**
 
 - **Single-node SIEM** — no HA or clustering; lab-appropriate, not production scale.
-- **Synthetic alerts only** — detection precision is characterised against known Atomic ground truth, not real-world base rates; false-positive behaviour on production traffic is unknown.
+- **Synthetic alerts only** — detection precision is characterised against frozen corpus ground truth (controlled simulations and historical false positives), not real-world base rates; false-positive behaviour on production traffic is unknown.
 - **Known false positive** — rule 100100 fires on legitimate `cron` reads of `/etc/shadow`; the tune (scoping to `auid>=1000`) is planned and reported rather than hidden.
 - **Cloud source** — a static sample rather than live ingestion; confirmed acceptable, and part of the optional 3-source stretch rather than the solo minimum.
 
@@ -315,11 +315,11 @@ No real credentials, customer data, or copyrighted content was provided to any m
 
 **What the measurement showed.** The assistant's value is **conditional on its correctness, and its failures are not neutral — they are actively costly**. Speed tracked correctness exactly: −30% on all 14 alerts it got right, +38% on all 6 it got wrong, 20 out of 20 with no exceptions. The aggregate "−24% faster" that a less careful evaluation would have reported is the average of two opposite effects.
 
-**And the binding constraint was the model, not the approach.** The local 8B model never returned "benign" (0/6) and therefore made false-positive triage *slower*. On the identical frozen corpus, a frontier model identified 5 of 6 false positives with disposition accuracy of 18/20 versus 14/20, in both views. So the failure mode this pilot found is **model- and configuration-dependent, not intrinsic to LLM triage** — a result that only exists because the corpus was salted with real false positives and scored on separated metrics. Two caveats bound it: the hosted comparison is a single stochastic sample per view, and the assisted-timing pass was not re-run with it, so no assisted timing figure is claimed for the frontier model.
+**And the binding constraint was the model, not the approach.** The local 8B model never returned "benign" (0/6) and therefore made false-positive triage *slower*. On the identical frozen corpus, a frontier model cleared 5 of 6 false positives in the operational view (18/20 disposition); in the strict label-reduced view it cleared three and referred the other three for investigation (16/20), confidently misclassifying none. llama3.1 scored 14/20 in both. So the failure mode this pilot found is **model- and configuration-dependent, not intrinsic to LLM triage** — a result that only exists because the corpus was salted with real false positives and scored on separated metrics. Two caveats bound it: the hosted comparison is a single stochastic sample per view, and the assisted-timing pass was not re-run with it, so no assisted timing figure is claimed for the frontier model.
 
 **What a real SOC should take from this pilot.** Four things.
 
-1. **The deployment gate is not "is it fast?" — it is "is it right on the alerts you would otherwise dismiss?"** Measured on that gate, the two models diverge completely (0/6 vs 5/6) while their aggregate `overall` scores look similar. Choose the model on the false-positive test, not the headline.
+1. **The deployment gate is not "is it fast?" — it is "is it right on the alerts you would otherwise dismiss?"** Measured on that gate, the two models diverge (llama3.1 0/6; GPT-5.5 3/6 cleared + 3 hedged in the strict view, 5/6 cleared operationally) while their aggregate `overall` scores look similar. Choose the model on the false-positive test, not the headline.
 2. **Evaluate on a benign-salted corpus, or you will measure nothing.** Had the corpus contained only real attacks, the 8B assistant would have scored ~100% and been judged a success. The six false positives are what exposed the failure — and what later showed a better model fixing it.
 3. **Human review is not free, and it can be priced.** The analyst caught all six errors, so accuracy never degraded — the guardrail worked. It cost about two minutes per false positive: the number to weigh against the time saved elsewhere.
 4. **A rigorous evaluation audits itself, not just the model.** This one caught two defects in its own instruments: an ATT&CK label leaking into the input and inflating accuracy (13/14 → 1/14 once rigorously removed), and a synthetic corpus whose payload announced itself as a test — which only became visible when a model capable enough to decode it disagreed with our ground truth (A18, §11). Both were reported rather than repaired after the fact.
@@ -397,13 +397,13 @@ Every ✅ claim in this report maps to a captured artifact. (Consistent with REA
 | EVID-AI-REDACT-001 | 0/7 planted secrets leak; file-hash IOC preserved | `assistant/outputs/redaction_proof.md` |
 | EVID-AI-INJECT-001 | Injection resisted, attempt flagged | `assistant/outputs/injection_proof.md` |
 | EVID-AI-UI-001 | Analyst vs Evaluator UI modes | `evidence/week3/assistant-ui-analyst-mode.png` |
-| EVID-AI-LLAMA-001 | llama3.1 operational + label-free runs (scoring + audit log) | `assistant/outputs/runs/…_ollama_*` |
-| EVID-AI-GPT-001 | gpt-5.5 operational + label-free runs (scoring + audit log) | `assistant/outputs/runs/…_openai_*` |
+| EVID-AI-LLAMA-001 | llama3.1 operational + strict-reduced runs (scoring + audit log) | `assistant/outputs/runs/20260718_180713_ollama_eval_baseline/` |
+| EVID-AI-GPT-001 | gpt-5.5 operational + strict-reduced runs (scoring + audit log) | `assistant/outputs/runs/20260718_183704_openai_eval_baseline/` |
 | EVID-MEASURE-001 | Timing log + analysis notebook | `measurement/timing-log.csv`, `measurement/analysis.ipynb` |
 
 ### A.1 Run manifest (reproducibility)
 
-| Field | llama3.1 (label-free) | gpt-5.5 (label-free) |
+| Field | llama3.1 (strict-reduced) | gpt-5.5 (strict-reduced) |
 |---|---|---|
 | Provider / model | ollama / llama3.1:8b | openai / gpt-5.5-2026-04-23 (pinned snapshot) |
 | Run ID | `20260718_180713_ollama_eval_baseline` | `20260718_183704_openai_eval_baseline` |
@@ -412,27 +412,29 @@ Every ✅ claim in this report maps to a captured artifact. (Consistent with REA
 | Redaction version hash | `3a527e33fa159616` | `3a527e33fa159616` |
 | Git commit | `149dcd8447767223b74193779eab85bb417dc748` | (same) |
 | Ollama version | 0.32.1 | n/a (hosted) |
-| Corpus SHA-256 | `8e21ce5311d1f674…` | (same) |
-| Timing-log SHA-256 | `9ceba8e2468f44e8…` | (same) |
+| Corpus SHA-256 | `<compute after freezing corpus — see note>` | (same) |
+| Timing-log SHA-256 | `<recompute from final timing-log.csv>` | (same) |
 
 Operational-view runs share the same prompt/redaction/corpus/commit; run IDs are in the audit logs under `assistant/outputs/runs/`.
+
+> **Corpus freeze (do before final submission):** `alert-corpus.json` currently carries `frozen_at_utc: "DRAFT_NOT_FROZEN"` and 3 alerts still lacked `t1_attack_utc` in an earlier copy. Set a real `frozen_at_utc`, confirm all 20 `t1_attack_utc` are populated, then compute `sha256sum alert-corpus.json` and paste the digest here and in every manifest. The digest changes when the freeze metadata is set, so this must be the *last* step.
 
 ### A.2 Model cost & privacy comparison
 
 | Property | llama3.1:8b (local) | gpt-5.5 (hosted) |
 |---|---|---|
-| Benign FPs identified (label-free) | 0/6 | 3/6 (+3 hedged) |
-| Technique, attacks (label-free, exact/relaxed) | 1/14 · 1/14 | 8/14 · 12/14 |
-| Median latency | ~75 s | ~14 s |
+| Benign FPs cleared (strict-reduced) | 0/6 | 3/6 (+3 hedged) |
+| Technique, attacks (strict-reduced, exact-ID/relaxed) | 1/14 · 1/14 | 8/14 · 12/14 |
+| Median latency (strict run) | ~60.4 s | ~10.7 s |
 | Data egress | None (local) | Redacted synthetic alerts sent to hosted API |
 | Direct API cost | None | ~$1.11 total for both runs (~$0.03/alert) |
-| JSON validity (matched baseline runs) | 39/40 | 40/40 |
+| JSON validity (matched operational+eval runs) | 40/40 | 40/40 |
 | Reproducibility | Local model digest; temp=0 repeatable | Pinned snapshot; stochastic single sample |
 | Deployment implication | Private but weak on FPs | Stronger, but externally hosted |
 
 ### A.3 A18 sensitivity analysis
 
-A18 is a scored false negative for GPT-5.5 under the frozen ground truth (a real encoded-PowerShell alert it judged `likely_benign` after decoding the payload to *"AlertMind Encoded PowerShell Test"* — a corpus construct-validity issue, §11). The primary result retains the frozen label. Excluding A18 as construct-ambiguous, GPT-5.5's disposition rises to **18/19 with zero false negatives** in both views; the model comparison is unchanged in direction and magnitude. A18 is therefore reported as a scored FN, and the conclusion does not depend on it.
+A18 is a scored false negative for GPT-5.5 under the frozen ground truth (a real encoded-PowerShell alert it judged `likely_benign` after decoding the payload to *"AlertMind Encoded PowerShell Test"* — a corpus construct-validity issue, §11). The primary result retains the frozen label. Excluding A18 as construct-ambiguous, GPT-5.5's disposition rises to **18/19 (operational)** and **16/19 (strict label-reduced)**, with **zero attack false negatives in both views**; the model comparison is unchanged in direction and magnitude. A18 is therefore reported as a scored FN, and the conclusion does not depend on it.
 
 ### B. Detection rule pack
 `siem/wazuh/local_rules.xml` (deployed Wazuh-native rules) · `detections/auditd/alertmind.rules` (auditd ruleset) · `detections/sigma/` (portable Sigma source, 25 rules validated).
