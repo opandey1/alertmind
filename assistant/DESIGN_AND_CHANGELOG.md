@@ -56,8 +56,8 @@ alert ─▶ redact ─▶ apply view ─▶ build prompt ─▶ call LLM ─▶
 | `llm.py` | 512 | Provider clients (`mock`/`anthropic`/`openai`/`ollama`), `.env` loader, retry/backoff, GPT-5.5 request handling, response-metadata + budget-exhaustion helpers, tolerant JSON parse | Provider-agnostic via plain `requests` — no SDK version drift. `mock` makes the pipeline runnable with zero setup. |
 | `schema.py` | 90 | Output shape validation (dependency-free) | No `jsonschema` dependency so the offline path needs no `pip install`; formal schema included as documentation. |
 | `scoring.py` | 80 | Five separated metrics + aggregation | Separation prevents a contradictory answer scoring "correct". |
-| `runner.py` | 167 | Batch pipeline, CLI, per-run audit dir, scoring output | Runs never overwrite each other; every run is fully attributable. |
-| `app.py` | ~200 | Streamlit analyst UI | Analyst vs Evaluator mode enforces experimental integrity. |
+| `runner.py` | 182 | Batch pipeline, CLI, per-run audit dir, scoring output | Runs never overwrite each other; every run is fully attributable. |
+| `app.py` | 213 | Streamlit analyst UI | Analyst vs Evaluator mode enforces experimental integrity. |
 | `preflight.py` | 185 | Provider connectivity diagnostic (timeout-governed, prints effective config/usage) | Fails in ~20s with an actionable message instead of hanging 300s × 20 alerts. |
 | `rebuild_from_audit.py` | 86 | Rebuild outputs/scoring from `audit-log.jsonl` | The audit log is the source of truth; scoring can always be re-derived **without re-running the model**. |
 | `tests/test_redact.py` | 82 | Redaction proof → `outputs/redaction_proof.md` | Proof is a **reproducible test**, not a screenshot. |
@@ -332,7 +332,7 @@ The review judged the architecture distinction-level and faulted **measurement v
 
 - **Label leakage** inflates the operational technique number; the strict label-reduced view is the honest figure — **1/14 attacks exact for llama3.1, 8/14 for gpt-5.5** (the earlier 7/20 came from a still-leaky view). Lead with the strict number.
 - **Self-generation bias** — the analyst built the attacks and knows the answers; the unassisted 20/20 accuracy ceiling is optimistic.
-- **Small model reliability** — ~1/20 (≈5%) of calls returned invalid JSON.
+- **Small model reliability** — an earlier llama3.1 run produced one invalid-JSON response (≈5%); the current matched operational and strict runs are 40/40 valid for both models.
 - **Redaction is risk-reduction, not a guarantee** (§3.1).
 - **Small n (20), single environment, one run per condition** — results are directional, not statistically powered. Two models were measured: `llama3.1:8b` (local, `temperature=0`; the two recorded runs were byte-identical) and `gpt-5.5-2026-04-23` (hosted, pinned snapshot, vendor-default reasoning effort). Hosted reasoning models reject `temperature`, so the GPT-5.5 runs are **stochastic single samples** and are reported as such.
 - **Learning effect** — the assisted pass is a second exposure to the same corpus; a washout and randomised order mitigate but do **not** eliminate it (no counterbalanced crossover was run). The bias runs toward an apparent speed-up.
@@ -343,7 +343,7 @@ The review judged the architecture distinction-level and faulted **measurement v
 |---|---|
 | #6 Redaction breadth (Basic auth, JWT, `ghp_`/`xoxb-`, URL creds, decode-then-redact encoded PowerShell) | Claim already softened to match current coverage; expansion is additive |
 | #7 Context-aware hash handling | Same |
-| #4 Output-grounding rubric across all 4 deliverables | Needs a manual rubric pass over 20×4 outputs |
+| Automate and independently repeat output grounding | The four-deliverable manual rubric is complete for both operational runs; automation, strict-view coverage and an independent second reviewer remain future work |
 | ~~#12 Remaining reliability (capture usage / response-id)~~ | **Done — was reclassified.** Once hosted reasoning models entered scope this stopped being cosmetic: interpretation depends on reasoning effort and token allocation. The audit log now records the effective request config (endpoint, token parameter + budget, reasoning effort, temperature) and the response metadata (`model_actual`, `response_id`, `system_fingerprint`, `finish_reason`, token usage incl. `reasoning_tokens`). |
 | One-shot JSON retry on `parse_error` | Would likely recover the ~5% parse failures, but changes the measured artifact — deliberately **not** applied after results were collected |
 
@@ -373,13 +373,13 @@ It would be if I hid it. The question is whether the assistant's *output* helps 
 A real confound, mitigated by a washout and randomised order. Critically, the bias runs **toward** an apparent speed-up — so my finding that the assistant *slowed down* false positives is robust *despite* a learning tailwind. And the split is categorical, not gradual: 14/14 attacks faster, 0/6 benign faster. Memory doesn't explain a clean split along the axis of assistant correctness.
 
 **Q8. "Why not just use a bigger/better model?"**
-We did — that is the two-model comparison. On the identical frozen corpus, `gpt-5.5-2026-04-23` cleared 5/6 false positives operationally (3/6 strict, 0 confidently wrong) and held ATT&CK classification at 8/14 exact / 12/14 relaxed under the strict view, where llama3.1 collapses to 1/14. So a stronger model materially improves both disposition and genuine classification. But it is one stochastic sample per view, temperature-locked out, not grounded beyond the manual review, and never run through the assisted-timing pass — so it is a promising candidate for further evaluation, not a deployment recommendation. The evaluation *method* (benign salt, strict label-reduced view, separated metrics, grounding review) is what makes any such claim checkable.
+We did — that is the two-model comparison. On the identical frozen corpus, `gpt-5.5-2026-04-23` cleared 5/6 false positives operationally (3/6 strict, 0 confidently wrong) and held ATT&CK classification at 8/14 exact / 12/14 relaxed under the strict view, where llama3.1 collapses to 1/14. The GPT-5.5 condition therefore produced materially higher disposition and genuine-classification scores in this sample. But it is one stochastic sample per view, temperature-locked out, grounded by one reviewer on operational-view outputs only, and never run through the assisted-timing pass — so it is a promising candidate for further evaluation, not a deployment recommendation. The evaluation *method* (benign salt, strict label-reduced view, separated metrics, grounding review) is what makes any such claim checkable.
 
 **Q9. "Your prompt change improved the benign numbers. Isn't that just tuning to the test?"**
 I was careful about exactly that. The `benign_aware` prompt teaches general tradecraft — check the acting process, account context, expected behaviour — and names no corpus alert. Both prompts are retained and every run logs a distinct prompt-version hash, so the A/B is auditable. And I report the cost honestly: pushing the model toward benign produced a **false negative (A06)** — a real attack called benign. No free lunch.
 
 **Q10. "What would you do differently / what's next?"**
-Three things. Expand redaction breadth and make hash handling context-aware. Add an output-grounding rubric across all four deliverables, not just the technique tag. And re-run on a larger, independently-generated corpus (removing the self-generation bias) with a between-subject or counterbalanced design (a second analyst alone does *not* remove the learning effect — the same alerts seen twice still teach, unless conditions are counterbalanced or the corpus is fresh per condition). Those are my two biggest threats to validity.
+Three things. Expand redaction breadth and make hash handling context-aware. Automate the completed four-deliverable grounding rubric, apply it to strict-view outputs, and repeat it with an independent reviewer. Then re-run on a larger, independently-generated corpus (removing the self-generation bias) with a between-subject or counterbalanced design (a second analyst alone does *not* remove the learning effect — the same alerts seen twice still teach, unless conditions are counterbalanced or the corpus is fresh per condition). The self-generation and repeated-exposure effects are the two biggest threats to validity.
 
 **Q11. "Which single result matters most?"**
 That an assistant's value is conditional on its correctness, and the failure isn't neutral — it's actively costly. Speed followed correctness exactly, 20/20. That means the deployment gate isn't "is it fast?", it's "is it right on the alerts you'd otherwise dismiss?" On that gate, llama3.1:8b fails today: 0/6 on false positives.
