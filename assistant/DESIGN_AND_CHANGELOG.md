@@ -180,7 +180,7 @@ Errored / unparseable responses score **all-False** (§7 change #4).
 | **evaluation / baseline** | **7/20** | 10/20 | 13/20 | 19/20 | 10/20 | 1 |
 | evaluation / benign_aware | 7/20 | 11/20 | 14/20 | 17/20 | 11/20 | 1 |
 
-> **Finding 1 — label leakage, proven with our own data.** Holding the prompt fixed (baseline), technique-exact falls **13/20 → 7/20** simply by removing the rule's ATT&CK label from the input. Roughly **half of the apparent accuracy was label-copying.** The honest classification number is **7/20 exact (10/20 relaxed)**.
+> **Finding 1 — label leakage, proven with our own data.** Holding the prompt fixed, technique-exact fell **13/20 → 7/20** on the *first* (still-leaky) evaluation view. _This figure is superseded:_ once the view was made leak-proof (§6.4b) the honest strict result is **1/14 attacks exact and relaxed** for llama3.1 — the reliance was near-total, not half.
 
 ### 6.4 Disposition bias — the benign-salted corpus doing its job
 
@@ -193,7 +193,7 @@ Disposition assigned to the **6 benign false-positives**:
 | evaluation / baseline | **6** | 0 | 0 |
 | evaluation / benign_aware | 1 | 3 | **1** (+1 parse error) |
 
-> **Finding 2 — out of the box, llama3.1 never says "benign."** It confirmed **all 20** alerts as `likely_true_positive` with high confidence — including the wazuh-agent and Windows Defender LSASS reads. An assistant that rubber-stamps every false positive would **increase** alert fatigue: the exact opposite of the project's stated goal.
+> **Finding 2 — out of the box, llama3.1 never says "benign."** In the **operational baseline run**, llama3.1 confirmed **all 20** alerts as `likely_true_positive` with high confidence (in the strict view it split 4 `likely_true_positive` / 2 `needs_investigation` on the benign set — still 0/6 cleared) — including the wazuh-agent and Windows Defender LSASS reads. An assistant that rubber-stamps every false positive would **increase** alert fatigue: the exact opposite of the project's stated goal.
 
 > **Finding 2b — the `benign_aware` prompt trade-off (no free lunch).** Adding general triage discipline cut confident over-confirmation from 6/6 → 2/6 (operational) and 6/6 → 1/6 (evaluation). But in the evaluation view it produced **a real false negative: A06** (a genuine attack called `likely_benign`). Buying benign recall from a weak model started costing attack recall — in a SOC, the worse error.
 
@@ -236,9 +236,9 @@ Configuration (verified in both audit logs): pinned snapshot `gpt-5.5-2026-04-23
 
 *(Label-free eval uses the corrected leak-proof view — `tests/test_views_leakage.py` asserts 0/20 alerts leak a technique code. An earlier "evaluation" view still leaked via `audit.key`/`rule_description`, which is why the llama figure was 7/14 before and 1/14 after.)*
 
-Overall: llama3.1 **14/20 operational, 10/20 evaluation**; gpt-5.5 **13/20 in both**.
+_Superseded overall (leaky eval): llama3.1 14/20 op, 10/20 eval; gpt-5.5 13/20 both._ **Authoritative strict overall: llama3.1 1/20, gpt-5.5 11/20** (see banner).
 Cost/latency (superseded operational+leaky-eval pair): median ≈291 reasoning tokens, ≈14.0 s. **Authoritative strict-run latency: llama 60.4 s, gpt-5.5 10.7 s / ≈338 reasoning tokens** (see banner). Max completion usage observed: **970 tokens** — a 4,000-token budget would have had ample headroom for these calls, though stochastic calls are not guaranteed to stay in that range.
-Output validity across the two matched baseline runs: **gpt-5.5 40/40 valid vs llama3.1 39/40**.
+Output validity across the matched operational+evaluation runs: **40/40 for both models** (an earlier llama run had one parse failure — 39/40 — now superseded).
 
 > **Finding 5 — the 0/6 benign result is not an inherent property of LLM triage.** GPT-5.5 cleared 5/6 false positives operationally and 3/6 under the strict label-reduced view (hedging the other 3, misclassifying none); disposition 18/20 operational, 16/20 strict. The behaviour is therefore **model- and inference-configuration-dependent**. The study does *not* isolate model capability as the sole causal variable: GPT-5.5 is one stochastic run per view, and it differs from llama3.1:8b in scale, training and reasoning configuration simultaneously.
 
@@ -279,7 +279,7 @@ The review judged the architecture distinction-level and faulted **measurement v
 
 | # | Issue (paraphrased) | Status | What changed |
 |---|---|---|---|
-| 1 | **ATT&CK label leakage** — the model was shown `mitre.id`/T-codes and then "scored" on returning them: a copy test, not classification | ✅ Fixed | New `views.py` with `operational`/`evaluation` views + `--view` flag. Operational metric renamed to *metadata consistency*. **Quantified the leak: 13/20 → 7/20** (§6.3) |
+| 1 | **ATT&CK label leakage** — the model was shown `mitre.id`/T-codes and then "scored" on returning them: a copy test, not classification | ✅ Fixed | New `views.py` with `operational`/`evaluation` views + `--view` flag. Operational metric renamed to *metadata consistency*. **Quantified the leak: 13/20 → 7/20 (first view), then 13/14 → 1/14 attacks once leak-proof** (§6.3, §6.4b) |
 | 2 | Scoring conflated technique and disposition | ✅ Fixed | `scoring.py` — separated metrics |
 | 3 | A contradictory answer could score "correct" | ✅ Fixed | `response_consistent` metric; `overall_correct` requires all three |
 | 4 | Hallucination check too narrow (technique only, not the other 3 deliverables) | ⏸ Deferred (Tier 2) | Automated grounding over free text is its own project; a **manual grounding rubric** over the 4 deliverables is the planned pragmatic path |
@@ -330,7 +330,7 @@ The review judged the architecture distinction-level and faulted **measurement v
 
 **Limitations to state plainly in the report:**
 
-- **Label leakage** inflates the operational technique number; the evaluation view (7/20 exact) is the honest figure. Lead with evaluation.
+- **Label leakage** inflates the operational technique number; the strict label-reduced view is the honest figure — **1/14 attacks exact for llama3.1, 8/14 for gpt-5.5** (the earlier 7/20 came from a still-leaky view). Lead with the strict number.
 - **Self-generation bias** — the analyst built the attacks and knows the answers; the unassisted 20/20 accuracy ceiling is optimistic.
 - **Small model reliability** — ~1/20 (≈5%) of calls returned invalid JSON.
 - **Redaction is risk-reduction, not a guarantee** (§3.1).
@@ -352,13 +352,13 @@ The review judged the architecture distinction-level and faulted **measurement v
 ## 9. Defense Q&A — likely questions and defensible answers
 
 **Q1. "Your assistant is 65% accurate on ATT&CK tagging. Isn't that too low to be useful?"**
-Two numbers, and the distinction matters. In the *operational* view it's 13/20 — but that view shows the model the rule's own ATT&CK label, so it partly measures copying. Strip the label (*evaluation* view) and it's **7/20 exact, 10/20 relaxed**. I report the evaluation number as the honest one. I discovered and quantified this myself; it's why the two views exist.
+Two numbers, and the distinction matters. In the *operational* view llama3.1 scores 13/14 on attacks — but that view shows the model the rule's own ATT&CK label, so it mostly measures copying. Under the leak-proof strict view it is **1/14 exact and relaxed** (gpt-5.5 holds at 8/14 exact, 12/14 relaxed). I report the strict number as the honest one; a first evaluation view still leaked (7/14) until I made it leak-proof and re-ran. It's why the two views exist.
 
 **Q2. "Did the assistant improve triage time?"**
 The aggregate says −24% (10.5 → 8.0 min median), but that number is misleading and I don't lead with it. Split by whether the assistant was right: **attacks −30% (faster on 14 of 14), benign false positives +38% (slower on 6 of 6)**. It sped up everything it got right and slowed down everything it got wrong, with zero exceptions across 20 alerts.
 
 **Q3. "So does it reduce alert fatigue?"**
-On this evidence, **no — it would likely increase it.** The model called all 20 alerts `likely_true_positive` and never once said benign. False positives are exactly the alert-fatigue workload, and that's precisely where the assistant made triage *slower*, because the analyst had to disprove a confident wrong answer.
+On this evidence, **no — it would likely increase it.** In the operational baseline run llama3.1 called all 20 alerts `likely_true_positive` and never once said benign (0/6 cleared in every llama configuration). False positives are exactly the alert-fatigue workload, and that's precisely where the assistant made triage *slower*, because the analyst had to disprove a confident wrong answer.
 
 **Q4. "How do you know the model never received secrets?"**
 Three ways. Redaction runs before any prompt is constructed. `tests/test_redact.py` plants 7 fake secrets and asserts none survive — **0/7 leaked**, and the file-hash IOC is preserved. And the audit log stores the exact redacted prompt sent for every call, so it's verifiable after the fact rather than taken on trust. Caveat: this covers *tested classes* of credentials; I claim risk reduction, not a guarantee.
@@ -373,13 +373,13 @@ It would be if I hid it. The question is whether the assistant's *output* helps 
 A real confound, mitigated by a washout and randomised order. Critically, the bias runs **toward** an apparent speed-up — so my finding that the assistant *slowed down* false positives is robust *despite* a learning tailwind. And the split is categorical, not gradual: 14/14 attacks faster, 0/6 benign faster. Memory doesn't explain a clean split along the axis of assistant correctness.
 
 **Q8. "Why not just use a bigger/better model?"**
-Reasonable, and the architecture is provider-agnostic — one flag switches to a hosted 70B. But the scientific finding stands regardless: the *method* (benign salt, evaluation view, separated metrics, bimodal timing analysis) is what surfaces whether any model helps. A better model would likely improve the numbers; it wouldn't change the conclusion that you must measure disposition on false positives, not just technique on attacks.
+We did — that is the two-model comparison. On the identical frozen corpus, `gpt-5.5-2026-04-23` cleared 5/6 false positives operationally (3/6 strict, 0 confidently wrong) and held ATT&CK classification at 8/14 exact / 12/14 relaxed under the strict view, where llama3.1 collapses to 1/14. So a stronger model materially improves both disposition and genuine classification. But it is one stochastic sample per view, temperature-locked out, not grounded beyond the manual review, and never run through the assisted-timing pass — so it is a promising candidate for further evaluation, not a deployment recommendation. The evaluation *method* (benign salt, leak-proof view, separated metrics, grounding review) is what makes any such claim checkable.
 
 **Q9. "Your prompt change improved the benign numbers. Isn't that just tuning to the test?"**
 I was careful about exactly that. The `benign_aware` prompt teaches general tradecraft — check the acting process, account context, expected behaviour — and names no corpus alert. Both prompts are retained and every run logs a distinct prompt-version hash, so the A/B is auditable. And I report the cost honestly: pushing the model toward benign produced a **false negative (A06)** — a real attack called benign. No free lunch.
 
 **Q10. "What would you do differently / what's next?"**
-Three things. Expand redaction breadth and make hash handling context-aware. Add an output-grounding rubric across all four deliverables, not just the technique tag. And re-run on a larger, independently-generated corpus with a second analyst — that removes both the self-generation bias and the learning effect, which are my two biggest threats to validity.
+Three things. Expand redaction breadth and make hash handling context-aware. Add an output-grounding rubric across all four deliverables, not just the technique tag. And re-run on a larger, independently-generated corpus (removing the self-generation bias) with a between-subject or counterbalanced design (a second analyst alone does *not* remove the learning effect — the same alerts seen twice still teach, unless conditions are counterbalanced or the corpus is fresh per condition). Those are my two biggest threats to validity.
 
 **Q11. "Which single result matters most?"**
 That an assistant's value is conditional on its correctness, and the failure isn't neutral — it's actively costly. Speed followed correctness exactly, 20/20. That means the deployment gate isn't "is it fast?", it's "is it right on the alerts you'd otherwise dismiss?" On that gate, llama3.1:8b fails today: 0/6 on false positives.

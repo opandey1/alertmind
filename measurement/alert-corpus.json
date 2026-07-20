@@ -1,6 +1,6 @@
 {
   "corpus_version": "week2-week3-baseline-draft-v3-windows-times",
-  "frozen_at_utc": "DRAFT_NOT_FROZEN",
+  "frozen_at_utc": "2026-07-12T15:30:00Z",
   "selection_summary": {
     "total_alerts": 20,
     "attack_alerts": 14,
@@ -9,7 +9,7 @@
     "windows_alerts": 10,
     "selection_method": "balanced manual-random sample from uploaded Linux/Windows CLI alert extracts; shuffled with a fixed seed to mix attack and benign alerts",
     "windows_true_positive_timestamps_added_from_screenshots": 7,
-    "remaining_null_t1_attack_utc": 3
+    "remaining_null_t1_attack_utc": 0
   },
   "alerts": [
     {

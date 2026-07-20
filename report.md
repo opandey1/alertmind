@@ -31,7 +31,7 @@ AlertMind is a mini-SOC pilot testing whether a guardrailed LLM tier-1 assistant
 
 **The headline is conditional, and the aggregate figure misleads.** Median triage time fell 10.5→8.0 min (−24%) — but that averages two opposite effects. Split by whether the assistant was correct, all 14 attacks (assistant correct) were triaged faster and all six false positives (assistant wrong) slower. Because alert class and assistant correctness coincide in this sample, this is an **association**, not an isolated causal effect — but the association is categorical (20/20). Analyst accuracy held at 20/20 in both conditions: the analyst overrode all six wrong dispositions, so human review worked, at a measured cost of a paired-median **+1.68 min** per false positive.
 
-**The failure was model-dependent, not intrinsic to LLM triage.** `llama3.1:8b` confirmed all 20 alerts as likely true positives and never returned "benign" (0/6 false positives identified). On the same corpus, `gpt-5.5-2026-04-23` identified false positives without confidently misclassifying any, at 18/20 disposition vs 14/20. Under a **strict label-reduced evaluation view** (the tested code and detection-label classes verified removed), the two diverge sharply: llama3.1's genuine ATT&CK classification collapses to 1/14 attacks — it was largely copying the rule's label — while GPT-5.5 holds at 8/14 exact, 12/14 relaxed.
+**The failure was model-dependent, not intrinsic to LLM triage.** `llama3.1:8b` confirmed all 20 alerts as likely true positives and never returned "benign" (0/6 false positives identified). On the same corpus, `gpt-5.5-2026-04-23` identified false positives without confidently misclassifying any, at 18/20 disposition vs 14/20. Under a **strict label-reduced evaluation view** (the tested code and detection-label classes verified removed), the two diverge sharply: llama3.1's genuine ATT&CK classification collapses to 1/14 attacks — it was largely copying the rule's label — while GPT-5.5 holds at 8/14 exact, 12/14 relaxed. A manual grounding review of the free-text outputs reinforces this: GPT-5.5 scored 20/20 on summary support, query validity and calibration, whereas llama3.1's investigation queries were 0/20 runnable and five summaries carried an unsupported claim.
 
 **Recommendation (two-part).** *`llama3.1:8b`:* do not deploy for false-positive triage (0/6). *GPT-5.5:* a promising candidate for further evaluation, but not deployment-approved from this experiment — tested once per view, free-text outputs not yet fully grounded, and no assisted-timing run was conducted with it.
 
@@ -83,9 +83,9 @@ The lab runs on VirtualBox with all VMs on an isolated NAT Network (`LabNet`, 10
 
 **Linux pack — implemented and fully verified (all 17 rules).** Custom Wazuh rules 100100–100116 (17 rules) chain off base rule 80700 (with one child-rule exception, below), each matching one ATT&CK-encoded auditd key and tagging MITRE. Coverage spans credential access (T1003.008, T1552.004), persistence (T1136/T1098, T1053.003, T1543.002, T1037, T1546.004, T1098.004 authorized-keys), defense evasion (T1562.001, T1070/T1070.006), priv-esc (T1548.003, T1548.001/T1222.002), exec-flow hijack (T1574.006), rootkit/LKM (T1547.006/T1014), and config tampering (T1098 sshd_config and a tentatively-mapped package-config monitor). All 17 rules are now verified firing end-to-end (per-rule evidence EVID-LIN-002 and EVID-LIN-004…018 for 100101–100115, EVID-LIN-003 for 100116) — exercised on `linux-victim` on 8 Jul via targeted triggers on each watched path. _Full table: README §5._
 
-**Notable detection-engineering issue (100116).** The authorized-keys persistence rule (T1098.004) initially did not fire. The cause was an auditd limitation, not a Wazuh error: two `-w` watches covering the same path (`/root/.ssh/`) cannot both apply their keys, so writes to `authorized_keys` were emitted under the broader `t1552_004_ssh_keys` key and matched only rule 100113. Rather than fight auditd with overlapping watches, the fix follows a standard SOC pattern — collect broadly at the sensor, differentiate in the SIEM: 100116 was re-implemented as a child of 100113 (`<if_sid>100113</if_sid>`) that narrows on the `authorized_keys` path. This is now verified firing end-to-end (EVID-LIN-003).
+**Notable issue (100116, authorized-keys T1098.004).** An auditd limitation — two `-w` watches on the same path cannot both apply their keys — meant `authorized_keys` writes surfaced only under rule 100113. The fix followed the standard "collect broadly, differentiate in the SIEM" pattern: 100116 was re-implemented as a child of 100113 narrowing on the path, now verified (EVID-LIN-003). *Full detail: Appendix F.*
 
-**Windows.** Process create (EID 1, EVID-WIN-001) and service creation (EID 7045 → rule 61138 → T1543.003, EVID-WIN-002) are verified. **All seven custom Windows Sysmon rules (100200–100206) are now verified firing:** Office-spawns-shell (100200, EVID-WIN-007), encoded PowerShell (100201, EVID-WIN-003), LOLBins (100202, EVID-WIN-004), LSASS access (100203, EVID-WIN-006), PsExec service execution (100204, EVID-WIN-008), Run-key persistence (100205, EVID-WIN-005), and the DNS-tunnelling heuristic (100206, EVID-WIN-009). Each narrows on `win.eventdata.*` fields; most chain off the relevant built-in Sysmon base rule (EID 1 = 61603, EID 10 = 61612), with two exceptions — 100205 chains off the built-in Run-key parent 92300, and 100206 chains off the `sysmon_event_22` group rather than a direct `if_sid 61624`. Three findings worth recording: **(a)** Run-key 100205 was re-narrowed to exclude `CurrentVersion\RunNotification` (a prefix-match FP observed in testing); **(b)** LSASS 100203 took three tuning rounds — untuned fired ~557 FPs on benign query-only reads, a positive mask allowlist missed `0x0xxx` dump masks, and the final form excludes the confirmed-benign masks (`0x1000`/`0x1400`/`0x3000`) plus `wazuh-agent.exe`/`MsMpEng.exe` source images; verified on `rundll32.exe`/comsvcs at `0x1fffff` after setting `RunAsPPL=0` (a real-world pre-condition); **(c)** PsExec 100204 detects the default `PSEXESVC.exe` name and fires on Sysinternals PsExec, but impacket-psexec evades it with a randomly-named binary — the behavioural built-ins 92218/92307/92650 catch that variant instead, a clear indicator-vs-behavioural detection lesson.
+**Windows.** Process create (EID 1, EVID-WIN-001) and service creation (EID 7045 → rule 61138 → T1543.003, EVID-WIN-002) are verified. **All seven custom Windows Sysmon rules (100200–100206) are now verified firing:** Office-spawns-shell (100200, EVID-WIN-007), encoded PowerShell (100201, EVID-WIN-003), LOLBins (100202, EVID-WIN-004), LSASS access (100203, EVID-WIN-006), PsExec service execution (100204, EVID-WIN-008), Run-key persistence (100205, EVID-WIN-005), and the DNS-tunnelling heuristic (100206, EVID-WIN-009). Each narrows on `win.eventdata.*` fields; most chain off the relevant built-in Sysmon base rule (EID 1 = 61603, EID 10 = 61612), with two exceptions — 100205 chains off the built-in Run-key parent 92300, and 100206 chains off the `sysmon_event_22` group rather than a direct `if_sid 61624`. Three tuning findings are recorded in full in **Appendix F**, each a standard detection-engineering lesson: Run-key 100205 needed a prefix-match FP (`RunNotification`) excluded; LSASS 100203 took three rounds to separate dump-grade access from benign query-only reads (and from the security tooling's own reads); and PsExec 100204 catches the default `PSEXESVC.exe` but not impacket's randomised name, which the behavioural built-ins cover — an indicator-vs-behavioural lesson that recurs in the assistant evaluation.
 
 **Detection-engineering note (kept deliberately).** `execve` is collected but not alerted on directly — it is the substrate for targeted command-pattern rules; blanket exec alerting would bury the console. Rule 100100 was observed firing on legitimate `cron` PAM reads (a false positive); the planned tune scopes the audit rule to interactive users (`auid>=1000`). This baseline→FP→tuned progression is the detection-engineering story.
 
@@ -133,12 +133,10 @@ The remaining triggers reproduce their technique directly (e.g. `comsvcs MiniDum
 ### 8.1 Design and data path
 Given a single Wazuh alert, the assistant returns four artifacts: a ≤5-line summary, a MITRE ATT&CK technique tag, two to three suggested investigation queries, and a draft message to the affected user or system owner. Output is strict JSON, so it can be schema-validated and scored rather than read impressionistically.
 
-The assistant is a **pull** consumer and never sits inline with enforcement. The measured implementation reads the frozen alert corpus exported from `wazuh-siem` (`measurement/alert-corpus.json`); the production path is read-only Wazuh API access (`:55000`) via the `assistant-svc` identity, so it cannot act on the SIEM *by credential*, not merely by code. The deliverable is a runnable Python package (`assistant/`, ~1,350 LOC across 12 modules) plus a Streamlit analyst UI. An offline `mock` provider runs the whole pipeline with no key and no network, so an examiner can reproduce the build in one command.
+The assistant is a **pull** consumer that never sits inline with enforcement: the measured implementation reads the frozen corpus (`measurement/alert-corpus.json`); the production path is read-only Wazuh API access via the planned `assistant-svc` identity (§8.3). The deliverable is a runnable Python package (`assistant/`, ~1,350 LOC, 12 modules) plus a Streamlit UI, with an offline `mock` provider so an examiner can reproduce the pipeline with no key or network.
 
 ### 8.2 Pipeline
-Per alert: **redact → apply view → build prompt → call LLM → parse → validate → log → score.**
-
-Redaction runs **first**, before any prompt is constructed, so downstream stages receive only the redaction output; unsupported secret formats remain a residual risk (§8.3, §11). The view transform (§9.3) is applied *after* redaction, because the view is an experimental control, not a security control.
+Per alert: **redact → apply view → build prompt → call LLM → parse → validate → log → score.** Redaction runs **first**, before any prompt is constructed, so downstream stages receive only redacted content; the view transform is applied after redaction, as an experimental control rather than a security one. (Full diagram: `assistant/README.md`.)
 
 ### 8.3 Guardrails and their evidence
 The design principle is that every guardrail is **enforced in code and proved by a reproducible artifact**, not asserted in a prompt.
@@ -161,16 +159,16 @@ Two proofs deserve emphasis.
 **Scope of the redaction claim.** The layer removes tested classes of common credentials and materially reduces disclosure risk. It is **not** a guarantee that every possible secret is removed; residual risk remains for unknown, encoded, or unlabelled secrets. Broadening coverage (Basic auth, JWTs, `ghp_`/`xoxb-` tokens, URL credentials, decode-then-redact for encoded PowerShell) and context-aware hash handling are identified follow-ups (§12).
 
 ### 8.4 Prompt library and auditability
-Two system-prompt variants are maintained and selectable at run time (`--prompt baseline|benign_aware`; see §9.5). Both are retained deliberately: reporting a before/after is honest, whereas silently substituting the better-performing prompt would be metric-gaming.
+Two system-prompt variants are maintained and selectable at run time (`--prompt baseline|benign_aware`; see §9.6). Both are retained deliberately: reporting a before/after is honest, whereas silently substituting the better-performing prompt would be metric-gaming.
 
-Every call is logged with `run_id`, provider, model, view, prompt name, **prompt-version and redaction-version hashes**, git commit, input/redacted-prompt/response hashes, latency, parse status, schema errors, and both raw and parsed output — written to a per-run directory that never overwrites a previous run. Any reported number is therefore attributable to an exact prompt, redaction layer, model and commit.
+Every call is logged to a per-run directory (never overwritten) with the provider/model/view/prompt, **prompt- and redaction-version hashes**, git commit, input/prompt/response hashes, latency, parse status, and raw + parsed output — so any reported number is attributable to an exact prompt, redaction layer, model and commit. For hosted runs the log also carries the effective request config and the model actually served.
 
 A design consequence worth recording: **the audit log is the source of truth**, so scoring can be re-derived offline without re-invoking the model (`rebuild_from_audit.py`). This paid off twice — once when a Windows `MAX_PATH` limit crashed the summary-file writes of an otherwise-complete run, and once when a defect in our own schema validator (§8.6) required re-scoring a 30-minute run, which took seconds instead.
 
 ### 8.5 Model and provider choice
 The client is provider-agnostic (`mock` / `ollama` / `openai` / `anthropic`) over plain `requests`, so there is no SDK version drift. The **measured artifact is `ollama/llama3.1:8b`, temperature 0, running locally** — no alert content left the lab during the measured runs.
 
-Llama 4 was evaluated and rejected: a 100B+ mixture-of-experts model, it exceeded a 300-second per-alert timeout on local CPU inference. `llama3.1:8b` — the Llama 3 family the brief suggests — completes an alert in about 60 seconds on the strict-view run (median 60.4 s). Hosted APIs are supported and, per instructor guidance, acceptable *provided the redaction guardrail is in place*; a hosted GPU endpoint is materially faster — the measured GPT-5.5 median was **~11 seconds** (§9.7), not negligible but far below local CPU — and is the obvious production choice. `preflight.py` validates provider configuration in about 20 seconds, which matters because the most common failure is a stale `OPENAI_BASE_URL` (the variable is shared by the local and hosted OpenAI-compatible providers).
+Llama 4 was evaluated and rejected: a 100B+ mixture-of-experts model, it exceeded a 300-second per-alert timeout on local CPU inference. `llama3.1:8b` — the Llama 3 family the brief suggests — completes an alert in about 60 seconds on the strict-view run (median 60.4 s). Hosted APIs are supported and, per instructor guidance, acceptable *provided the redaction guardrail is in place*; a hosted GPU endpoint is materially faster — the measured GPT-5.5 median was **~11 seconds** (§9.8), not negligible but far below local CPU — and is the obvious production choice. `preflight.py` validates provider configuration in about 20 seconds, which matters because the most common failure is a stale `OPENAI_BASE_URL` (the variable is shared by the local and hosted OpenAI-compatible providers).
 
 ### 8.6 Output validation and reliability
 `schema.py` validates required keys, field types, permitted dispositions and confidence levels, ATT&CK-ID syntax and the ≤5-line summary bound. Invalid output is recorded as `schema_invalid` rather than silently scored.
@@ -186,9 +184,9 @@ Reliability controls: configurable timeout, response-token cap, and retry with e
 ### 9.1 Definitions and protocol
 Per instructor clarification, the clock starts from **when the attack actually occurred as recorded in the logs**, not from log ingestion. Each alert carries four timestamps: (1) attack occurred, (2) alert fired in Wazuh, (3) analyst opened the alert, (4) disposition reached. From these, **MTTD = (2) − (1)** and **time-to-triage = (4) − (3)**. Timestamps are captured manually in `measurement/timing-log.csv`, which the instructor confirmed is sufficient.
 
-**Model inference latency is excluded from triage time and reported separately.** The experiment asks whether the assistant's *output* helps an analyst triage faster, not how fast an 8B model runs on a laptop CPU. Local llama3.1 inference took ~60 seconds per alert (strict run); the hosted GPT-5.5 median was ~11 seconds (§9.7). Counting that latency as "triage time" would measure the test hardware rather than the assistant. Accordingly, assistant outputs were **pre-generated in batch** and the analyst was timed reading them — which also means the timed pass required no new inference.
+**Model inference latency is excluded from triage time and reported separately.** The experiment asks whether the assistant's *output* helps an analyst triage faster, not how fast an 8B model runs on a laptop CPU. Local llama3.1 inference took ~60 seconds per alert (strict run); the hosted GPT-5.5 median was ~11 seconds (§9.8). Counting that latency as "triage time" would measure the test hardware rather than the assistant. Accordingly, assistant outputs were **pre-generated in batch** and the analyst was timed reading them — which also means the timed pass required no new inference.
 
-**Corpus design.** Twenty alerts drawn from controlled adversary-simulation and detection-validation runs, including selected Atomic Red Team tests: **14 attack alerts and 6 real false positives** (`measurement/alert-corpus.json`, frozen before measurement). The false positives are genuine historical alerts from the tuning history — a Windows Defender LSASS read at `0x3600`, a Wazuh-agent LSASS read at `0x1fffff`, an Edge auto-launch Run-key write, a dconf setuid change, a snapd systemd unit write, and a cron read of `/etc/shadow`. **This salt is the methodological core of the experiment:** without false positives, an assistant that confirms everything would score 100%, and the measurement would be worthless. Several of these alerts would no longer fire under the final tuned rules — which is itself evidence the tuning worked — but they remain valid triage tests.
+**Corpus design.** Twenty alerts drawn from controlled adversary-simulation and detection-validation runs, including selected Atomic Red Team tests: **14 attack alerts and 6 real false positives** (`measurement/alert-corpus.json`, frozen before measurement). The six false positives are genuine historical alerts from the tuning history (security-tooling LSASS reads, an Edge Run-key write, a dconf setuid change, a snapd unit write, a cron `/etc/shadow` read). **This salt is the methodological core of the experiment:** without false positives, an assistant that confirms everything scores 100% and the measurement is worthless.
 
 ### 9.2 What the assistant cannot change
 MTTD median is **2.28 seconds** across the corpus. In a single-host lab with real-time agent forwarding, detection latency is essentially instantaneous and is a property of the *detection rules*, not the assistant. The assistant cannot alter the attack timestamp or the alert-generation timestamp, and this report makes no claim that it improves MTTD. Its measurable value lies entirely in the analyst workflow after the alert is seen.
@@ -199,7 +197,7 @@ MTTD median is **2.28 seconds** across the corpus. In a single-host lab with rea
 The corpus alert carries the rule's own ATT&CK label in three places: `mitre.id`, a T-code inside `rule_description`, and detection-authored key fields such as `audit.key = "t1053_003_cron"`. If the model sees any of these, "did it return the right technique?" only tests whether it can **copy a label**. The assistant therefore supports two views, applied after redaction:
 
 - **operational** — the full alert including rule metadata. Realistic for a Wazuh-integrated assistant; the technique metric here is *ATT&CK metadata consistency*, not classification.
-- **evaluation** — a strict, label-reduced view that removes `mitre`, `rule_id`, `rule_description`, `evidence_file` and every `*.key` field, then strips any surviving technique codes. A regression test (`tests/test_views_leakage.py`) asserts that the tested ATT&CK-code and detection-label classes are removed from all 20 corpus alerts (zero technique codes, any case or separator, survive); raw evidence (executable, command, path, user, registry object, access mask, syscall) is retained. *This removes the tested leakage classes for these 20 alerts; it is not a proof of semantic label-freeness for arbitrary future alerts. An earlier version leaked through `audit.key` and `rule_description`; the figures below are from the corrected strict label-reduced view.*
+- **evaluation** — a strict, label-reduced view that removes the detection-authored label fields (`mitre`, `rule_id`, `rule_description`, `evidence_file`, and the `audit.key` detection label), strips technique codes from remaining strings, and drops any other key-shaped field only when its value is itself a technique code — so legitimate raw evidence such as a `registry.key` is preserved. A regression test (`tests/test_views_leakage.py`) asserts that the tested ATT&CK-code and detection-label classes are removed from all 20 corpus alerts (zero technique codes, any case or separator, survive); raw evidence (executable, command, path, user, registry object, access mask, syscall) is retained. *This removes the tested leakage classes for these 20 alerts; it is not a proof of semantic label-freeness for arbitrary future alerts. An earlier version leaked through `audit.key` and `rule_description`; the figures below are from the corrected strict label-reduced view.*
 
 Technique accuracy on the 14 attack alerts:
 
@@ -220,20 +218,34 @@ Disposition assigned to the six benign false positives, strict label-reduced vie
 | llama3.1:8b | 4 | 2 | **0** | 14/20 |
 | gpt-5.5 | 0 | 3 | **3** | **16/20** |
 
-**llama3.1 never returns "benign"** — 0/6, consistent with its operational behaviour, and it confidently confirms four of the six false positives outright. **GPT-5.5 confidently clears three and refers the other three to "needs investigation," confidently misclassifying none.** A `needs_investigation` call is *not* a correct benign disposition under our scoring — it is safer than a confident true-positive but leaves the alert unresolved. In the operational view, where it can also read `rule_description`, GPT-5.5 clears 5/6; with that context removed it becomes more conservative. Its disposition accuracy is 16/20 strict-reduced and 18/20 operational, versus 14/20 for llama3.1 in both.
+**llama3.1 never returns "benign"** (0/6), confidently confirming four of the six outright. **GPT-5.5 confidently clears three and refers the other three to "needs investigation," confidently misclassifying none.** A `needs_investigation` call is *not* a correct benign disposition under our scoring — it is safer than a confident true-positive but leaves the alert unresolved. In the operational view, where it can also read `rule_description`, GPT-5.5 clears 5/6; with that context removed it becomes more conservative. Its disposition accuracy is 16/20 strict-reduced and 18/20 operational, versus 14/20 for llama3.1 in both.
 
-**Interpretation, bounded.** The 0/6 result is **not an inherent property of LLM triage**; under the tested configuration it is model- and inference-configuration-dependent. The experiment does not isolate model capability as the sole cause — GPT-5.5 differs from llama3.1:8b in scale, training, reasoning configuration, hosting and sampling at once, and is one stochastic sample per view (§9.7 caveat).
+**Interpretation, bounded.** The 0/6 result is **not an inherent property of LLM triage**; under the tested configuration it is model- and inference-configuration-dependent. The experiment does not isolate model capability as the sole cause — GPT-5.5 differs from llama3.1:8b in scale, training, reasoning configuration, hosting and sampling at once, and is one stochastic sample per view (§9.8 caveat).
 
-This matters because it inverts the pilot's purpose: false positives *are* the alert-fatigue workload the brief set out to cut. An assistant that rubber-stamps them (llama3.1) works against that goal; one that clears or flags them without false confidence (GPT-5.5) supports it.
+This inverts the pilot's purpose: false positives *are* the alert-fatigue workload the brief set out to cut. An assistant that rubber-stamps them works against that goal; one that clears or flags them without false confidence supports it.
 
-### 9.5 Prompt mitigation experiment — and its cost
+### 9.5 Grounding of the free-text deliverables
+Automated scoring (§9.2–9.4) covers only the technique tag and disposition. A manual grounding review scored all 20 **operational** outputs of each model on six dimensions: whether every summary line is supported by the alert, the number of unsupported statements, whether the investigation queries are valid (runnable) and relevant, whether the draft user message is appropriate, and whether stated confidence is calibrated to the evidence.
+
+| Dimension | llama3.1:8b | gpt-5.5 |
+|---|---|---|
+| Summary fully supported | 15/20 (5 partial) | **20/20** |
+| Unsupported statements (total) | 5 | **0** |
+| Investigation queries valid / runnable | **0/20** | **20/20** |
+| Investigation queries relevant | 20/20 | 20/20 |
+| Draft user message appropriate | 19/20 | 20/20 |
+| Confidence calibrated | 13/20 | **20/20** |
+
+The gap is decisive on two dimensions. **llama3.1's investigation queries are 0/20 runnable** — it returns vague natural-language steps ("check the processes running under this user") rather than executable Wazuh/Discover queries, so the analyst must still compose every query. And five of its summaries contain an unsupported statement, including a **factual error** (describing syscall 257 as "mount" when it is `openat`) and the same confident-wrong pattern seen in its dispositions (labelling the `wazuh-agent.exe` process "suspicious" on A11). **GPT-5.5 was fully grounded — 20/20 on every dimension** — with field-scoped runnable queries and calibrated confidence. This is the free-text counterpart to the technique and disposition results: the weaker model is not merely less accurate on its tags, its narrative and its suggested next steps are less trustworthy and less actionable. Worksheets and the auto-checked scoring sheets: `measurement/grounding/`.
+
+### 9.6 Prompt mitigation experiment — and its cost
 A second system prompt (`benign_aware`) adds explicit *disposition discipline*: it legitimises `likely_benign` as an expected outcome and asks the model to weigh a benign explanation — acting process, account context, expected behaviour, parameter plausibility — before deciding, with a balance clause forbidding it from explaining away real threats. It teaches **general tradecraft and names no corpus alert**, which is the line between prompt engineering and teaching to the test. Both prompts are retained and each run logs a distinct prompt-version hash, so the A/B is auditable.
 
 **Result: partial improvement, with a real cost.** Confident over-confirmation on the benign set fell from 6/6 to 2/6 (operational) and 6/6 to 1/6 (evaluation). But in the evaluation view the prompt also produced a **false negative — A06, a genuine attack, classified `likely_benign`**. Pushing a small model toward benign recall began costing attack recall, which in a SOC is the worse error. The prompt also introduced one additional invalid-JSON response.
 
 This is reported as a no-free-lunch trade-off rather than a fix. On this evidence, neither prompt is deployable for false-positive triage: the baseline never identifies a false positive, and the benign-aware variant only starts to do so at the price of missing an attack.
 
-### 9.6 Triage-time impact
+### 9.7 Triage-time impact
 Twenty alerts triaged unassisted, then re-triaged after a washout with the pre-generated `llama3.1` output visible, in randomised order (protocol and threats to validity: `measurement/assisted-timing-protocol.md`).
 
 | | n | unassisted median | assisted median | paired delta (median / mean / range) | faster on |
@@ -248,7 +260,7 @@ The analyst's contemporaneous notes corroborate the split independently: every "
 
 **Accuracy did not degrade: 20/20 in both conditions.** The analyst overrode all six incorrect dispositions — the human-in-the-loop guardrail worked — at the measured paired cost above. No timed assisted pass was run with GPT-5.5, so no triage-time figure is claimed for it; what the timing establishes is the conditional *structure* (assistant value tracks assistant correctness), not a per-model number.
 
-### 9.7 Summary of measured impact
+### 9.8 Summary of measured impact
 
 | Measure | Unassisted | Assisted (`llama3.1`) | Verdict |
 |---|---|---|---|
@@ -261,7 +273,9 @@ The analyst's contemporaneous notes corroborate the split independently: every "
 |---|---|---|
 | Technique, attacks — exact / relaxed | 1/14 · 1/14 | **8/14 · 12/14** |
 | Disposition (all 20) | 14/20 | **16/20** |
-| Benign FPs identified (cleared) | **0/6** | **3/6** (+3 hedged, 0 wrong) |
+| Benign FPs cleared (strict view) | **0/6** | **3/6** (+3 hedged, 0 wrong) |
+| Free-text summary fully supported (grounding) | 15/20 | **20/20** |
+| Investigation queries runnable (grounding) | **0/20** | **20/20** |
 | Attacks classified benign (false negatives) | 0 | 1 (A18 — §11) |
 | Valid JSON, matched operational+eval runs | **40/40** | **40/40** |
 | Median latency · reasoning tokens (strict run) | ~60.4 s · n/a | **~10.7 s** · ~338 |
@@ -276,7 +290,7 @@ The analyst's contemporaneous notes corroborate the split independently: every "
 | **`gpt-5.5-2026-04-23` via OpenAI** (hosted, pinned snapshot, `max_completion_tokens=25000`, vendor-default reasoning effort) — comparison artifact | Same four outputs, on the same frozen corpus, in both views, to test whether the disposition bias was model-dependent | Scored identically. Temperature is unsupported on reasoning models, so these runs are **stochastic single samples**, reported as such. Redacted alerts (synthetic lab data, no real secrets) were sent to a hosted API — permitted per instructor guidance conditional on the redaction guardrail (§8.3). The audit log records the effective request configuration and the model actually served. |
 | **Claude (Anthropic)** | Pair-programming and review aid during development of the assistant package, the measurement design, and drafting of this report | All code executed and tested by the author; every technical claim validated against system behaviour and re-runnable artifacts. No result in this report is an AI assertion — each derives from a committed audit log or timing record. |
 
-No real credentials, customer data, or copyrighted content was provided to any model. Lab alerts are synthetic, and the redaction layer (§8.3) strips tested credential patterns before any prompt is constructed. Measured hosted API cost was **$1.11** for the two GPT-5.5 runs (operational + evaluation; 42 requests including preflight, 42,562 input tokens) — roughly $0.03 per alert. Prompts, prompt-version hashes, model versions and raw responses for every reported number are retained locally under `assistant/outputs/runs/` and integrity-checked by SHA-256 (run manifest, Appendix A.1).
+No real credentials, customer data, or copyrighted content was provided to any model. Lab alerts are synthetic, and the redaction layer (§8.3) strips tested credential patterns before any prompt is constructed. Measured hosted API cost was **$1.11** for the two GPT-5.5 runs (operational + evaluation; 42 requests including preflight, 42,562 input tokens) — roughly $0.03 per alert. Prompts, prompt-version hashes, model versions and raw responses for every reported number are committed under `assistant/outputs/runs/` and integrity-checked by SHA-256 (run manifest, Appendix A.1).
 
 ---
 
@@ -412,12 +426,12 @@ Every ✅ claim in this report maps to a captured artifact. (Consistent with REA
 | Redaction version hash | `3a527e33fa159616` | `3a527e33fa159616` |
 | Git commit | `149dcd8447767223b74193779eab85bb417dc748` | (same) |
 | Ollama version | 0.32.1 | n/a (hosted) |
-| Corpus SHA-256 | `<compute after freezing corpus — see note>` | (same) |
-| Timing-log SHA-256 | `<recompute from final timing-log.csv>` | (same) |
+| Corpus SHA-256 (frozen) | `2394e195e0c68730…` | (same) |
+| Timing-log SHA-256 | `9ceba8e2468f44e8…` | (same) |
 
 Operational-view runs share the same prompt/redaction/corpus/commit; run IDs are in the audit logs under `assistant/outputs/runs/`.
 
-> **Corpus freeze (do before final submission):** `alert-corpus.json` currently carries `frozen_at_utc: "DRAFT_NOT_FROZEN"` and 3 alerts still lacked `t1_attack_utc` in an earlier copy. Set a real `frozen_at_utc`, confirm all 20 `t1_attack_utc` are populated, then compute `sha256sum alert-corpus.json` and paste the digest here and in every manifest. The digest changes when the freeze metadata is set, so this must be the *last* step.
+The corpus is frozen (`frozen_at_utc: 2026-07-12T15:30:00Z`, all 20 `t1_attack_utc` populated); the SHA-256 above is over that frozen file. Run directories for all reported runs are committed to the repository.
 
 ### A.2 Model cost & privacy comparison
 
@@ -447,3 +461,15 @@ Agent `ossec.conf` blocks (audit + Windows channels), Sysmon config edit (EID 10
 
 ### E. Assistant
 Prompt library, redaction module, call logs, redaction proof-test output.
+
+### F. Detection-tuning notes (full detail)
+
+**100116 — authorized-keys (T1098.004).** The rule initially did not fire. Cause: an auditd limitation, not a Wazuh error — two `-w` watches covering the same path (`/root/.ssh/`) cannot both apply their keys, so writes to `authorized_keys` were emitted under the broader `t1552_004_ssh_keys` key and matched only rule 100113. Rather than fight auditd with overlapping watches, 100116 was re-implemented as a child of 100113 (`<if_sid>100113</if_sid>`) narrowing on the `authorized_keys` path. Verified firing end-to-end (EVID-LIN-003).
+
+**100205 — Run-key persistence (T1547.001).** Re-narrowed to exclude `CurrentVersion\RunNotification`, a prefix-match false positive observed in testing.
+
+**100203 — LSASS access (T1003.001).** Three tuning rounds: (1) untuned, it fired ~557 FPs on benign query-only reads; (2) a positive access-mask allowlist missed `0x0xxx` dump masks; (3) the final form excludes the confirmed-benign masks (`0x1000`/`0x1400`/`0x3000`) plus `wazuh-agent.exe` and `MsMpEng.exe` source images. Verified on `rundll32.exe`/comsvcs at `0x1fffff` after setting `RunAsPPL=0` (a real-world pre-condition). *These same benign LSASS reads became false positives A08/A11 in the assistant corpus — the detection tuning and the assistant evaluation are testing the same hard cases.*
+
+**100204 — PsExec service execution (T1021.002/T1569.002).** Detects the default `PSEXESVC.exe` service name and fires on Sysinternals PsExec, but impacket-psexec evades it with a randomly-named binary; the behavioural built-ins 92218/92307/92650 catch that variant. An indicator-vs-behavioural detection lesson.
+
+**100100 — `/etc/shadow` reads (T1003.008).** Fires on legitimate `cron` PAM reads (a false positive); the planned tune scopes the audit rule to interactive users (`auid>=1000`). Retained as the baseline→FP→tuned progression.
