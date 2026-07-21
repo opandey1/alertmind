@@ -13,6 +13,10 @@ Design notes:
   * File hashes in a Sysmon `Hashes=` field are IOCs, not secrets, and are kept.
     Credential material (passwords, tokens, API keys, private keys) is removed.
 """
+import hashlib as _hashlib
+import hmac as _hmac
+import json as _json
+import os as _os
 import re
 
 # (name, compiled pattern, replacement).  Order matters: PEM blocks first.
@@ -38,7 +42,7 @@ _RULES = [
      r"\1=[REDACTED:aws_secret_key]"),
 
     ("openai_key",
-     re.compile(r"\bsk-[A-Za-z0-9]{20,}\b"),
+     re.compile(r"\bsk-[A-Za-z0-9_-]{20,}\b"),
      "[REDACTED:api_key]"),
 
     # key=value style secrets: password/passwd/pwd/secret/token/api_key/access_key/client_secret
@@ -65,25 +69,97 @@ def redact_text(text: str) -> str:
     return text
 
 
+_TRACE_HMAC_KEY = _os.environ.get("ALERTMIND_TRACE_HMAC_KEY", "").encode("utf-8")
+
+
+def _correlation_hash(s: str):
+    """Optional keyed fingerprint; never store an unsalted secret digest.
+
+    Set ALERTMIND_TRACE_HMAC_KEY to correlate the same redacted value across
+    trace rows. Without a key the field is None, which is safer for real data.
+    """
+    if not _TRACE_HMAC_KEY:
+        return None
+    return _hmac.new(_TRACE_HMAC_KEY, s.encode("utf-8", "replace"),
+                     _hashlib.sha256).hexdigest()[:12]
+
+
+def _mask(value: str) -> str:
+    """Length-only mask — never the original value."""
+    return "\u2022" * min(len(value), 6) + f" ({len(value)} chars)"
+
+
+def _canonical_sensitive(value) -> str:
+    """Stable local representation used only for mask length/optional HMAC."""
+    if isinstance(value, str):
+        return value
+    return _json.dumps(value, ensure_ascii=False, sort_keys=True, default=str)
+
+
+def _matched_values(text: str):
+    """Rule-name -> list of matched substrings (used ONLY for masking/hashing;
+    never stored in results)."""
+    out = []
+    for name, pat, _repl in _RULES:
+        for m in pat.finditer(text):
+            out.append((name, m.group(0)))
+    return out
+
+
+def _redact_node(obj, path, trace):
+    """Shared recursion. If `trace` is a list, append sanitized evidence rows.
+    Both redact_alert() and redact_alert_with_trace() delegate here, so the
+    proof path and the production path cannot diverge."""
+    if isinstance(obj, dict):
+        out = {}
+        for k, v in obj.items():
+            child = f"{path}.{k}" if path else str(k)
+            if _SENSITIVE_KEYS.search(str(k)):
+                raw = _canonical_sensitive(v)
+                if trace is not None:
+                    trace.append({
+                        "field_path": child, "rule": "sensitive_field",
+                        "source": "sensitive_key", "masked_value": _mask(raw),
+                        "value_length": len(raw),
+                        "value_hash": _correlation_hash(raw),
+                        "value_type": type(v).__name__,
+                        "removed": True,
+                    })
+                out[k] = "[REDACTED:sensitive_field]"
+            else:
+                out[k] = _redact_node(v, child, trace)
+        return out
+    if isinstance(obj, list):
+        return [_redact_node(v, f"{path}[{i}]", trace) for i, v in enumerate(obj)]
+    if isinstance(obj, str):
+        redacted = redact_text(obj)
+        if trace is not None:
+            for name, raw in _matched_values(obj):
+                trace.append({
+                    "field_path": path, "rule": name, "source": "regex",
+                    "masked_value": _mask(raw), "value_length": len(raw),
+                    "value_hash": _correlation_hash(raw),
+                    "value_type": "str", "removed": raw not in redacted,
+                })
+        return redacted
+    return obj
+
+
 def redact_alert(obj):
     """
     Recursively redact an alert (dict / list / str). Returns a NEW object;
     the original is never mutated. Values under obviously-sensitive keys are
     fully redacted as a second layer of defence.
     """
-    if isinstance(obj, dict):
-        out = {}
-        for k, v in obj.items():
-            if isinstance(v, str) and _SENSITIVE_KEYS.search(str(k)):
-                out[k] = "[REDACTED:sensitive_field]"
-            else:
-                out[k] = redact_alert(v)
-        return out
-    if isinstance(obj, list):
-        return [redact_alert(v) for v in obj]
-    if isinstance(obj, str):
-        return redact_text(obj)
-    return obj
+    return _redact_node(obj, "", None)
+
+
+def redact_alert_with_trace(obj):
+    """Return (redacted_object, sanitized_trace). The trace never contains a
+    complete matched value — only a mask, length and correlation hash."""
+    trace = []
+    red = _redact_node(obj, "", trace)
+    return red, trace
 
 
 def find_secrets(text: str):
