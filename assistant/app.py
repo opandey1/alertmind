@@ -35,7 +35,8 @@ st.set_page_config(page_title="AlertMind — SOC Assistant", page_icon="🛡️"
 
 @st.cache_data
 def load_corpus(path):
-    data = json.load(open(path, encoding="utf-8"))
+    with open(path, encoding="utf-8") as f:
+        data = json.load(f)
     return data["alerts"] if isinstance(data, dict) else data
 
 
@@ -48,10 +49,10 @@ def load_ground_truth(path):
     return gt
 
 
-def disposition_color(disp):
-    return {"likely_true_positive": "red", "likely_benign": "green",
-            "needs_investigation": "orange"}.get(disp, "gray")
+from ui_helpers import disposition_color  # moved to a side-effect-free module
 
+
+import paste_tab
 
 # ----- sidebar -----
 st.sidebar.title("🛡️ AlertMind")
@@ -60,8 +61,8 @@ mode = st.sidebar.radio("Mode", ["Analyst", "Evaluator"],
                         help="Analyst hides ground truth (use during assisted timing). "
                              "Evaluator reveals scoring (use only after the run).")
 provider = st.sidebar.selectbox("Provider", ["mock", "ollama", "openai", "anthropic"])
-default_model = {"mock": "mock", "ollama": "llama3.1:8b", "openai": "gpt-5.5",
-                  "anthropic": "claude-3-5-sonnet-latest"}[provider]
+default_model = {"mock": "mock", "ollama": "llama3.1", "openai": "gpt-5.5",
+                  "anthropic": "claude-sonnet-5"}[provider]
 model = st.sidebar.text_input("Model", value=default_model)
 
 # --- connection settings (API key / base URL) ---
@@ -120,7 +121,7 @@ except Exception as e:
     st.stop()
 by_id = {a["alert_id"]: a for a in alerts}
 
-tabs = ["🔎 Triage one alert"] + (["📊 Evaluator scoring"] if mode == "Evaluator" else [])
+tabs = ["🔎 Triage one alert", "🧪 Paste & inspect"] + (["📊 Evaluator scoring"] if mode == "Evaluator" else [])
 rendered = st.tabs(tabs)
 
 # ================= single-alert triage =================
@@ -182,9 +183,13 @@ with rendered[0]:
             with st.expander("Raw assistant JSON"):
                 st.json(out)
 
+# ================= paste & inspect =================
+with rendered[1]:
+    paste_tab.render(provider=provider, model=model, view=view, prompt_name=prompt_name)
+
 # ================= evaluator scoring (hidden in Analyst mode) =================
 if mode == "Evaluator":
-    with rendered[1]:
+    with rendered[2]:
         st.error("⚠️ Evaluator mode reveals ground truth. Do NOT use during an assisted-triage timing run.")
         st.caption("Runs the whole corpus and scores each output vs ground truth with separated "
                    "technique / disposition / consistency metrics.")
@@ -210,4 +215,4 @@ if mode == "Evaluator":
             cols[2].metric("Disposition", f"{agg['disposition_correct']}/{n}")
             cols[3].metric("Consistent", f"{agg['response_consistent']}/{n}")
             cols[4].metric("Overall", f"{agg['overall_correct']}/{n}")
-            st.dataframe(rows, use_container_width=True)
+            st.dataframe(rows, width="stretch")
