@@ -124,6 +124,21 @@ short timeout — so a misconfiguration fails in ~20s instead of hanging 300s pe
   `.../v1/responses` or `.../v1/chat/completions`.
 - Prefer a **small, fast** model for a 20-alert experiment. `llama3.1:8b` runs in seconds locally; large MoE models like `llama4` are impractically slow and will hit the timeout. Raise `ALERTMIND_LLM_TIMEOUT` only if you truly need a big model.
 
+## 4a. Paste & inspect (local diagnostic)
+
+A second Streamlit tab, **🧪 Paste & inspect**, runs arbitrary *synthetic or approved* telemetry (JSON or plain text) through the **same** path as batch triage: `redact_alert_with_trace → apply_view → injection scan → boundary gate → prompt → one model call → schema`. It exists to make the redaction and injection claims inspectable live, not just via offline proof files.
+
+- **Local, single-user only.** Bind to localhost. Not production- or multi-user-safe until the RBAC plan (`siem/rbac/…`, documented target state) is implemented.
+- **Input limits:** ≤ 50,000 chars, depth ≤ 20, ≤ 10,000 nodes.
+- **Hard boundary gate:** a literal `<ALERT_DATA>`/`</ALERT_DATA>` delimiter in any model-bound key or value **blocks the call**. Enforcement independently checks the complete serialized object immediately before the provider path.
+- **Egress consent:** every non-loopback model endpoint requires an explicit confirmation bound to the current input, provider, model and endpoint. Mock and verified loopback endpoints do not require external-egress consent.
+- **Sanitized evidence:** the redaction trace stores masks, lengths and an optional keyed HMAC fingerprint (`ALERTMIND_TRACE_HMAC_KEY`); it never stores an unsalted digest of the raw value. Proof download and a **one-shot idempotent** audit save (`outputs/adhoc/`) omit raw input and tested secret values.
+- **State safety:** changing the input/sample clears the old result, editable draft and consent. Configuration changes mark a result stale and disable proof/audit actions until rerun.
+- **Audit semantics:** `schema_valid` is tri-state — `true`/`false` only after validation and `null` when a request was blocked or not evaluated; `call_status` records why.
+- **Excluded from the frozen benchmark.** Ad-hoc results and any reference label are exploratory and never combined with the §9 corpus results.
+
+New modules: `paste_core.py` (pure pipeline, unit-tested), `paste_tab.py` (Streamlit render), `injection.py` (marker scan + boundary gate — *visibility, not the defence*), `samples.py` (synthetic demo fixtures), `audit.py` (shared record contract), `ui_helpers.py`. Added `redact.redact_alert_with_trace()` (delegates to the same recursion as `redact_alert()`, so proof and production paths cannot diverge). New tests: `test_injection_markers.py`, `test_redaction_trace.py`, `test_paste_pipeline.py`, `test_adhoc_audit.py`, `test_paste_ui.py`.
+
 ## 5. Two views — why they matter
 
 The corpus alert carries the rule's own ATT&CK label (`mitre.id`, and the T-code inside `rule_description`). If the model sees them, "did it return the right technique" only tests whether it can **copy** the label.
@@ -135,7 +150,7 @@ The mock makes the point concretely: **operational 14/20 overall → evaluation 
 
 ## 6. Scope of the redaction claim
 
-The redaction layer removes tested classes of common credentials (passwords, AWS keys, bearer tokens, `sk-` API keys, PEM/OpenSSH private keys, connection-string passwords) and materially reduces disclosure risk. It is **not** a guarantee that every possible secret is removed — residual risk remains for unknown, encoded, or unlabelled secrets. Expanding coverage (Basic auth, JWTs, `ghp_`/`xoxb-` tokens, URL credentials, decode-then-redact for encoded PowerShell) and context-aware hash handling are tracked follow-ups.
+The redaction layer removes tested classes of common credentials (passwords, AWS keys, bearer tokens, `sk-`/`sk-proj-` API keys, PEM/OpenSSH private keys, connection-string passwords) and replaces the complete value of sensitive-key fields regardless of JSON type. This materially reduces disclosure risk but is **not** a guarantee that every possible secret is removed — residual risk remains for unknown, encoded, or unlabelled secrets. Expanding coverage (Basic auth, JWTs, `ghp_`/`xoxb-` tokens, URL credentials, decode-then-redact for encoded PowerShell) remains a tracked follow-up.
 
 ## 7. Measurement integrity
 

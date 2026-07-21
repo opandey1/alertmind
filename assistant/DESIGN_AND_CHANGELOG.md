@@ -271,7 +271,23 @@ MTTD: median **2.32 s** (20 unique alerts) — a property of the detection rules
 
 ---
 
-## 7. Change log
+## 7. Changelog
+
+### Post-evaluation UI enhancement — "Paste & inspect an alert" (local MVP)
+
+A local, single-user Streamlit tab that runs synthetic or approved telemetry through the same redaction/view/prompt/model/schema pipeline as batch triage. Scope and honesty constraints:
+
+- **Detection is visibility, not prevention.** `injection.py` surfaces instruction-shaped markers; the real controls remain the system-prompt trust boundary, local redaction, no tools, schema validation, and analyst review.
+- **The `<ALERT_DATA>` delimiter break is a *blocking* rule** — keys and values are scanned for visibility, and a separate serialized-object gate prevents a literal boundary-breaking payload from reaching the provider path.
+- **Historical runs are not changed.** Ad-hoc results are excluded from the frozen 20-alert benchmark; a pasted reference label is exploratory only.
+- **Live results establish behaviour only for the submitted sample and current code version.**
+- **Raw input and tested secret values are not stored** in results, proof downloads or audit records. Sensitive-key values are removed regardless of JSON type; trace evidence is masked and uses an optional keyed HMAC fingerprint rather than an unsalted secret digest. This remains a tested-classes claim, not universal secret detection.
+- **Consent and Streamlit state are input-bound.** Non-loopback endpoints require consent tied to the current input/provider/model/endpoint; changing input clears the previous result, draft and consent. Stale configurations disable proof/audit actions.
+- **Blocked/not-called requests are not reported as schema-valid.** Audit records carry `call_status`, and `schema_valid` remains `null` until validation actually occurs.
+- **RBAC, Wazuh live-alert integration, multi-user deployment and the paired counterfactual A/B diagnostic remain deferred** (documented target state, not implemented).
+- New modules `paste_core.py`, `paste_tab.py`, `injection.py`, `samples.py`, `audit.py`, `ui_helpers.py`; `redact_alert_with_trace()` delegates to the same recursion as `redact_alert()`. Five new test files, including Streamlit `AppTest` rerun-state coverage; existing redaction/injection/views/provider tests remain green.
+
+. Change log
 
 ### 7.A Changes from the external review (`AI_Agent_Feedback.md`, 14 points)
 
