@@ -1,243 +1,235 @@
 # AlertMind — AI-Assisted Mini SOC
 
-> A working mini Security Operations Centre: a Wazuh SIEM with Windows + Linux telemetry, ATT&CK-mapped detections, dashboards, and IR playbooks — plus an LLM-powered tier-1 assistant that summarizes alerts and drafts triage output, measured for its actual impact on time-to-triage.
+> An end-to-end mini Security Operations Centre built around Wazuh: Windows and Linux telemetry, ATT&CK-mapped detections, SOC dashboards, incident-response playbooks, and a guardrailed LLM tier-1 assistant evaluated on a frozen benign-salted alert corpus.
 
-**Capstone:** PG Certificate in AI/GenAI Powered Cybersecurity (IIT Roorkee × Futurense) · EC-Council **SOC Essentials (SCE)** track · Project code **CAP-SCE-3W** · Mode: **Solo**
+**Capstone:** PG Certificate in AI/GenAI Powered Cybersecurity — IIT Roorkee × Futurense, Cohort 1 · EC-Council SOC Essentials track · Project `CAP-SCE-3W` · Solo mode
 
-**Status:** 🟢 Week 1–2 complete: infrastructure + Windows/Linux ingestion + Sigma/Wazuh detection source · 🟢 all Windows (100200–100206) and Linux (100100–100116) custom rules verified firing · 🟢 2 ATT&CK dashboards + 3 NIST 800-61 IR playbooks shipped · 🟡 unassisted baseline triage in progress · ⏳ Week 3 LLM assistant + impact measurement
+**Current status:** Core SOC build, detections, dashboards, playbooks, assistant, frozen-corpus evaluation, grounding review and technical report are complete. The defense presentation remains to be created. Live Wazuh-to-assistant integration and production RBAC remain documented target-state work, not completed features.
 
----
+For the complete methodology, evidence index, limitations and results, see the [technical report](report.md).
 
-## 1. Overview
+## What was delivered
 
-A growing SaaS company's three-person SOC handles ~1,200 alerts/day at a ~35-minute mean time-to-triage. Leadership wants to consolidate logging, cut alert fatigue, and pilot an LLM tier-1 assistant before buying a commercial SOAR. AlertMind is that pilot, built end-to-end in a virtual lab.
+| Component | Delivered state |
+|---|---|
+| Wazuh SIEM | Wazuh 4.14.5 all-in-one manager, indexer and dashboard in an isolated VirtualBox lab |
+| Endpoint telemetry | Windows 11 with Sysmon and Wazuh agent; Ubuntu with auditd and Wazuh agent |
+| Detection engineering | 24 custom Wazuh rules verified firing: Linux `100100–100116` and Windows `100200–100206`; built-in rule 61138 covers Windows service creation |
+| ATT&CK coverage | Execution, persistence, credential access, privilege escalation, defense evasion, lateral movement, exfiltration and command-and-control scenarios |
+| Dashboards | Daily SOC Briefing and ATT&CK Heatmap, exported as Wazuh `.ndjson` objects under `siem/dashboards/` |
+| IR playbooks | Phishing, malware and account-compromise playbooks aligned to NIST SP 800-61r2 |
+| LLM assistant | Python/Streamlit assistant with local, hosted and deterministic mock providers; strict JSON output, redaction, views, audit logging and scoring |
+| Paste & inspect | Ad hoc JSON-alert triage with limits, redaction trace, injection markers, boundary gate, endpoint-aware consent and sanitized proof/audit output |
+| Evaluation | Frozen 20-alert corpus: 14 controlled attacks plus 6 historical benign false positives; paired timing, automated scoring and manual grounding review |
 
-The completed project will deliver:
+## Architecture and trust boundary
 
-- A **SIEM** (Wazuh) ingesting heterogeneous telemetry — Windows (Sysmon + Security/System channels) and Linux (auditd) — with sensible retention and RBAC.
-- A **detection rule pack** authored in Sigma and converted to Wazuh-native rules, every rule mapped to **MITRE ATT&CK**.
-- **Dashboards** (daily SOC briefing + ATT&CK heatmap) and three **NIST SP 800-61** IR playbooks.
-- An **LLM tier-1 assistant** that, given an alert, returns a short summary, an ATT&CK technique tag, suggested investigation queries, and a draft user message — behind explicit guardrails (no autonomous actions, no secrets to the model, human review on every output, full prompt/response logging).
-- A **measured impact** study: baseline vs. assisted triage time, reported honestly with threats-to-validity.
-
-## 2. Architecture
-
-All lab VMs share a VirtualBox **NAT Network** (`LabNet`, `10.0.2.0/24`), isolated from the physical LAN. The SIEM host carries a second Host-Only adapter for dashboard access from the host browser.
+The lab VMs share an isolated VirtualBox NAT network (`LabNet`, `10.0.2.0/24`). The SIEM has a Host-Only adapter for dashboard access. The assistant is not inline with detection or enforcement.
 
 ```mermaid
 flowchart LR
-    subgraph LabNet["VirtualBox NAT Network — LabNet (10.0.2.0/24)"]
-        WIN["win-victim (Windows 11)<br/>Sysmon + Wazuh agent<br/>Atomic Red Team"]
-        LIN["linux-victim (Ubuntu)<br/>auditd + Wazuh agent"]
-        ATT["attacker (Kali)<br/>nmap · Metasploit · atomics"]
-        SIEM["wazuh-siem (Ubuntu)<br/>Wazuh manager + indexer + dashboard"]
-    end
-    HOST["Host browser"] -->|"Host-Only :443"| SIEM
-    WIN -->|"events :1514"| SIEM
-    LIN -->|"events :1514"| SIEM
-    ATT -.->|"simulated attacks"| WIN
-    ATT -.->|"simulated attacks"| LIN
-    SIEM -->|"read-only Wazuh API :55000 / alerts.json export"| ASSIST["LLM Assistant<br/>(redaction → LLM → human review)"]
+    WIN["Windows 11<br/>Sysmon + Wazuh agent"] -->|events| SIEM["Wazuh manager<br/>indexer + dashboard"]
+    LIN["Ubuntu<br/>auditd + Wazuh agent"] -->|events| SIEM
+    ATT["Controlled attack simulation"] -.-> WIN
+    ATT -.-> LIN
+    SIEM --> DASH["SOC dashboards"]
+
+    CORPUS["Frozen corpus or<br/>analyst-pasted alert"] --> ASSIST["AlertMind assistant<br/>redact → view → inspect → LLM → validate"]
+    ASSIST --> DRAFT["DRAFT output<br/>mandatory analyst review"]
+
+    SIEM -. "planned: alert-scoped read-only API" .-> ASSIST
 ```
 
-### Lab topology
+Current assistant inputs are the frozen corpus and analyst-pasted JSON. The dotted Wazuh API path is the production target and is **not yet implemented**. Correspondingly, the target identities `socanalyst` and `assistant-svc` remain planned; the lab currently uses `admin` for setup and validation.
 
-| Role | VM | OS | Adapters | Key software | Status |
-|---|---|---|---|---|---|
-| SIEM host | `wazuh-siem` | Ubuntu | NAT + Host-Only | Wazuh 4.14.5 manager/indexer/dashboard | ✅ Deployed |
-| Windows endpoint | `win-victim` | Windows 11 | NAT | Sysmon 15.21 + Wazuh agent | ✅ Deployed |
-| Linux endpoint | `linux-victim` | Ubuntu | NAT | auditd + Wazuh agent | ✅ Deployed |
-| Attacker | `attacker` | Kali | NAT | nmap, Metasploit, Atomic Red Team | ✅ Deployed |
+## Key measured findings
 
-Agents: `001 win-victim` (10.0.2.4), `002 linux-victim` (10.0.2.7), manager `10.0.2.15`.
+The project deliberately separates detection latency from analyst triage time:
 
-## 3. Tech stack
+- **MTTD:** attack timestamp → Wazuh alert timestamp. Median **2.32 seconds**; this is a property of detection and forwarding, not the assistant.
+- **Time-to-triage:** analyst opens alert → disposition complete. Model inference was pre-generated and reported separately.
 
-| Layer | Tooling |
-|---|---|
-| SIEM | Wazuh 4.14.5 (all-in-one) |
-| Endpoint telemetry | Sysmon (SwiftOnSecurity config) · auditd (custom `alertmind.rules`) |
-| Cloud telemetry | AWS CloudTrail / Azure AD sign-in sample (planned) |
-| Detection authoring | Sigma → Wazuh `local_rules.xml` |
-| Attack simulation | Atomic Red Team |
-| LLM assistant | LangChain / LangGraph + Streamlit (built on `AI-SOC-Assistant`) |
-| Reporting | Markdown / PDF |
+### Timed llama3.1-assisted pass
 
-## 4. Repository structure
+| Alert class | n | Unassisted median | Assisted median | Result |
+|---|---:|---:|---:|---|
+| Attacks, assistant disposition correct | 14 | 11.43 min | 8.00 min | **−30%**; all 14 faster |
+| Benign false positives, assistant disposition wrong | 6 | 5.58 min | 7.70 min | **+38%**; paired median cost **+1.68 min** |
+| All alerts | 20 | 10.50 min | 8.00 min | Aggregate −24% hides the opposite class effects |
 
+Analyst disposition accuracy stayed **20/20** in both passes because every incorrect assistant disposition was overridden. This demonstrates that human review worked in this single-analyst study, but also that review has a measurable cost.
+
+### Strict label-reduced assistant comparison
+
+The operational alert contains its rule-authored ATT&CK label. A separate evaluation view removes the tested label-bearing fields before scoring to avoid measuring label copying.
+
+| Measure | `llama3.1:8b` | `gpt-5.5-2026-04-23` |
+|---|---:|---:|
+| Attack technique, exact / relaxed | 1/14 · 1/14 | **8/14 · 12/14** |
+| Disposition, all alerts | 14/20 | **16/20** |
+| Benign false positives cleared | **0/6** | **3/6**, with 3 hedged and 0 confidently wrong |
+| Operational summaries fully supported | 15/20 | **20/20** |
+| Operational investigation queries runnable | **0/20** | **20/20** |
+| Valid JSON across matched operational + evaluation runs | 40/40 | 40/40 |
+
+This is an exploratory system-level comparison, not a controlled model benchmark: model scale, training, hosting, reasoning and sampling differ simultaneously. GPT-5.5 is one stochastic sample per view, and the timed assisted pass was not repeated with it.
+
+The corpus is frozen at `measurement/alert-corpus.json`:
+
+```text
+SHA-256  4E842637F3CBCBB6E0704320824B64BDEB63C7D7EE7E22DB0278E4D96C58B929
 ```
-alertmind/
-├── README.md                  # this file
-├── WEEKLOG.md                 # weekly status notes
-├── report.md                  # living technical report (started Week 1)
-├── architecture/
-│   ├── soc-architecture.md    # log sources, retention, RBAC, ingestion
-│   └── diagram.drawio / .png
-├── siem/
-│   └── wazuh/                  # local_rules.xml, agent ossec.conf exports
+
+## LLM assistant
+
+The implementation is [`assistant/`](assistant/). The benchmark run logs used by the report are retained under `assistant/outputs/runs/`, one non-overwriting directory per run.
+
+For each alert, the assistant returns:
+
+1. A summary of at most five lines.
+2. One or more MITRE ATT&CK technique IDs, or `null`.
+3. Two or three suggested investigation queries.
+4. A draft message to the affected user or system owner.
+5. A disposition suggestion and calibrated confidence.
+
+Batch path:
+
+```text
+redact → apply view → construct prompt → call model → parse → validate → audit → score
+```
+
+Ad hoc Paste & inspect path:
+
+```text
+parse → limits → redact with trace → apply view → scan keys/values
+      → boundary gate → egress consent → one model call → validate → draft/audit
+```
+
+Paste & inspect is an operational demonstration and was excluded from the frozen benchmark.
+
+### Guardrail claims and boundaries
+
+- **No autonomous action:** the model has no tools, enforcement path or write capability; every result is a draft requiring analyst review.
+- **Redaction first:** tested credential classes and sensitive-key values are removed before prompt construction. File hashes remain available as investigation IOCs.
+- **Redaction is risk reduction:** unknown, encoded or unlabelled secrets remain residual risk.
+- **Prompt-injection handling:** tested instruction markers are surfaced from JSON keys and values, and reserved `<ALERT_DATA>` delimiter attempts are blocked before a model call.
+- **No general injection-prevention claim:** other marked text may still reach the model as evidence inside an untrusted-data block and may influence its reasoning. Schema validation checks structure, not correctness.
+- **Impact containment:** redacted input, no tools/write capability, draft-only output and mandatory review limit the consequence of a bad response.
+- **Endpoint-aware consent:** non-loopback model endpoints require explicit consent before alert data is sent externally.
+- **Sanitized ad hoc evidence:** raw pasted input is not persisted; proof and audit records store sanitized data and a correlation hash. Optional trace correlation uses keyed HMAC via `ALERTMIND_TRACE_HMAC_KEY`.
+- **Auditability:** batch calls record model/configuration, prompt and redaction hashes, latency, parse status, usage and raw/parsed responses in non-overwriting run directories.
+
+## Repository map
+
+```text
+project-alertmind/
+├── README.md                         # repository landing page
+├── report.md                         # final technical report and evidence index
+├── WEEKLOG.md                        # implementation chronology
+├── assistant/                        # assistant package, Paste & inspect UI, tests, run logs
 ├── detections/
-│   ├── auditd/                 # alertmind.rules (auditd ruleset)
-│   ├── sigma/                  # source-of-truth Sigma YAML
-│   └── converted/              # Wazuh-native output + translation notes
-├── playbooks/                 # phishing.md, malware.md, account-compromise.md
-├── attack/                    # Atomic Red Team configs + run logs
-├── assistant/                 # LLM tier-1 assistant (redaction, prompts, app, logs)
-├── measurement/               # alert corpus, timing logs, analysis notebook
-├── docs/runbooks/             # operational runbooks (e.g. wazuh-recovery.md)
-└── evidence/                  # screenshots, hashes, screencasts
+│   ├── auditd/alertmind.rules        # Linux collection rules
+│   └── sigma/notes.md                # Sigma-to-Wazuh crosswalk and tuning notes
+├── siem/
+│   ├── wazuh/                        # deployed Wazuh/Sysmon configuration exports
+│   └── dashboards/                   # final and earlier dashboard exports
+├── playbooks/                        # phishing, malware, account-compromise
+├── measurement/
+│   ├── alert-corpus.json             # frozen 20-alert corpus
+│   ├── timing-log*.csv               # unassisted and assisted timing
+│   ├── analysis.ipynb                # re-runnable metric derivation
+│   └── grounding/                    # manual free-text review worksheets
+└── evidence/                         # screenshots and command-output evidence
 ```
 
-## 5. Detection coverage (ATT&CK)
+## Run the assistant
 
-Detections are deployed as Wazuh rules with a portable Sigma YAML source in `detections/sigma/` (25 rules, validated). Linux custom rules occupy IDs **100100–100116** (auditd) and Windows custom rules **100200–100206** (Sysmon), plus the built-in rule 61138 for service creation.
+The examples below use PowerShell from the repository root.
 
-**Status key:** ✅ Verified (alert observed in Wazuh with evidence) · 🟡 Configured (telemetry/rule in place, test pending) · ⏳ Planned.
-
-**Windows (`win-victim`) — Sysmon + Security/System channels**
-
-| Detection | Source | ATT&CK | Rule | Status |
-|---|---|---|---|---|
-| Process creation (telemetry) | Sysmon EID 1 | — | 61603 (base) | ✅ Verified (EVID-WIN-001) |
-| New Windows service | System EID 7045 | T1543.003 | 61138 | ✅ Verified (EVID-WIN-002) |
-| Office spawns shell | Sysmon EID 1 | T1566 / T1059 | 100200 | ✅ Verified (EVID-WIN-007) |
-| Encoded PowerShell | Sysmon EID 1 | T1059.001 | 100201 | ✅ Verified (EVID-WIN-003) |
-| LOLBin execution | Sysmon EID 1 | T1218 | 100202 | ✅ Verified (EVID-WIN-004) |
-| LSASS process access | Sysmon EID 10 | T1003.001 | 100203 | ✅ Verified (EVID-WIN-006) |
-| PsExec service execution | Sysmon EID 1 | T1021.002 / T1569.002 | 100204 | ✅ Verified (EVID-WIN-008) |
-| Run-key persistence | Sysmon EID 13 → built-in 92300 | T1547.001 | 100205 | ✅ Verified (EVID-WIN-005) |
-| DNS tunneling (heuristic) | Sysmon EID 22 | T1048 / T1071.004 | 100206 | ✅ Verified (EVID-WIN-009) |
-
-**Linux (`linux-victim`) — auditd custom rule pack**
-
-All 17 Linux custom rules (100100–100116) are verified firing end-to-end (per-rule evidence EVID-LIN-002, EVID-LIN-004…018, EVID-LIN-003).
-
-| Detection | Key | ATT&CK | Rule | Status |
-|---|---|---|---|---|
-| `/etc/shadow` read | `t1003_008_shadow_read` | T1003.008 | 100100 | ✅ Verified |
-| User/group DB change | `t1136_accounts` | T1136 / T1098 | 100101 | ✅ Verified (EVID-LIN-004) |
-| sudoers tampering | `t1548_003_sudoers` | T1548.003 | 100102 | ✅ Verified (EVID-LIN-005) |
-| Cron persistence | `t1053_003_cron` | T1053.003 | 100103 | ✅ Verified (EVID-LIN-006) |
-| systemd service | `t1543_002_systemd` | T1543.002 | 100104 | ✅ Verified (EVID-LIN-007) |
-| Boot/init scripts | `t1037_init` | T1037 | 100105 | ✅ Verified (EVID-LIN-008) |
-| Shell init files | `t1546_004_shell_init` | T1546.004 | 100106 | ✅ Verified (EVID-LIN-009) |
-| LD_PRELOAD hijack | `t1574_006_ldpreload` | T1574.006 | 100107 | ✅ Verified (EVID-LIN-010) |
-| Kernel module / rootkit | `t1547_006_kmod` | T1547.006 / T1014 | 100108 | ✅ Verified (EVID-LIN-011) |
-| setuid/setgid change | `t1548_001_setuid` | T1548.001 / T1222.002 | 100109 | ✅ Verified (EVID-LIN-012) |
-| auditd tampering | `t1562_001_audit_tamper` | T1562.001 | 100110 | ✅ Verified (EVID-LIN-013) |
-| Login-log tampering | `t1070_logs` | T1070 | 100111 | ✅ Verified (EVID-LIN-014) |
-| Timestomping | `t1070_006_timestomp` | T1070.006 | 100112 | ✅ Verified (EVID-LIN-015) |
-| SSH key access | `t1552_004_ssh_keys` | T1552.004 | 100113 | ✅ Verified (EVID-LIN-016) |
-| sshd_config change | `t1098_sshd_config` | T1098 *(tentative)* | 100114 | ✅ Verified (EVID-LIN-017) |
-| Package mgr / repo config change | `t1195_001_apt_repo_config` | T1195.001 *(tentative)* | 100115 | ✅ Verified (EVID-LIN-018) |
-| authorized_keys persistence | `t1552` + path *(child of 100113)* | T1098.004 | 100116 | ✅ Verified |
-
-## 6. Quickstart
-
-Full, verified steps live in [`architecture/soc-architecture.md`](architecture/soc-architecture.md) and the implementation plan. In brief:
-
-```bash
-# 1. SIEM (wazuh-siem, Ubuntu)
-curl -sO https://packages.wazuh.com/4.14/wazuh-install.sh && sudo bash ./wazuh-install.sh -a
-
-# 2. Linux endpoint — auditd rules + Wazuh ingestion
-sudo cp detections/auditd/alertmind.rules /etc/audit/rules.d/alertmind.rules
-sudo augenrules --load
-#   add the <localfile> audit block to /var/ossec/etc/ossec.conf, then:
-sudo systemctl restart wazuh-agent
-
-# 3. Manager — custom detection rules (the standard Wazuh local_rules.xml)
-xmllint --noout siem/wazuh/local_rules.xml                    # validate first
-sudo cp siem/wazuh/local_rules.xml /var/ossec/etc/rules/local_rules.xml
-sudo systemctl restart wazuh-manager
-sudo tail -50 /var/ossec/logs/ossec.log                       # confirm clean load
+```powershell
+cd assistant
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
 ```
 
-Windows endpoint: install Sysmon with the provided config, deploy the Wazuh agent, and forward the `Microsoft-Windows-Sysmon/Operational`, `System`, and `Security` channels.
+Run the offline smoke test and UI:
 
-## 7. Current status
+```powershell
+python runner.py --provider mock --view operational --limit 1
+python -m streamlit run app.py
+```
 
-- [x] Wazuh SIEM deployed and healthy (manager + indexer + dashboard)
-- [x] Windows telemetry onboarded (Sysmon EID 1/10, System 7045, Security)
-- [x] Linux telemetry onboarded (auditd → Wazuh, custom rule pack firing)
-- [x] Detection pipeline verified end-to-end (auditd → decoder → custom rule → ATT&CK-tagged alert)
-- [x] VMs snapshotted in a clean post-setup state
-- [x] Sigma YAML source for the rule pack
-- [ ] Cloud telemetry (sample CloudTrail / Azure AD)
-- [ ] Dashboards (daily briefing + ATT&CK heatmap)
-- [ ] IR playbooks (phishing, malware, account compromise)
-- [ ] Atomic Red Team attack chain + baseline measurement
-- [ ] LLM assistant + guardrails + assisted measurement
-- [ ] Final report + defense deck
+Run with local Ollama:
 
-## 7a. Evidence map
+```powershell
+python preflight.py --provider ollama --model llama3.1
+python runner.py --provider ollama --model llama3.1 --view evaluation
+```
 
-Every "Verified" claim above maps to a captured artifact in `evidence/`. (IDs are referenced from `report.md`.)
+Run with the pinned hosted model:
 
-| Evidence ID | What it proves | File / screenshot |
-|---|---|---|
-| EVID-WAZUH-001 | Wazuh services + ports healthy | `evidence/week1/wazuh-services-ports.png` |
-| EVID-WIN-001 | Sysmon EID 1 process creation ingested | `evidence/week1/win-sysmon-eid1-whoami.png` |
-| EVID-WIN-002 | Windows service creation (7045 → rule 61138) | `evidence/week1/win-system-7045-service.png` |
-| EVID-LIN-001 | Linux user creation detected | `evidence/week1/linux-useradd-t1136.png` |
-| EVID-LIN-002 | auditd `/etc/shadow` rule 100100 fired (T1003.008) | `evidence/week1/linux-shadow-t1003-008.png` |
-| EVID-LIN-004 | User/group DB modification, rule 100101 (T1136 / T1098) | `evidence/week2/lin_100101-useradd-T1136-T1098.png` |
-| EVID-LIN-005 | sudoers tampering, rule 100102 (T1548.003) | `evidence/week2/lin_100102-priv_escalation-T1548_003.png` |
-| EVID-LIN-006 | Cron persistence, rule 100103 (T1053.003) | `evidence/week2/lin_100103-scheduled_task-T1053_003.png` |
-| EVID-LIN-007 | systemd persistence, rule 100104 (T1543.002) | `evidence/week2/lin_100104-systemd_persistence-T1543_002.png` |
-| EVID-LIN-008 | Init-script modification, rule 100105 (T1037) | `evidence/week2/lin_100105-init_script_modification-t1037.png` |
-| EVID-LIN-009 | Shell-init modification, rule 100106 (T1546.004) | `evidence/week2/lin_100106-shell_init-T1546_004.png` |
-| EVID-LIN-010 | LD_PRELOAD hijack (ld.so.preload), rule 100107 (T1574.006) | `evidence/week2/lin_100107-ld_preload-T1574_006.png` |
-| EVID-LIN-011 | Kernel module / LKM rootkit, rule 100108 (T1547.006 / T1014) | `evidence/week2/lin_100108-lkm_rootkit-T1547_006-T1014.png` |
-| EVID-LIN-012 | setuid/setgid change, rule 100109 (T1548.001 / T1222.002) | `evidence/week2/lin_100109-setuid_bit_change-T1548_001.png` |
-| EVID-LIN-013 | auditd config tampering, rule 100110 (T1562.001) | `evidence/week2/lin_100110-auditd_config_T1562_001.png` |
-| EVID-LIN-014 | Session-log tampering, rule 100111 (T1070) | `evidence/week2/lin_100111-session_log_modification-t1070.png` |
-| EVID-LIN-015 | Timestomping, rule 100112 (T1070.006) | `evidence/week2/lin_100112-timestamp_modification-t1070_006.png` |
-| EVID-LIN-016 | SSH key access, rule 100113 (T1552.004) | `evidence/week2/lin_100113-authorized_keys_access-t1552_004.png` |
-| EVID-LIN-017 | sshd_config change, rule 100114 (T1098 broad) | `evidence/week2/lin_100114-sshd_access-t1098.png` |
-| EVID-LIN-018 | Package/repo config change, rule 100115 (T1195.001) | `evidence/week2/lin_100115-update_repo_config-t1195_001.png` |
-| EVID-RULES-001 | `local_rules.xml` validates + loads clean | `evidence/week1/wazuh-rules-load.png` |
-| EVID-LIN-003 | SSH `authorized_keys` persistence detected (rule 100116 / T1098.004) | `evidence/week2/linux-authorized-keys-t1098-004.png` |
-| EVID-WIN-003 | Encoded PowerShell detected (rule 100201 / T1059.001) | `evidence/week2/win-powershell-t1059-001.png` |
-| EVID-WIN-004 | LOLBin execution detected (rule 100202 / T1218) | `evidence/week2/win-lolbin-t1218.png` |
-| EVID-WIN-005 | Run-key persistence detected (rule 100205 / T1547.001) | `evidence/week2/win-runkey-t1547-001.png` |
-| EVID-WIN-006 | LSASS dump-grade access detected (rule 100203 / T1003.001) | `evidence/week2/win-lsass-t1003-001.png` |
-| EVID-WIN-007 | Office spawns shell detected (rule 100200 / T1566, T1059) | `evidence/week2/win-office-spawn-t1566.png` |
-| EVID-WIN-008 | PsExec service execution detected (rule 100204 / T1021.002, T1569.002) | `evidence/week2/win-psexec-t1021-002.png` |
-| EVID-WIN-009 | DNS tunneling heuristic detected (rule 100206 / T1048, T1071.004) | `evidence/week2/win-dns-tunnel-t1071-004.png` |
+```powershell
+$env:OPENAI_API_KEY="<your-key>"
+$env:OPENAI_BASE_URL="https://api.openai.com/v1"
+$env:ALERTMIND_MAX_TOKENS="25000"
+python preflight.py --provider openai --model gpt-5.5-2026-04-23
+python runner.py --provider openai --model gpt-5.5-2026-04-23 --view evaluation
+```
 
+Do not commit a populated `.env`; keep secrets outside the repository and use `.env.example` as the template.
 
-## 8. Measurement approach
+## Tests and reproducibility
 
-The brief conflates two metrics; AlertMind separates them deliberately:
+Run the assistant regression suite:
 
-- **MTTD** (attack → alert fires) is a property of the *detection rules*, not the assistant — the assistant does not improve it.
-- **Time-to-triage** (analyst opens alert → disposition + drafted comms) is what the assistant can plausibly move.
+```powershell
+cd assistant
+python -m unittest discover -s tests -p "test_*.py"
+```
 
-To beat the n=1 problem, impact is measured over an **alert corpus** drawn from the Atomic runs, split into matched assisted/unassisted sets, with both **speed and accuracy** (assistant ATT&CK tag vs. ground truth, hallucination rate) reported. See `measurement/`.
+The current suite contains **58 tests** covering provider request construction, schema/error metadata, redaction, strict-view label leakage, injection markers, boundary blocking, consent, ad hoc audit semantics and Streamlit state handling.
 
-## 9. Responsible AI use
+Reproduce the analysis by running [`measurement/analysis.ipynb`](measurement/analysis.ipynb) top to bottom. Grounding worksheets and reviewer notes are under [`measurement/grounding/`](measurement/grounding/). The main result-bearing run directories are:
 
-Per the program's Responsible AI requirements:
+- `assistant/outputs/runs/20260718_180713_ollama_eval_baseline/`
+- `assistant/outputs/runs/20260718_183704_openai_eval_baseline/`
+- `assistant/outputs/runs/20260717_073045_openai_oper_baseline/`
+- `assistant/outputs/runs/20260717_074112_openai_eval_baseline/`
 
-- The assistant **never executes actions** — it outputs query text and drafts only; a human reviews every output.
-- A **redaction layer** strips credentials, tokens, and secrets before any prompt leaves the runner; lab alerts are synthetic.
-- **Every LLM call is logged** (prompt, response, model, version) and every kept output is verifiable against raw alert evidence.
-- All AI use is disclosed in `report.md` (model, purpose, verification method).
+## Detection and response content
 
-## 10. Code reuse & attribution
+- Detection crosswalk and tuning decisions: [`detections/sigma/notes.md`](detections/sigma/notes.md)
+- Linux auditd collection: [`detections/auditd/alertmind.rules`](detections/auditd/alertmind.rules)
+- Deployed Wazuh rules: [`siem/wazuh/local_rules.xml`](siem/wazuh/local_rules.xml)
+- Wazuh dashboards: [`siem/dashboards/`](siem/dashboards/)
+- Phishing playbook: [`playbooks/phishing.md`](playbooks/phishing.md)
+- Malware playbook: [`playbooks/malware.md`](playbooks/malware.md)
+- Account-compromise playbook: [`playbooks/account-compromise.md`](playbooks/account-compromise.md)
 
-This project reuses the alert-summarization core from the author's prior **[AI-SOC-Assistant](https://github.com/opandey1/AI-SOC-Assistant)** repository (permitted; disclosed for academic integrity). Reused modules are isolated under `assistant/` and noted in their headers. Everything else — the redaction layer, SOC prompt library, logging, SIEM integration, detection content, dashboards, playbooks, and measurement harness — is new for this capstone.
+## Current limitations and remaining work
 
-## 11. Ethics & scope
+- The 20-alert, single-analyst lab study is directional rather than statistically powered; the assisted pass also followed the unassisted pass after a washout.
+- Local and hosted model results are not a controlled capability comparison, and hosted results are single stochastic samples.
+- One synthetic attack payload identifies itself as an AlertMind test after decoding, creating a documented construct-validity limitation.
+- Redaction does not guarantee removal of unknown or encoded secrets.
+- Prompt-injection markers provide detection and visibility; only reserved-boundary attempts are deterministically blocked. Semantic model influence remains possible.
+- RBAC identities `socanalyst` and `assistant-svc` and live read-only Wazuh API ingestion remain target-state work.
+- High-confidence injection quarantine with an explicit audited override remains future work.
+- Live cloud ingestion is an optional stretch goal; the project uses the required Windows and Linux sources.
 
-All offensive activity is confined to the lab `LabNet` network; no real-world targets. No real credentials, customer data, or copyrighted content is used. Evidence and logs remain confidential within the cohort.
+## Responsible AI, ethics and attribution
+
+All attack simulation was confined to the isolated lab. The corpus contains synthetic lab events and historical lab false positives, not customer data. Redacted synthetic alerts were sent to the hosted model only for the disclosed comparison runs; the local measured runs had no alert-data egress.
+
+The alert-summarization starting point was adapted from the author's prior [AI-SOC-Assistant](https://github.com/opandey1/AI-SOC-Assistant) project. AlertMind adds the SOC-specific prompts, provider abstraction, redaction, strict views, schema validation, audit/scoring pipeline, reproducible evaluation, grounding review and Streamlit workflows. Development-assistance use is disclosed in `report.md`; reported results derive from retained logs and re-runnable artifacts.
 
 ## References
 
-- MITRE ATT&CK — https://attack.mitre.org
-- NIST SP 800-61 (Computer Security Incident Handling)
-- NIST Cybersecurity Framework 2.0 — https://www.nist.gov/cyberframework
-- Wazuh documentation — https://documentation.wazuh.com
+- [MITRE ATT&CK](https://attack.mitre.org/)
+- [NIST SP 800-61r2](https://csrc.nist.gov/pubs/sp/800/61/r2/final)
+- [NIST Cybersecurity Framework 2.0](https://www.nist.gov/cyberframework)
+- [Wazuh documentation](https://documentation.wazuh.com/)
 
 ---
 
