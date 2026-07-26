@@ -1,19 +1,19 @@
 <mxfile host="app.diagrams.net" agent="AlertMind">
   <diagram id="alertmind-arch" name="AlertMind Lab Architecture">
-    <mxGraphModel dx="924" dy="594" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="900" pageHeight="780" math="0" shadow="0">
+    <mxGraphModel dx="1320" dy="849" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="900" pageHeight="820" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
-        <mxCell id="title" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=16;fontStyle=1;" value="AlertMind — Mini-SOC Lab Architecture &amp; Data Flow" vertex="1">
-          <mxGeometry height="30" width="520" x="40" y="20" as="geometry" />
+        <mxCell id="title" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=16;fontStyle=1;" value="AlertMind — Mini-SOC: Current Lab &amp; Target Integration" vertex="1">
+          <mxGeometry height="30" width="540" x="40" y="20" as="geometry" />
         </mxCell>
         <mxCell id="labnet" parent="1" style="rounded=1;whiteSpace=wrap;html=1;dashed=1;dashPattern=6 4;fillColor=#f5f5f5;strokeColor=#666666;verticalAlign=top;fontStyle=1;fontSize=13;align=left;spacingLeft=12;spacingTop=8;" value="VirtualBox NAT Network — LabNet (10.0.2.0/24)" vertex="1">
           <mxGeometry height="410" width="780" x="40" y="120" as="geometry" />
         </mxCell>
-        <mxCell id="host" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;" value="&lt;b&gt;Host browser&lt;/b&gt;&lt;br/&gt;(Windows 11 host · hypervisor)" vertex="1">
-          <mxGeometry height="50" width="210" x="600" y="40" as="geometry" />
+        <mxCell id="host" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;" value="&lt;b&gt;Physical Windows host&lt;/b&gt;&lt;br/&gt;VirtualBox · Wazuh browser&lt;br/&gt;local Streamlit UI" vertex="1">
+          <mxGeometry height="60" width="210" x="600" y="40" as="geometry" />
         </mxCell>
-        <mxCell id="attacker" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" value="&lt;b&gt;attacker&lt;/b&gt; (Kali)&lt;br/&gt;nmap · Metasploit&lt;br/&gt;Atomic Red Team" vertex="1">
+        <mxCell id="attacker" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" value="&lt;b&gt;attacker&lt;/b&gt; (Kali)&lt;br/&gt;Atomic Red Team&lt;br/&gt;targeted triggers" vertex="1">
           <mxGeometry height="90" width="160" x="70" y="300" as="geometry" />
         </mxCell>
         <mxCell id="win" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" value="&lt;b&gt;win-victim&lt;/b&gt; (Windows 11)&lt;br/&gt;10.0.2.4 · agent 001&lt;br/&gt;Sysmon 15.21 + Wazuh agent&lt;br/&gt;Sysmon / System / Security" vertex="1">
@@ -22,14 +22,17 @@
         <mxCell id="lin" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" value="&lt;b&gt;linux-victim&lt;/b&gt; (Ubuntu)&lt;br/&gt;10.0.2.7 · agent 002&lt;br/&gt;auditd + Wazuh agent&lt;br/&gt;alertmind.rules" vertex="1">
           <mxGeometry height="100" width="220" x="300" y="380" as="geometry" />
         </mxCell>
-        <mxCell id="siem" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;verticalAlign=top;spacingTop=8;fontSize=11;" value="&lt;b&gt;wazuh-siem&lt;/b&gt; (Ubuntu) · 10.0.2.15&lt;br/&gt;&lt;br/&gt;Wazuh Manager (analysisd, remoted)&lt;br/&gt;Wazuh Indexer (OpenSearch)&lt;br/&gt;Wazuh Dashboard&lt;br/&gt;Filebeat&lt;br/&gt;&lt;br/&gt;local_rules.xml&lt;br/&gt;→ ATT&amp;amp;CK-tagged alerts" vertex="1">
+        <mxCell id="siem" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;verticalAlign=top;spacingTop=8;fontSize=11;" value="&lt;b&gt;wazuh-siem&lt;/b&gt; (Ubuntu) · 10.0.2.15&lt;br/&gt;&lt;br/&gt;Manager (analysisd, remoted)&lt;br/&gt;Indexer (OpenSearch) · Filebeat&lt;br/&gt;Wazuh Dashboard&lt;br/&gt;&lt;br/&gt;24 custom rules&lt;br/&gt;ATT&amp;amp;CK-tagged alerts&lt;br/&gt;2 operational dashboards" vertex="1">
           <mxGeometry height="220" width="220" x="580" y="200" as="geometry" />
         </mxCell>
-        <mxCell id="cloud" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;dashed=1;" value="&lt;b&gt;Cloud telemetry&lt;/b&gt; (sample)&lt;br/&gt;CloudTrail / Azure AD sign-in&lt;br/&gt;&lt;i&gt;planned&lt;/i&gt;" vertex="1">
-          <mxGeometry height="80" width="220" x="70" y="580" as="geometry" />
+        <mxCell id="cloud" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;dashed=1;" value="&lt;b&gt;Cloud telemetry&lt;/b&gt;&lt;br/&gt;static sample / custom decoder&lt;br/&gt;&lt;i&gt;no live cloud feed&lt;/i&gt;" vertex="1">
+          <mxGeometry height="90" width="220" x="70" y="575" as="geometry" />
         </mxCell>
-        <mxCell id="assist" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" value="&lt;b&gt;LLM Tier-1 Assistant&lt;/b&gt;&lt;br/&gt;Redaction → LLM → Human review&lt;br/&gt;read-only API user · logs prompt/response&lt;br/&gt;&lt;i&gt;never executes actions&lt;/i&gt;" vertex="1">
-          <mxGeometry height="100" width="255" x="555" y="575" as="geometry" />
+        <mxCell id="corpus" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" value="&lt;b&gt;Frozen 20-alert corpus&lt;/b&gt;&lt;br/&gt;batch evaluation input&lt;br/&gt;&lt;i&gt;implemented&lt;/i&gt;" vertex="1">
+          <mxGeometry height="90" width="190" x="330" y="575" as="geometry" />
+        </mxCell>
+        <mxCell id="assist" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=10;" value="&lt;b&gt;LLM Tier-1 Assistant&lt;/b&gt;&lt;br/&gt;&lt;i&gt;implemented · standalone&lt;/i&gt;&lt;br/&gt;corpus or pasted JSON&lt;br/&gt;redact → view/scan → LLM → validate&lt;br/&gt;DRAFT + audit · no tools/write&lt;br/&gt;&lt;b&gt;not connected live to Wazuh&lt;/b&gt;" vertex="1">
+          <mxGeometry height="130" width="255" x="555" y="555" as="geometry" />
         </mxCell>
         <mxCell id="e1" edge="1" parent="1" source="host" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;fontSize=10;" target="siem" value="Host-Only · HTTPS :443">
           <mxGeometry relative="1" as="geometry" />
@@ -48,16 +51,32 @@
         <mxCell id="e5" edge="1" parent="1" source="attacker" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;dashed=1;fontSize=10;strokeColor=#b85450;" target="lin" value="simulated attacks">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e6" edge="1" parent="1" source="cloud" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;dashed=1;fontSize=10;" target="siem" value="custom decoder">
+        <mxCell id="e6" edge="1" parent="1" source="cloud" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;dashed=1;fontSize=10;" target="siem" value="static sample · custom decoder">
           <mxGeometry relative="1" x="-0.2667" as="geometry">
             <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="310" y="540" />
+              <mxPoint x="540" y="540" />
+            </Array>
           </mxGeometry>
         </mxCell>
-        <mxCell id="e7" edge="1" parent="1" source="siem" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;fontSize=10;strokeColor=#9673a6;" target="assist" value="read-only Wazuh API :55000 / alerts export">
+        <mxCell id="e7" edge="1" parent="1" source="siem" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;dashed=1;dashPattern=6 4;fontSize=10;strokeColor=#9673a6;entryX=0.25;entryY=0;" target="assist" value="TARGET: API :55000 via assistant-svc (not implemented)">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="legend" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#cccccc;align=left;verticalAlign=top;spacingLeft=8;spacingTop=6;fontSize=10;" value="&lt;b&gt;Legend&lt;/b&gt;&lt;br/&gt;━ solid = live data flow&lt;br/&gt;┄ dashed = simulated / planned&lt;br/&gt;Host is hypervisor only — never monitored" vertex="1">
-          <mxGeometry height="80" width="300" x="40" y="690" as="geometry" />
+        <mxCell id="e8" edge="1" parent="1" source="host" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;fontSize=10;strokeColor=#9673a6;exitX=0.85;exitY=1;entryX=0.9;entryY=0;" target="assist" value="Streamlit localhost / paste">
+          <mxGeometry relative="1" x="1" y="-155" as="geometry">
+            <mxPoint x="50" y="115" as="offset" />
+            <Array as="points">
+              <mxPoint x="840" y="115" />
+              <mxPoint x="840" y="535" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e9" edge="1" parent="1" source="corpus" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;fontSize=10;strokeColor=#82b366;" target="assist" value="">
+          <mxGeometry relative="1" y="-16" as="geometry" />
+        </mxCell>
+        <mxCell id="legend" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#cccccc;align=left;verticalAlign=top;spacingLeft=8;spacingTop=6;fontSize=10;" value="&lt;b&gt;Legend&lt;/b&gt;&lt;br/&gt;━ solid = implemented data/UI flow&lt;br/&gt;┄ dashed = simulation, static sample or target&lt;br/&gt;Physical host is not monitored" vertex="1">
+          <mxGeometry height="90" width="330" x="40" y="700" as="geometry" />
         </mxCell>
       </root>
     </mxGraphModel>

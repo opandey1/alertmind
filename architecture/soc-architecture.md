@@ -1,191 +1,269 @@
 # SOC Architecture — AlertMind
 
-**Document owner:** AlertMind (CAP-SCE-3W) · **Scope:** Solo build · **Status:** Week-1 baseline, maintained as the system evolves
+**Document owner:** AlertMind (CAP-SCE-3W) · **Scope:** Solo build · **Status:** Final lab state, 27 Jul 2026  
 **Companion diagram:** [`diagram.drawio`](diagram.drawio) (editable) → export to `diagram.png`
 
 ---
 
 ## 1. Purpose & scope
 
-This document is the authoritative description of the AlertMind mini-SOC: what telemetry is collected, how it flows from endpoint to alert, how detections are organised, how data is retained, who can access what, and how the LLM tier-1 assistant attaches to the pipeline without weakening it. It is written so a reader with the repository can rebuild and reason about the environment in under an hour.
+This document is the authoritative architecture description of the AlertMind mini-SOC: what telemetry is collected, how it flows from endpoint to alert, how detections are organised, how data is retained, who can access what, and how the LLM tier-1 assistant operates in the measured lab.
+
+It distinguishes three things explicitly:
+
+1. **Implemented SIEM path** — endpoint telemetry through Wazuh to dashboards and retained alerts.
+2. **Implemented assistant paths** — the frozen-corpus batch evaluator and the local Streamlit **Paste & inspect** workflow.
+3. **Target integration** — future read-only Wazuh API ingestion through least-privilege RBAC identities.
+
+The measured assistant is **not connected live to Wazuh**. It consumes the frozen corpus or analyst-pasted JSON. The target API connection is documented, not implemented.
 
 ### Current vs. target state
 
-This document describes both what is implemented now and the intended end state. The table below is the quick reference; sections flag *target* items inline where relevant so the doc never reads as overclaiming.
-
-| Capability | Current state | Target by final submission |
+| Capability | Final lab state | Production / next-step target |
 |---|---|---|
-| Wazuh SIEM (manager/indexer/dashboard) | Implemented | Maintain |
-| Windows telemetry (Sysmon, System, Security) | Implemented; EID 1 + 7045 verified | Verify LSASS/Run-key alerts |
-| Linux auditd ingestion | Implemented | Tune noisy rules (e.g. 100100) |
-| Linux Wazuh-native rule pack (100100–100115) | Implemented | Verify remaining rules individually |
-| Sigma YAML source | In progress (XML authored first; Sigma backfilling) | Complete 7+ portable rules |
-| Cloud sample source | Planned (optional) | Static sample confirmed acceptable; optional 3rd source if time permits |
-| RBAC users (`socanalyst`, `assistant-svc`) | Planned (only `admin` exists) | Created before Week-3 assistant |
-| Retention ISM policies | Documented, not yet enforced | Enforce or note as production-intent |
-| Dashboard interface restriction | Not enforced (binds 0.0.0.0:443) | Bind Host-Only or add firewall rule |
-| LLM assistant + guardrails | Planned | Streamlit app + redaction + logging |
+| Wazuh SIEM (manager, indexer, dashboard) | ✅ Implemented and healthy | Add HA, capacity planning and production hardening |
+| Windows telemetry | ✅ Sysmon and System verified; Security EID 4697 configured but verification pending | Complete Security-channel validation |
+| Linux auditd ingestion | ✅ Implemented with explicit `audit.log` collection | Tune remaining known noise |
+| Custom Wazuh detection pack | ✅ 24 rules (17 Linux + 7 Windows), all verified firing | Validate against larger production-like traffic |
+| Sigma source | ✅ 25 YAML rules validated; translation notes retained | Automate more of the Sigma→Wazuh conversion |
+| Dashboards and playbooks | ✅ Two dashboards and three IR playbooks | Migrate playbooks from NIST SP 800-61r2 to r3 |
+| Cloud telemetry | Static sample demonstrated; no live cloud feed | Optional live third source |
+| LLM assistant | ✅ Batch evaluator + Streamlit UI + Paste & inspect | Repeat hosted evaluation and production hardening |
+| Live Wazuh→assistant ingestion | ❌ Not implemented | Read-only pull through `assistant-svc` |
+| RBAC (`socanalyst`, `assistant-svc`) | ❌ Not implemented; only `admin` exists | Create and validate least-privilege roles |
+| Retention ISM policies | Documented, not enforced | Enforce alerts/archive retention windows |
+| Dashboard interface restriction | Not enforced; dashboard binds `0.0.0.0:443` | Bind Host-Only or enforce firewall restrictions |
 
 ## 2. Design principles
 
-- **High-signal over high-volume.** Endpoint configs (Sysmon, auditd) are scoped to the ATT&CK techniques the detection pack covers, not maximal collection. Noise is filtered at the rule layer, not by alerting on raw telemetry.
-- **Portable detections.** Detection logic is authored in Sigma (vendor-neutral) and converted to Wazuh-native rules; the Sigma YAML is the source of truth.
-- **Least privilege everywhere**, including the assistant — which reaches the SIEM through a read-only API identity and can never act.
-- **Reproducibility.** Every component is config-as-code in this repo; the lab is snapshot-restorable.
-- **Honest measurement.** Detection latency (MTTD) and analyst triage time are treated as separate metrics with separate owners.
+- **High signal over high volume.** Endpoint collection is scoped to the ATT&CK behaviours the detection pack covers; raw high-volume telemetry is not automatically promoted to alerts.
+- **Portable detections.** Sigma YAML is the portable source, with deployed Wazuh-native rules and hand-translation notes retained for auditability.
+- **Least privilege, stated honestly.** The current assistant has no tools, write credentials or send path. DRAFT labelling and analyst review are procedural controls. A future read-only `assistant-svc` identity adds defense in depth; it is not credited as an implemented control.
+- **Redaction before model use.** Tested credential classes are removed before prompt construction. Redaction is risk reduction, not a guarantee for unknown or encoded secrets.
+- **No inline enforcement.** The assistant produces text-only drafts and never sits in the detection or response enforcement path.
+- **Reproducibility.** Configurations, prompts, tests, audit logs and measurement artifacts are retained in the repository.
+- **Honest measurement.** Detection latency, inference latency and analyst triage time are separate metrics with different owners.
 
 ## 3. Lab environment & network architecture
 
-The lab runs on VirtualBox on a Windows 11 host. The host is **never a monitored endpoint** — it runs the hypervisor and holds the repository only.
+The lab runs on VirtualBox on a physical Windows 11 host. The physical host is **not a monitored endpoint**; it runs the hypervisor, browser, repository and local assistant UI.
 
 ### Network design
 
-All VMs sit on a single VirtualBox **NAT Network** named `LabNet` (`10.0.2.0/24`). This gives the VMs intra-lab connectivity and outbound internet for tool downloads, while isolating attack traffic from the physical LAN. The SIEM host carries a **second Host-Only adapter** so the dashboard can be reached from the host browser. Note that the dashboard *intent* is host-only access, but by default Wazuh Dashboard binds to `0.0.0.0:443` (all interfaces, including NAT) — interface restriction is a planned hardening item (see ports table).
+All VMs sit on the VirtualBox NAT Network `LabNet` (`10.0.2.0/24`). This provides intra-lab connectivity and outbound access for controlled tool downloads while isolating attack traffic from the physical LAN. The SIEM VM also has a Host-Only adapter for dashboard access from the host browser.
 
-| Role | VM | OS | IP (NAT) | Adapters | Status |
+The dashboard currently binds `0.0.0.0:443`, including the NAT interface. Host-Only access is the intended posture, but interface binding or a firewall rule remains a documented hardening item.
+
+| Role | VM | OS | IP (NAT) | Adapters | Final state |
 |---|---|---|---|---|---|
 | SIEM host | `wazuh-siem` | Ubuntu | 10.0.2.15 | NAT + Host-Only | ✅ Deployed |
 | Windows endpoint | `win-victim` | Windows 11 | 10.0.2.4 | NAT | ✅ Deployed (agent 001) |
 | Linux endpoint | `linux-victim` | Ubuntu | 10.0.2.7 | NAT | ✅ Deployed (agent 002) |
-| Attacker | `attacker` | Kali | 10.0.2.x | NAT | ⏳ Week 2 |
+| Attacker / validation host | `attacker` | Kali | 10.0.2.x | NAT | ✅ Used for controlled validation |
 
-**Isolation posture:** outbound internet is enabled on `LabNet` for package installation and Atomic Red Team content retrieval. Atomic techniques write real system changes (registry keys, services, scheduled tasks); every VM is snapshotted clean post-setup and again before each attack run so changes can be rolled back.
+**Isolation posture.** Outbound internet is enabled for package installation and test-content retrieval. Several validation procedures make real system changes. VMs are snapshotted before attack runs and restored after validation; commands are restricted to the isolated lab.
 
-### Open ports (SIEM host)
+### Open ports on `wazuh-siem`
 
-| Port | Service | Exposure |
+| Port | Service | Final lab exposure |
 |---|---|---|
 | 1514/TCP | `wazuh-remoted` — agent event channel | LabNet |
-| 1515/TCP | `wazuh-authd` — agent enrollment | LabNet |
-| 55000/TCP | `wazuh-apid` — REST API | LabNet (planned: restrict to assistant host) |
-| 9200/TCP | `wazuh-indexer` (OpenSearch) | localhost only |
-| 443/TCP | `wazuh-dashboard` | Binds 0.0.0.0 by default; host-only access intended, interface restriction is a planned hardening item |
+| 1515/TCP | `wazuh-authd` — agent enrolment | LabNet |
+| 55000/TCP | `wazuh-apid` — REST API | LabNet; used for administration/validation, **not by the assistant** |
+| 9200/TCP | `wazuh-indexer` / OpenSearch | Localhost only |
+| 443/TCP | `wazuh-dashboard` | Binds `0.0.0.0`; Host-Only access intended |
 
 ## 4. Log sources & telemetry
 
-Two endpoint sources are live; a cloud sample source is planned to satisfy the optional third-source requirement.
+Two endpoint sources are live. A static cloud sample was demonstrated as an optional third-source exercise; there is no live cloud integration.
 
-| Source | Host | Channel / path | Format | Primary ATT&CK relevance | Status |
+| Source | Host | Channel / path | Format | Primary ATT&CK relevance | Final state |
 |---|---|---|---|---|---|
-| Sysmon | `win-victim` | `Microsoft-Windows-Sysmon/Operational` | eventchannel | Execution, persistence, credential access, C2 (EID 1/3/7/8/10/11/13/22) | ✅ |
-| Windows System | `win-victim` | `System` | eventchannel | Service install (EID 7045 → T1543.003) | ✅ |
-| Windows Security | `win-victim` | `Security` | eventchannel | Service install (EID 4697), logon, account events | ✅ |
-| auditd | `linux-victim` | `/var/log/audit/audit.log` | audit | Cred access, persistence, priv-esc, defense evasion (custom keys) | ✅ |
-| Cloud trail | manager | sample file → custom decoder | json | Cloud identity / API abuse | ⏳ Planned |
+| Sysmon | `win-victim` | `Microsoft-Windows-Sysmon/Operational` | eventchannel | Execution, persistence, credential access, C2 | ✅ Verified |
+| Windows System | `win-victim` | `System` | eventchannel | Service installation (EID 7045) | ✅ Verified |
+| Windows Security | `win-victim` | `Security` | eventchannel | EID 4697, logon and account events | 🟡 Configured; verification pending |
+| auditd | `linux-victim` | `/var/log/audit/audit.log` | audit | Credential access, persistence, privilege escalation, defense evasion | ✅ Verified |
+| Cloud trail sample | manager | sample file → custom decoder | JSON | Cloud identity / API activity | 🟡 Static sample only |
 
-**Endpoint configuration notes:**
+### Endpoint configuration notes
 
-- **Sysmon** uses the SwiftOnSecurity config, with one required edit: the `ProcessAccess` (EID 10) block — empty by default — was populated to capture access to `lsass.exe`, restoring the T1003.001 credential-access detection.
-- **auditd** uses the custom `alertmind.rules` (deployed to `/etc/audit/rules.d/`), scoped to the technique set in §6 and free of the absent-software watches that made the stock "best practice" ruleset error-prone and noisy. Each rule sets a key that encodes its ATT&CK technique.
+- **Sysmon** uses the SwiftOnSecurity configuration with an added `ProcessAccess` (EID 10) include for `lsass.exe`, enabling the T1003.001 detection.
+- **auditd** uses `detections/auditd/alertmind.rules`, with ATT&CK-oriented keys for the paths and actions monitored by the Wazuh child rules.
+- **Required Linux onboarding fix:** the Wazuh agent does not read `/var/log/audit/audit.log` by default. An explicit `audit` `localfile` block is required; otherwise only the lower-fidelity journald copy is collected.
+- High-volume `execve` telemetry is collected as substrate for targeted rules, not alerted on indiscriminately.
 
-## 5. Ingestion pipeline
+## 5. Implemented SIEM ingestion path
 
+```text
+Windows / Linux endpoint
+        │ Wazuh agent — TLS :1514
+        ▼
+wazuh-remoted
+        ▼
+wazuh-analysisd
+  decode → base rules → AlertMind custom rules
+        ▼
+/var/ossec/logs/alerts/alerts.json
+        ▼
+Filebeat → Wazuh Indexer / OpenSearch
+        ▼
+Wazuh Dashboard → analyst
 ```
-endpoint agent ──(1514/TLS)──► wazuh-remoted ──► wazuh-analysisd
-                                                    │  decode (decoders)
-                                                    │  match (rules + local_rules)
-                                                    ▼
-                                          /var/ossec/logs/alerts/alerts.json
-                                                    │
-                                                Filebeat
-                                                    ▼
-                                          wazuh-indexer (OpenSearch)
-                                                    ▼
-                                          wazuh-dashboard  ◄── analyst (Host-Only :443)
-```
 
-1. **Collection.** Each endpoint's Wazuh agent tails its configured `localfile` sources (Sysmon/System/Security channels on Windows; `audit.log` on Linux) and ships events to the manager over TLS on 1514.
-2. **Decode + match.** `wazuh-analysisd` runs events through decoders (e.g. the `auditd` and `windows_eventchannel` decoders) and then the rule engine. The base auditd rule **80700** is level 0 (no alert); AlertMind's custom child rules (§6) chain off it and raise alerts.
-3. **Index.** Matching alerts are written to `alerts.json`, picked up by Filebeat, and indexed into daily `wazuh-alerts-4.x-YYYY.MM.DD` indices.
-4. **Present.** The dashboard reads the indexer and renders search, dashboards, and the ATT&CK view.
+1. **Collection.** Endpoint agents read the configured Windows event channels or Linux `audit.log` and ship events over TLS.
+2. **Decode and match.** Wazuh decoders normalise the events. Custom rules narrow the relevant base events and attach severity and ATT&CK metadata.
+3. **Persist and index.** Matching alerts are written to `alerts.json`, collected by Filebeat and indexed into `wazuh-alerts-4.x-*`.
+4. **Present.** Analysts use the Daily SOC Briefing and ATT&CK Heatmap dashboards for triage and coverage review.
 
-**Key onboarding fix captured for reproducibility:** the Linux agent does not read `audit.log` by default — it must be given an explicit `<localfile><log_format>audit</log_format><location>/var/log/audit/audit.log</location></localfile>` block. Without it, only the journald copy of events is ingested (low fidelity), and auditd SYSCALL records never reach the manager.
+The LLM assistant is not part of this path and cannot affect whether an alert is generated. Consequently, it cannot change MTTD.
 
 ## 6. Detection architecture
 
-**Authoring model (target):** Sigma YAML (`detections/sigma/`) is the portable source of truth; each rule is converted to its Wazuh-native form and deployed to the manager, with any hand-translation logged.
+### Authoring and deployment
 
-**Current state:** the Wazuh-native Linux rules are implemented in `siem/wazuh/local_rules.xml`, deployed to `/var/ossec/etc/rules/local_rules.xml` — the standard Wazuh local-rules file, as confirmed with the instructor. (For a solo build there are no other custom rules, so a single `local_rules.xml` is the cleanest place for them.) The matching Sigma YAML source is being **backfilled** so the portable source and converted output remain auditable — the XML was authored first.
+- **Portable source:** `detections/sigma/` — 25 validated Sigma YAML rules.
+- **Deployed custom rules:** `siem/wazuh/local_rules.xml` — 24 custom Wazuh rules.
+- **Translation record:** `detections/sigma/notes.md` documents manual translations, broad or tentative mappings and the one child-rule exception.
+- **Linux sensor rules:** `detections/auditd/alertmind.rules`.
 
-**Validation:** rules are checked with `xmllint --noout siem/wazuh/local_rules.xml` before deployment, and `sudo tail -50 /var/ossec/logs/ossec.log` after restart confirms the manager loaded the file without XML or rule-parser errors. (Double-hyphen sequences inside XML comments are illegal and will fail this check — comments are kept minimal for that reason.)
+### Rule organisation
 
-**Rule organisation:**
+- **Linux — 17 rules, IDs 100100–100116.** Most chain from base auditd rule 80700 and match an ATT&CK-oriented audit key. Rule 100116 is a child of 100113 because overlapping auditd path watches cannot reliably retain two keys for `/root/.ssh/`.
+- **Windows — 7 rules, IDs 100200–100206.** These cover Office-parent execution, encoded PowerShell, LOLBin execution, LSASS access, PsExec-style service execution, Run-key persistence and long-label DNS activity.
+- The Wazuh built-in service-creation rule for Windows EID 7045 is retained as platform coverage and is not counted among the 24 custom rules.
 
-- **Linux custom pack — IDs 100100–100115 (16 rules).** Each rule chains off base rule 80700 via `<if_sid>`, matches a single `audit.key`, raises a severity level, and tags MITRE ATT&CK. Because the key already encodes the technique, the ATT&CK mapping is deterministic. One mapping (rule 100115, package-manager config change) is marked **tentative** — APT config edits are not cleanly Ingress Tool Transfer; it is retained as a low-confidence hygiene monitor with a candidate T1195.001 mapping.
-- **Windows.** Detections lean on Wazuh's Sysmon-EID ruleset and Security/System channel rules (e.g. rule 61138 for EID 7045 → T1543.003), supplemented by custom rules where coverage gaps exist.
+All 24 custom rules were verified firing end-to-end. The attack runbook distinguishes direct technique behaviour from path-write, heuristic and parent-name simulations; rule firing does not automatically prove full real-world technique execution.
 
-**Severity scheme (Wazuh levels):** informational telemetry stays at level 0–3; meaningful persistence/priv-esc at 7–10; high-confidence credential access and defense-evasion (e.g. `ld.so.preload` modification, auditd tampering) at 12–13. Levels drive dashboard prioritisation and the alert thresholds used in the triage measurement.
+### Severity and tuning
 
-**Telemetry vs. detection boundary:** high-volume substrate such as `execve` (key `t1059_exec`) is collected but intentionally **not** alerted on directly — it is the raw feed that targeted command-pattern rules match against. Alerting on every process execution would bury the console and pollute the triage measurement.
+Informational telemetry remains at low Wazuh levels; meaningful persistence and privilege-escalation events are raised to the operational queue; high-confidence credential-access or defense-evasion patterns receive the highest custom levels.
 
-**Known tuning items (tracked openly):** the `/etc/shadow` read rule (100100) currently also fires on legitimate `cron` PAM reads (`auid` unset). Planned tune: scope the audit rule to `auid>=1000 -F auid!=unset` so interactive `sudo cat` is still caught while daemon noise drops out. This baseline→FP→tuned-rule progression is documented as part of the detection-engineering narrative.
+Known and documented tuning findings include:
 
-## 7. Data retention plan
+- Rule 100100 also catches benign `cron` PAM reads of `/etc/shadow`; an `auid>=1000` tune remains planned.
+- Rule 100203 required three rounds to separate dump-grade LSASS access from benign query-only and security-tool reads.
+- Rule 100205 excludes a `RunNotification` prefix-match false positive.
+- Rule 100204 detects the default Sysinternals `PSEXESVC.exe` name; randomly named impacket variants require behavioural coverage.
+- Rule 100206 is a long-label heuristic, not evidence of actual DNS tunnelling or exfiltration.
 
-The lab's working life is three weeks; the plan below states both the lab setting and the production intent it models.
+## 7. Data retention
 
-| Data class | Index / location | Lab setting | Production intent |
+| Data class | Location | Final lab setting | Production intent |
 |---|---|---|---|
-| Alerts | `wazuh-alerts-4.x-*` | Retain full project window | ISM rollover; delete > 90 days |
-| Archives (all events) | `wazuh-archives-*` / `archives.json` | **Off by default;** enabled only during attack-simulation windows for forensic depth | Delete > 7–14 days (volume-heavy with execve auditing) |
-| Audit raw logs | `/var/log/audit/audit.log` | auditd rotation defaults | Size-based rotation + offload |
-| Assistant call logs | `assistant/logging/` | Retain full project window (evidence) | Retain per audit policy |
+| Wazuh alerts | `wazuh-alerts-4.x-*` | Retained for the project window | ISM rollover; delete after 90 days |
+| Full-event archives | `wazuh-archives-*` / `archives.json` | Off by default; enabled around selected validation windows | Retain 7–14 days |
+| Raw audit logs | `/var/log/audit/audit.log` | auditd defaults | Size-based rotation and offload |
+| Batch assistant audit logs | `assistant/outputs/runs/<run_id>/audit-log*.jsonl` | Retained as measurement evidence; runs never overwrite | Retain per audit policy |
+| Paste & inspect audit | `assistant/outputs/adhoc/adhoc-audit.jsonl` | Saved only on explicit request; idempotent | Retain per audit policy |
 
-**Rationale:** archives are disabled normally because full-event capture with `execve` auditing grows the indexer rapidly on a constrained lab host; they are switched on deliberately around the Atomic runs so the measurement and any forensic review have complete data, then switched off. **Current state:** the ISM (Index State Management) policies below are *documented as production intent but not yet enforced* in the Week-1 lab; the lab's three-week life never reaches the deletion windows.
+ISM policies express production intent but are **not enforced** in the final lab. Full-event archives stay off by default because `execve` collection is volume-heavy on the constrained single-node SIEM.
 
-## 8. RBAC & access control — current and target state
+Paste & inspect does not persist raw pasted input. Its optional audit record contains a correlation hash and sanitised metadata; tested secret values and unsalted secret hashes are excluded.
 
-**Current lab state:** only `admin` exists and is used for setup and validation. The `socanalyst` and `assistant-svc` identities below are **planned** and will be created before the Week-3 assistant integration.
+## 8. RBAC & access control
 
-Target model — least privilege across three identities:
+### Final lab state
 
-| Identity | Used by | Privileges | State |
+Only `admin` exists and is used for setup and validation. `socanalyst` and `assistant-svc` were not created, and live Wazuh API ingestion was not implemented.
+
+### Target least-privilege model
+
+| Identity | Used by | Intended privileges | State |
 |---|---|---|---|
-| `admin` | Setup / maintenance only | Full dashboard + indexer + API | ✅ Exists |
-| `socanalyst` | Day-to-day triage | Read-only on alerts, dashboards, and the ATT&CK view; no config rights | ⏳ Planned |
-| `assistant-svc` | LLM assistant integration | Read-only API access scoped to alert data; **no write, no active-response, no agent control** | ⏳ Planned |
+| `admin` | Setup and maintenance | Full dashboard, indexer and API administration | ✅ Exists |
+| `socanalyst` | Day-to-day SOC triage | Read alerts, dashboards and ATT&CK views; no configuration rights | ⏳ Planned |
+| `assistant-svc` | Future live assistant ingestion | Alert-scoped read-only API; no writes, active response or agent control | ⏳ Planned |
 
-**Controls (target):**
+### Control boundaries
 
-- Dashboard access is intended from the host over the Host-Only adapter; today it binds `0.0.0.0:443`, so an interface bind or firewall rule is a planned hardening item (§3).
-- The indexer binds to localhost and is not exposed on the network.
-- Wazuh API RBAC (roles → policies) will enforce the `assistant-svc` read-only scope, which is the technical backbone of the assistant's "never acts" guardrail — once created, the integration *cannot* act because its credentials forbid it, not merely because the code chooses not to.
-- All inter-component traffic (agent↔manager, Filebeat↔indexer, dashboard↔indexer) uses the certificates generated at install.
+- The current assistant's no-action property comes from its implemented architecture: it has no tools, no Wazuh credentials, no write path and no message-send integration.
+- Every response is labelled DRAFT and requires analyst review. This is a procedural safeguard, not proof that every analyst will always catch an incorrect recommendation.
+- The planned `assistant-svc` role would add credential-level defense in depth to the future ingestion path; it is not credited as an implemented safeguard.
+- The indexer remains localhost-only.
+- Dashboard interface restriction and API-source restriction remain production-hardening tasks.
 
-## 9. LLM assistant integration architecture
+## 9. LLM tier-1 assistant architecture
 
-The assistant attaches to the SIEM in a **pull** model and never sits inline with enforcement.
+### 9.1 Implemented batch path
 
+```text
+measurement/alert-corpus.json
+        ▼
+redact tested secret classes
+        ▼
+apply operational or strict label-reduced view
+        ▼
+build untrusted-data prompt
+        ▼
+mock / Ollama / hosted provider
+        ▼
+parse → schema validate → audit → score
 ```
-read-only Wazuh API :55000        ──► redaction layer ──► LLM
-  (or local alerts.json export)                              │
-                                            structured output (summary,
-                                            ATT&CK tag, suggested queries,
-                                            draft message)
-                                                             ▼
-                                                    human review (analyst)
-                                                             │
-                                                    full call logging
+
+The frozen 20-alert corpus is the measured input. Batch outputs are generated before the timed analyst pass, so model inference latency is measured separately from analyst triage time.
+
+### 9.2 Implemented Paste & inspect path
+
+```text
+analyst-pasted JSON or plain text
+        ▼
+parse → size/depth/node limits
+        ▼
+redact with trace → apply view
+        ▼
+scan instruction-shaped keys and values
+        ▼
+reserved-delimiter boundary gate
+        ▼
+hosted-provider egress consent
+        ▼
+one model call → schema validation
+        ▼
+DRAFT result + optional sanitised audit save
 ```
 
-**Data path (resolved).** The indexer (9200) binds to localhost, so it is *not* the assistant's interface unless the assistant runs on `wazuh-siem` itself. The chosen path is the **read-only Wazuh API on 55000** via the `assistant-svc` identity, which works whether the assistant runs on-box or on a separate host; a local `alerts.json` export is the simpler fallback if the assistant runs directly on the SIEM VM.
+Paste & inspect shares the batch path's redaction implementation and model boundary but is not the same pipeline. It adds input limits, a trace, injection visibility, delimiter blocking, hosted-provider consent and explicit one-shot audit persistence. It is operational functionality and is excluded from the frozen benchmark.
 
-- **Input boundary.** The assistant retrieves a selected alert via the read-only `assistant-svc` identity. A redaction layer strips credential/token/secret patterns before any prompt leaves the runner; IPs are retained (needed for triage). Lab alerts are synthetic.
-- **No autonomy.** Output is text only — a summary, an ATT&CK tag, suggested investigation queries, and a draft user message. Nothing is executed; the analyst reviews every output.
-- **Auditability.** Every call logs prompt, response, model, and version to `assistant/logging/`. Kept outputs are verifiable against the raw alert.
+### 9.3 Shared guardrails
 
-See the README §8 for the measurement design that quantifies the assistant's effect on triage time.
+- **Redaction first:** tested credential classes are removed before model-bound text is built; 0/7 planted secrets survived the regression proof.
+- **No tools or action path:** providers return text only.
+- **Prompt boundary:** alert content is placed inside an `ALERT_DATA` untrusted-data block.
+- **Injection handling:** tested instruction-shaped markers are surfaced and reserved delimiter attempts are blocked before a call. Other marked content may still reach and influence the model; general prevention is not claimed.
+- **Output validation:** required fields, types, dispositions, confidence values, ATT&CK syntax and summary length are checked.
+- **Auditability:** batch calls write 25-field, non-overwriting records; ad hoc audit saving is explicit and sanitised.
+- **Human decision:** all model output remains a DRAFT for analyst review.
+
+### 9.4 Planned Wazuh integration
+
+```text
+Wazuh API :55000
+        │ target: alert-scoped read-only pull
+        │ identity: assistant-svc
+        ▼
+the same redaction and model boundary
+```
+
+This connection is a target state only. No report result, live demonstration or no-action claim depends on it being implemented.
 
 ## 10. Security & operational considerations
 
-- **Snapshots** are taken after a clean setup and before each attack run; a documented recovery procedure exists in [`docs/runbooks/wazuh-recovery.md`](../docs/runbooks/wazuh-recovery.md) (authored after a real host crash during the build).
-- **Secrets** (the generated `admin` password, certificates) are never committed; status notes redact them.
-- **Resource management:** on a constrained host, VMs are staggered — the SIEM plus one endpoint at a time — to stay within RAM.
+- **Snapshots and cleanup:** clean snapshots are taken before controlled validation; the attack runbook includes teardown procedures and distinguishes thin simulations from direct behaviour.
+- **Secrets:** generated credentials and certificates are not committed. Redaction covers tested patterns but cannot guarantee removal of unknown, encoded or unlabelled secrets.
+- **Prompt injection:** detection and containment reduce risk but do not prove semantic resistance. No-tools architecture and analyst review limit machine-level impact.
+- **Hosted egress:** hosted providers receive only redacted synthetic lab data and require explicit consent in Paste & inspect.
+- **Resource management:** VMs are staggered on the constrained host; the SIEM plus one endpoint is the normal operating set.
+- **Recovery:** the Wazuh recovery procedure is documented in `docs/runbooks/wazuh-recovery.md`.
 
 ## 11. Assumptions & limitations
 
-- Single-node Wazuh (no clustering/HA) — appropriate for a lab, not production scale.
-- Cloud telemetry, if added, is a static sample file (e.g. a public CloudTrail/Azure dataset) ingested via a custom decoder; the instructor confirmed a sample is acceptable and live ingestion is an optional enhancement. It is part of the optional 10-rule / 3-source scope, not the solo minimum (2 sources / 7 rules, confirmed).
-- The Atomic Red Team scenarios are self-chosen (instructor-confirmed), built around an execution → persistence → credential-access → lateral-movement → exfiltration chain.
-- Synthetic alerts only; no production traffic, so detection precision is characterised against known Atomic ground truth rather than real-world base rates.
-- Measurement is within-subject (single analyst) with the learning-effect controls described in the README; threats to validity are reported in `report.md`.
+- Single-node Wazuh with no clustering or HA.
+- Two live endpoint sources; cloud telemetry is a static sample, not production ingestion.
+- Synthetic controlled simulations and historical lab false positives, not production base rates.
+- Some triggers validate a monitored path or heuristic rather than complete technique execution.
+- Known `/etc/shadow` false-positive tuning remains planned.
+- RBAC identities and live Wazuh API ingestion remain target architecture.
+- Paste & inspect is localhost-oriented and single-user; it is not a multi-tenant SOC service.
+- Redaction, injection scanning and schema validation reduce risk but do not prove semantic correctness or universal secret removal.
+- Measurement uses one analyst, a small frozen corpus and one stochastic hosted run per view; full threats to validity are reported in `report.md`.
+
