@@ -1,6 +1,6 @@
 # WEEKLOG — AlertMind (CAP-SCE-3W)
 
-A short status note per week (written each Saturday, per the program cadence): what shipped, what was blocked and how it resolved, and what carries forward. Newest week on top.
+A short status note per week (written each Saturday, per the program cadence): what shipped, what was blocked and how it resolved, and what carries forward. Chronological — oldest week first.
 
 ---
 
@@ -81,13 +81,57 @@ Dashboards (daily SOC briefing + ATT&CK heatmap) · three NIST 800-61 IR playboo
 ---
 
 ## Week 3 — LLM Assistant + Impact Measurement
-**Dates:** 6–12 Jul 2026 · **Effort target:** ~14h · **Status:** ⏳ Not started
+**Dates:** 6–19 Jul 2026 · **Effort:** ~20h (measurement + two-model comparison ran long) · **Status:** ✅ Complete — assistant + guardrails shipped, impact measured, label-leakage and two-model findings established
 
 ### Shipped
-- _TODO_
+- **Guardrailed LLM tier-1 assistant** built as a dependency-light Python package (providers: mock / ollama / openai / anthropic) with a Streamlit analyst UI. Per-alert pipeline: **redact → apply view → build prompt → call → parse → validate → log (25 fields) → score**, redaction first. Offline `mock` provider runs the whole pipeline with no key/network.
+- **Guardrails enforced in code and proved by tests:** redaction before prompt construction (**0/7 planted secrets leaked**), no tools / text-only / analyst-review-required, alert wrapped in an `<ALERT_DATA>` untrusted-data block, and per-run non-overwriting audit logs. _Evidence: EVID-AI-REDACT-001, EVID-AI-INJECT-001._
+- **Redaction before/after proof** produced as the instructor required (original secret → redacted prompt), plus an injection-resistance record.
+- **Two methodological moves that make the evaluation honest:** a benign-salted corpus (14 attacks + 6 real false positives) and a strict **label-reduced view** that strips the rule's own ATT&CK label. A regression test proves 0/20 alerts leak a technique code.
+- **Impact measured vs. the Week-2 unassisted baseline** (pre-generated outputs, washout, randomised order): **MTTD 2.32 s** (detection property, unchanged by the assistant); triage time −30% on attacks, +1.68 min paired on false positives; analyst accuracy 20/20 in both conditions.
+- **Two-model comparison** (`llama3.1:8b` local vs `gpt-5.5-2026-04-23` hosted) on the frozen corpus, both views. Headline findings: label removal collapses llama's attack-technique score 13/14 → **1/14** (gpt 11/14 → 8/14); benign disposition **0/6** (llama) vs 5/6 operational / 3/6 strict (gpt); and a manual **grounding review** (gpt 20/20 all dimensions; llama 0/20 runnable queries, incl. a factual error). Hosted cost **$1.11** total.
+- **15-page technical report** drafted and reviewed; `DESIGN_AND_CHANGELOG.md` reference doc written.
 
 ### Blocked → resolved
-- _TODO_
+| Issue | Root cause | Resolution |
+|---|---|---|
+| First "evaluation" view still leaked the label (llama 7/14) | `audit.key` and `rule_description` carried technique codes | Rebuilt a leak-proof strict view (value-aware key drop + code stripping); re-ran both models → true 1/14 |
+| Label-leakage bug in `views.py` | Leaky "evaluation" view | Strict label-reduced view; 0/20 leaks verified by test |
+| GPT-5.5 empty responses / parameter errors | Reasoning models reject `temperature`; need `max_completion_tokens` | Provider branch for reasoning models; budget raised; effort left at vendor default |
+| Windows MAX_PATH crash + a schema-validator defect | Long run-dir paths; validator edge case | `\\?\` long-path handling; validator fix; both regression-tested |
+
+### Known items carried forward
+- Manual grounding review is single-reviewer, operational-view only (automation + 2nd reviewer deferred).
+- Hosted runs are single stochastic samples (temperature unsupported) — comparison labelled exploratory; no assisted-timing run for GPT-5.5.
+- A18 is a scored false negative *and* a corpus construct-validity artifact (payload self-identifies as a test).
+
+### Next week (Week 4)
+
+---
+
+## Week 4 — Hardening, Feature 2, Defense Materials
+**Dates:** 20–26 Jul 2026 · **Effort:** ~15h · **Status:** ✅ Complete — Paste & inspect MVP shipped and adversarially tested; report/README/changelog reconciled; defense deck, transcript and Q&A pack finalised
+
+### Shipped
+- **Feature 2 — "Paste & inspect" local diagnostic (MVP)** built and wired into the Streamlit app: an analyst pastes one JSON alert (or plain text). The ad hoc path shares the batch path's redaction implementation and model boundary, while adding its own limits, redaction trace, injection scan, boundary gate, egress-consent check, single model call and schema validation. It surfaces the redaction trace, injection markers, the exact model-bound message, and a schema-validated draft. Six new modules (`paste_core`, `paste_tab`, `injection`, `samples`, `audit`, `ui_helpers`); `redact_alert_with_trace()` delegates to the same recursion as `redact_alert()` so proof and production cannot diverge. _Evidence: EVID-AI-PASTE-001…004._
+- **Security-hardened after self-testing.** Adversarial testing on my own VM caught real bugs, all fixed and regression-tested: a P0 delimiter-gate bypass via a JSON **key** (the gate now serializes the whole object, keys included); non-string sensitive values leaking (sensitive keys now redact any JSON type); `sk-proj-` keys not matched; blocked requests mis-recorded as schema-valid; endpoint-aware egress consent (remote Ollama now requires consent); and Streamlit stale-state issues.
+- **Documentation reconciled to the authoritative results** after several external review rounds: `report.md` (15 pages), `README.md`, and `DESIGN_AND_CHANGELOG.md` aligned on the strict label-reduced numbers, MTTD **2.32 s**, the paired false-positive cost **+1.68 min**, and the frozen-corpus SHA-256 (`4e842637…`). Injection and guardrail wording narrowed to what the implementation supports (detection + containment, not prevention).
+- **CVE clarification added (§7):** no CVEs cited because no known software vulnerability was exploited — the simulations exercise legitimate OS features and dual-use tooling, so ATT&CK is the applicable identifier framework. None of the 40 operational outputs manually reviewed in §9.5 contained a CVE identifier. _Raised by an evaluator; answered in-report._
+- **`attack/runbook.md`** authored — reproducer commands per rule, with rule-firing evidence separated from exact-command provenance and each trigger labelled by validation scope (direct behaviour, path-write only, heuristic or simulation).
+- **Defense materials:** 14-slide deck (speaker notes on every slide, optional live-demo segment on the guardrails slide), full spoken **presentation transcript**.
+
+### Blocked → resolved
+| Issue | Root cause | Resolution |
+|---|---|---|
+| Paste tab could be bypassed by a delimiter hidden in a JSON key | Boundary gate scanned values, not keys | Gate now independently serializes the entire model-bound object (keys + values) before any call — verified by test |
+| Blocked/failed calls reported `schema_valid = true` | Absence of errors was read as validity | Introduced `schema_valid = not-evaluated` when no response was validated; added `call_status` to the audit record |
+| "Never transmitted / never stored" wording overclaimed | Docs written ahead of the key-bypass and non-string-secret fixes | Fixed the implementation first, then narrowed wording to tested cases |
+| Notebook crashed on millisecond timestamps under pandas 2.x | Fixed datetime format string | `format="ISO8601"` on all parses; notebook runs clean, MTTD 2.32 s |
+
+### Known items carried forward (documented, deferred)
+- **RBAC** (`admin` / `socanalyst` / `assistant-svc`) and **live read-only Wazuh API ingestion** remain designed-and-documented target state, not implemented. Paste & inspect is localhost-only, single-user until then.
+- Automate the (currently single-reviewer, operational-view) grounding rubric; add a second independent reviewer and strict-view coverage.
+- Migrate the three IR playbooks from NIST 800-61 **r2** (four-phase lifecycle) to **r3** (CSF 2.0 functions), which superseded r2 in Apr 2025 — production follow-on.
 
 ### Final wrap-up
-- _TODO: report finalised, defense deck rehearsed, lab teardown / snapshots archived._
+- Report finalised (15 pages; reported measurement and model figures traceable to retained artifacts); defense deck + transcript; frozen corpus and run directories committed. Lab snapshots archived clean.
