@@ -1,2 +1,2 @@
 requests>=2.28
-streamlit>=1.30
+streamlit>=1.59

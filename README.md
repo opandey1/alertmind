@@ -4,9 +4,9 @@
 
 **Capstone:** PG Certificate in AI/GenAI Powered Cybersecurity — IIT Roorkee × Futurense, Cohort 1 · EC-Council SOC Essentials track · Project `CAP-SCE-3W` · Solo mode
 
-**Current status:** Core SOC build, detections, dashboards, playbooks, assistant, frozen-corpus evaluation, grounding review and technical report are complete. The defense presentation remains to be created. Live Wazuh-to-assistant integration and production RBAC remain documented target-state work, not completed features.
+**Current status:** Complete and submitted. The SOC build, detections, dashboards, playbooks, assistant, Paste & inspect, frozen-corpus evaluation, grounding review, technical report and defense presentation are all delivered. Live Wazuh-to-assistant integration and production RBAC remain documented target-state work, not completed features.
 
-For the complete methodology, evidence index, limitations and results, see the [technical report](report.md).
+For the complete methodology, evidence index, limitations and results, see the **[technical report](report.md)**. The **[defense presentation](docs/AlertMind_Defense.pdf)** summarises the build, the four measured findings and the deployment recommendation in 14 slides.
 
 ## What was delivered
 
@@ -17,7 +17,7 @@ For the complete methodology, evidence index, limitations and results, see the [
 | Detection engineering | 24 custom Wazuh rules verified firing: Linux `100100–100116` and Windows `100200–100206`; built-in rule 61138 covers Windows service creation |
 | ATT&CK coverage | Execution, persistence, credential access, privilege escalation, defense evasion, lateral movement, exfiltration and command-and-control scenarios |
 | Dashboards | Daily SOC Briefing and ATT&CK Heatmap, exported as Wazuh `.ndjson` objects under `siem/dashboards/` |
-| IR playbooks | Phishing, malware and account-compromise playbooks aligned to NIST SP 800-61r2 |
+| IR playbooks | Phishing, malware and account-compromise playbooks following the NIST SP 800-61r2 four-phase lifecycle, as specified by the capstone brief |
 | LLM assistant | Python/Streamlit assistant with local, hosted and deterministic mock providers; strict JSON output, redaction, views, audit logging and scoring |
 | Paste & inspect | Ad hoc JSON-alert triage with limits, redaction trace, injection markers, boundary gate, endpoint-aware consent and sanitized proof/audit output |
 | Evaluation | Frozen 20-alert corpus: 14 controlled attacks plus 6 historical benign false positives; paired timing, automated scoring and manual grounding review |
@@ -26,21 +26,11 @@ For the complete methodology, evidence index, limitations and results, see the [
 
 The lab VMs share an isolated VirtualBox NAT network (`LabNet`, `10.0.2.0/24`). The SIEM has a Host-Only adapter for dashboard access. The assistant is not inline with detection or enforcement.
 
-```mermaid
-flowchart LR
-    WIN["Windows 11<br/>Sysmon + Wazuh agent"] -->|events| SIEM["Wazuh manager<br/>indexer + dashboard"]
-    LIN["Ubuntu<br/>auditd + Wazuh agent"] -->|events| SIEM
-    ATT["Controlled attack simulation"] -.-> WIN
-    ATT -.-> LIN
-    SIEM --> DASH["SOC dashboards"]
+![AlertMind architecture and trust boundary — detection plane above, draft-only assistant plane below](architecture/architecture-trust-boundary.png)
 
-    CORPUS["Frozen corpus or<br/>analyst-pasted alert"] --> ASSIST["AlertMind assistant<br/>redact → view → inspect → LLM → validate"]
-    ASSIST --> DRAFT["DRAFT output<br/>mandatory analyst review"]
+**Solid** lines are implemented flows, **dashed** lines are planned target state, and **dotted** lines are simulated adversary activity. Full architecture, log sources, retention and the RBAC model: **[`architecture/soc-architecture.md`](architecture/soc-architecture.md)** · editable diagram source [`architecture/diagram.drawio`](architecture/diagram.drawio) → [`architecture/diagram.png`](architecture/diagram.png).
 
-    SIEM -. "planned: alert-scoped read-only API" .-> ASSIST
-```
-
-Current assistant inputs are the frozen corpus and analyst-pasted JSON. The dotted Wazuh API path is the production target and is **not yet implemented**. Correspondingly, the target identities `socanalyst` and `assistant-svc` remain planned; the lab currently uses `admin` for setup and validation.
+Current assistant inputs are the frozen corpus and analyst-pasted JSON. The dashed Wazuh API path is the production target and is **not yet implemented**. Correspondingly, the target identities `socanalyst` and `assistant-svc` remain planned; the lab currently uses `admin` for setup and validation.
 
 ## Key measured findings
 
@@ -57,7 +47,7 @@ The project deliberately separates detection latency from analyst triage time:
 | Benign false positives, assistant disposition wrong | 6 | 5.58 min | 7.70 min | **+38%**; paired median cost **+1.68 min** |
 | All alerts | 20 | 10.50 min | 8.00 min | Aggregate −24% hides the opposite class effects |
 
-Analyst disposition accuracy stayed **20/20** in both passes because every incorrect assistant disposition was overridden. This demonstrates that human review worked in this single-analyst study, but also that review has a measurable cost.
+Analyst disposition accuracy stayed **20/20** in both passes because every incorrect assistant disposition was independently reviewed and corrected by the analyst. This demonstrates that human review worked in this single-analyst study, but also that review has a measurable cost. No formal or audited override mechanism was implemented.
 
 ### Strict label-reduced assistant comparison
 
@@ -109,12 +99,12 @@ Paste & inspect is an operational demonstration and was excluded from the frozen
 
 ### Guardrail claims and boundaries
 
-- **No autonomous action:** the model has no tools, enforcement path or write capability; every result is a draft requiring analyst review.
+- **No autonomous action:** the model has no Wazuh write/action path, no response tools and no enforcement integration; every result is a draft requiring analyst review.
 - **Redaction first:** tested credential classes and sensitive-key values are removed before prompt construction. File hashes remain available as investigation IOCs.
 - **Redaction is risk reduction:** unknown, encoded or unlabelled secrets remain residual risk.
 - **Prompt-injection handling:** tested instruction markers are surfaced from JSON keys and values, and reserved `<ALERT_DATA>` delimiter attempts are blocked before a model call.
 - **No general injection-prevention claim:** other marked text may still reach the model as evidence inside an untrusted-data block and may influence its reasoning. Schema validation checks structure, not correctness.
-- **Impact containment:** redacted input, no tools/write capability, draft-only output and mandatory review limit the consequence of a bad response.
+- **Impact containment:** redacted input, no Wazuh write/action path, no response tools, no enforcement integration, draft-only output and mandatory review limit the consequence of a bad response.
 - **Endpoint-aware consent:** non-loopback model endpoints require explicit consent before alert data is sent externally.
 - **Sanitized ad hoc evidence:** raw pasted input is not persisted; proof and audit records store sanitized data and a correlation hash. Optional trace correlation uses keyed HMAC via `ALERTMIND_TRACE_HMAC_KEY`.
 - **Auditability:** batch calls record model/configuration, prompt and redaction hashes, latency, parse status, usage and raw/parsed responses in non-overwriting run directories.
@@ -122,24 +112,51 @@ Paste & inspect is an operational demonstration and was excluded from the frozen
 ## Repository map
 
 ```text
-project-alertmind/
-├── README.md                         # repository landing page
-├── report.md                         # final technical report and evidence index
-├── WEEKLOG.md                        # implementation chronology
-├── assistant/                        # assistant package, Paste & inspect UI, tests, run logs
+alertmind/
+├── README.md                          # this file — repository landing page
+├── report.md                          # final technical report and evidence index
+├── WEEKLOG.md                         # week-by-week implementation chronology
+├── .gitignore                         # excludes .env, venvs and runtime ad hoc audit output
+│
+├── architecture/
+│   ├── soc-architecture.md            # authoritative architecture: flows, retention, RBAC, trust boundary
+│   ├── diagram.drawio                 # editable source
+│   └── diagram.png                    # rendered diagram
+│
+├── assistant/                         # assistant package, Paste & inspect UI, tests, run logs
+│                                      # (see assistant/README.md for module-level detail)
+│
 ├── detections/
-│   ├── auditd/alertmind.rules        # Linux collection rules
-│   └── sigma/notes.md                # Sigma-to-Wazuh crosswalk and tuning notes
+│   ├── auditd/alertmind.rules         # Linux auditd collection rules
+│   └── sigma/
+│       ├── linux/ · windows/          # 25 portable Sigma YAML sources
+│       └── notes.md                   # Sigma-to-Wazuh crosswalk and tuning notes
+│
 ├── siem/
-│   ├── wazuh/                        # deployed Wazuh/Sysmon configuration exports
-│   └── dashboards/                   # final and earlier dashboard exports
-├── playbooks/                        # phishing, malware, account-compromise
+│   ├── wazuh/local_rules.xml          # 24 deployed custom Wazuh rules
+│   └── dashboards/*.ndjson            # ATT&CK Heatmap · Daily SOC Briefing exports
+│
+├── attack/
+│   └── runbook.md                     # per-rule trigger commands, provenance and teardown
+│
+├── playbooks/                         # phishing · malware · account-compromise (NIST 800-61r2)
+│
 ├── measurement/
-│   ├── alert-corpus.json             # frozen 20-alert corpus
-│   ├── timing-log*.csv               # unassisted and assisted timing
-│   ├── analysis.ipynb                # re-runnable metric derivation
-│   └── grounding/                    # manual free-text review worksheets
-└── evidence/                         # screenshots and command-output evidence
+│   ├── alert-corpus.json              # frozen 20-alert corpus (hash below)
+│   ├── timing-log.csv                 # unassisted and assisted triage timings
+│   ├── assisted-timing-protocol.md    # timing protocol and its threats to validity
+│   ├── analysis.ipynb                 # re-runnable metric derivation
+│   └── grounding/                     # manual free-text review worksheets and rubric
+│
+├── docs/
+│   ├── AlertMind_Defense.pdf          # defense presentation (14 slides)
+│   ├── rebuild-guide.md               # rebuild the lab from a clean clone
+│   ├── artifacts.md                   # artifact index
+│   └── runbooks/
+│       ├── wazuh-recovery.md          # SIEM recovery after host failure
+│       └── wazuh-password-reset.md    # credential reset procedure
+│
+└── evidence/                          # screenshots and command-output evidence (EVID-* IDs)
 ```
 
 ## Run the assistant
@@ -160,11 +177,11 @@ python runner.py --provider mock --view operational --limit 1
 python -m streamlit run app.py
 ```
 
-Run with local Ollama:
+Run with local Ollama (use the **exact** tag from `ollama list` — `llama3.1:8b`, with the colon):
 
 ```powershell
-python preflight.py --provider ollama --model llama3.1
-python runner.py --provider ollama --model llama3.1 --view evaluation
+python preflight.py --provider ollama --model llama3.1:8b
+python runner.py --provider ollama --model llama3.1:8b --view evaluation
 ```
 
 Run with the pinned hosted model:
@@ -190,7 +207,9 @@ python -m unittest discover -s tests -p "test_*.py"
 
 The current suite contains **58 tests** covering provider request construction, schema/error metadata, redaction, strict-view label leakage, injection markers, boundary blocking, consent, ad hoc audit semantics and Streamlit state handling.
 
-Reproduce the analysis by running [`measurement/analysis.ipynb`](measurement/analysis.ipynb) top to bottom. Grounding worksheets and reviewer notes are under [`measurement/grounding/`](measurement/grounding/). The main result-bearing run directories are:
+**Rebuilding the lab from a clean clone:** follow [`docs/rebuild-guide.md`](docs/rebuild-guide.md). Recovery and credential-reset procedures are in [`docs/runbooks/`](docs/runbooks/), and [`docs/artifacts.md`](docs/artifacts.md) indexes the produced artifacts.
+
+Reproduce the analysis by running [`measurement/analysis.ipynb`](measurement/analysis.ipynb) top to bottom; it derives MTTD directly from the frozen-corpus timestamps, so the reported 2.32 s is re-derivable without any model access. The timing protocol and its limitations are in [`measurement/assisted-timing-protocol.md`](measurement/assisted-timing-protocol.md). Grounding worksheets and reviewer notes are under [`measurement/grounding/`](measurement/grounding/). The main result-bearing run directories are:
 
 - `assistant/outputs/runs/20260718_180713_ollama_eval_baseline/`
 - `assistant/outputs/runs/20260718_183704_openai_eval_baseline/`
@@ -199,6 +218,9 @@ Reproduce the analysis by running [`measurement/analysis.ipynb`](measurement/ana
 
 ## Detection and response content
 
+- Architecture and trust boundary: [`architecture/soc-architecture.md`](architecture/soc-architecture.md)
+- Attack-simulation runbook — per-rule trigger commands, provenance labels and teardown: [`attack/runbook.md`](attack/runbook.md)
+- Portable Sigma sources (25 rules): [`detections/sigma/linux/`](detections/sigma/linux/) · [`detections/sigma/windows/`](detections/sigma/windows/)
 - Detection crosswalk and tuning decisions: [`detections/sigma/notes.md`](detections/sigma/notes.md)
 - Linux auditd collection: [`detections/auditd/alertmind.rules`](detections/auditd/alertmind.rules)
 - Deployed Wazuh rules: [`siem/wazuh/local_rules.xml`](siem/wazuh/local_rules.xml)
@@ -216,7 +238,8 @@ Reproduce the analysis by running [`measurement/analysis.ipynb`](measurement/ana
 - Prompt-injection markers provide detection and visibility; only reserved-boundary attempts are deterministically blocked. Semantic model influence remains possible.
 - RBAC identities `socanalyst` and `assistant-svc` and live read-only Wazuh API ingestion remain target-state work.
 - High-confidence injection quarantine with an explicit audited override remains future work.
-- Live cloud ingestion is an optional stretch goal; the project uses the required Windows and Linux sources.
+- Live cloud ingestion is an optional stretch goal; the project uses the required Windows and Linux sources. A static cloud sample was demonstrated only.
+- The IR playbooks follow NIST SP 800-61r2, which was superseded by r3 in April 2025; migration to the r3 CSF-aligned structure is follow-on work.
 
 ## Responsible AI, ethics and attribution
 
@@ -227,7 +250,8 @@ The alert-summarization starting point was adapted from the author's prior [AI-S
 ## References
 
 - [MITRE ATT&CK](https://attack.mitre.org/)
-- [NIST SP 800-61r2](https://csrc.nist.gov/pubs/sp/800/61/r2/final)
+- [NIST SP 800-61r2](https://csrc.nist.gov/pubs/sp/800/61/r2/final) — the four-phase lifecycle the playbooks follow, as specified by the brief
+- [NIST SP 800-61r3](https://csrc.nist.gov/pubs/sp/800/61/r3/final) — superseded r2 in April 2025 and restructures incident response around the CSF 2.0 functions; migrating the playbooks is documented follow-on work
 - [NIST Cybersecurity Framework 2.0](https://www.nist.gov/cyberframework)
 - [Wazuh documentation](https://documentation.wazuh.com/)
 
