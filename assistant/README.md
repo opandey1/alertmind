@@ -1,8 +1,6 @@
 # AlertMind — LLM Tier-1 SOC Assistant
 
-Given a single Wazuh alert, this assistant produces four things to speed up Tier-1 triage:
-
-1. a **5-line summary**, 2. a **MITRE ATT&CK technique tag**, 3. **suggested investigation queries**, and 4. a **draft message** to the affected user.
+Given a single Wazuh alert, the assistant returns a structured triage draft containing a summary, ATT&CK classification, disposition and confidence, investigation queries, a draft user message and caveats.
 
 It is built to be **safe** (secrets redacted before the model; alert content treated as untrusted), **honest** (technique/disposition scored separately against ground truth, with an evaluation view that removes the answer from the input), and **reproducible** (an offline `mock` provider runs the whole thing with zero setup).
 
@@ -12,6 +10,8 @@ It is built to be **safe** (secrets redacted before the model; alert content tre
 
 ## 1. Pipeline
 
+**Batch evaluation path** (the measured artifact):
+
 ```
 alert ─▶ redact ─▶ apply view ─▶ build prompt ─▶ call LLM ─▶ parse ─▶ validate ─▶ log ─▶ score
         redact.py   views.py      prompts.py      llm.py      llm.py   schema.py  runner  scoring.py
@@ -20,34 +20,72 @@ alert ─▶ redact ─▶ apply view ─▶ build prompt ─▶ call LLM ─▶
       (pre-prompt)  in/out       ALERT_DATA block                                    audit dir
 ```
 
+**Ad hoc path** (Paste & inspect, §4a) — shares the redaction implementation and the model
+boundary, but is *not* the same pipeline; it adds input limits, a redaction trace, injection
+visibility, delimiter blocking and egress consent, and it does not score:
+
+```
+pasted JSON ─▶ limits ─▶ redact+trace ─▶ apply view ─▶ scan keys/values ─▶ boundary gate
+            ─▶ egress consent ─▶ one call ─▶ validate ─▶ DRAFT + optional sanitised audit
+```
+
 ## 2. Guardrails
 
 | Guardrail | Enforcement |
 |---|---|
-| **No secrets to the model** | `redact_alert()` runs before any prompt. Proven by `tests/test_redact.py` → `outputs/redaction_proof.md`. Scope is *tested credential classes*, not a claim of completeness (see §6). |
+| **Tested secrets redacted before the model** | `redact_alert()` runs before any prompt is built, so downstream stages only ever see redacted content. Evidenced by `tests/test_redact.py` → `outputs/redaction_proof.md` (0/7 planted values survived). Scope is *tested credential classes*, not completeness (see §6). |
 | **No autonomous action** | The model has no tools — text only. System prompt forbids recommending auto-execution; every output stamped `analyst_review_required: true`. |
-| **Prompt-injection resistance** | Alert wrapped in an `<ALERT_DATA>` untrusted-data block; system prompt says never obey instructions inside it. Proven by `tests/test_injection.py` → `outputs/injection_proof.md`. |
+| **Injection visibility & containment** | Alert wrapped in an `<ALERT_DATA>` untrusted-data block; the system prompt says analyse, never obey. `injection.py` surfaces tested instruction-shaped markers in **both keys and values**. This is detection, **not prevention** — other marked content still reaches the model and may influence it. Impact is contained by redaction, no tools, draft-only output and analyst review. One recorded run (`tests/test_injection.py` → `outputs/injection_proof.md`) shows the model not complying with the planted instruction; that is an observation, not a general guarantee. |
+| **Reserved-delimiter boundary gate** | A literal `<ALERT_DATA>`/`</ALERT_DATA>` in any model-bound **key or value** blocks the call before the provider path. The gate independently serialises the complete object, so it does not depend on the marker scan being complete. `tests/test_injection_markers.py`. |
+| **Egress consent** | Any non-loopback endpoint requires explicit confirmation bound to the current input, provider, model and endpoint. Mock and verified loopback endpoints proceed without external-egress consent. `tests/test_paste_pipeline.py`. |
 | **Human review** | All output is DRAFT; the UI shows a review banner and an editable draft message. |
-| **Output validated** | `schema.py` checks required keys, types, allowed dispositions/confidence, ATT&CK-ID syntax, `<=5` summary lines. Invalid output is recorded, not silently scored. |
-| **Full, persistent logging** | Each run writes `outputs/runs/<run_id>/audit-log.jsonl`: timestamp, provider, model, view, prompt/redaction versions, git commit, input/redacted-prompt/response hashes, latency, parse status, the redacted prompt sent, and the parsed output. Runs never overwrite each other. |
+| **Output validated** | `schema.py` checks required keys, types, allowed dispositions/confidence, ATT&CK-ID syntax and `<=5` summary lines. The prompt requests 2–3 investigation queries; the validator accepts 1–4. Invalid output is recorded, not silently scored. |
+| **Full, persistent batch logging** | Each run writes `outputs/runs/<run_id>/audit-log.jsonl` with **25 fields** per call: timestamp, provider, model *requested* and `model_actual` served, view, prompt/redaction version hashes, git commit, input/prompt/response hashes, the redacted prompt sent, raw and parsed output, latency, parse status, schema errors, the effective `request_config`, `response_id`, `system_fingerprint`, `finish_reason` and token `usage`. Runs never overwrite each other; `rebuild_from_audit.py` regenerates outputs from the audit log and reconstructs scoring using timing-log ground truth, without another model call. |
+| **Sanitised ad hoc audit** | Paste & inspect saves one record only on explicit request, idempotent by result ID. Raw pasted input is never persisted; `schema_valid` is tri-state (`null` when a call was blocked or not evaluated) and `call_status` records why. `tests/test_adhoc_audit.py`. |
 | **Measured, not hidden** | `assistant_scoring.csv` scores technique (exact + relaxed), disposition, and consistency separately vs ground truth. |
 
 ## 3. Files
 
 ```
 assistant/
-├── redact.py        prompts.py     llm.py       runner.py    app.py
-├── views.py         # operational vs evaluation view of the alert
-├── scoring.py       # separated technique / disposition / consistency metrics
-├── schema.py        # output schema validation
+├── runner.py            # batch pipeline + CLI (--provider/--model/--view/--prompt/--corpus/--limit)
+├── app.py               # Streamlit UI — Triage · Paste & inspect · Evaluator modes
+├── preflight.py         # provider connectivity diagnostic (fails fast, prints effective config)
+├── rebuild_from_audit.py# regenerate outputs + scoring from an audit log, no model re-run
+│
+├── redact.py            # secret stripping; redact_alert() and redact_alert_with_trace()
+├── views.py             # operational vs strict label-reduced evaluation view
+├── prompts.py           # system prompts + ALERT_DATA untrusted-data wrapper
+├── llm.py               # providers: mock / ollama / openai / anthropic; .env loader; tolerant parse
+├── schema.py            # output schema validation
+├── scoring.py           # separated technique / disposition / consistency metrics
+│
+├── paste_core.py        # Paste & inspect pipeline (pure, no Streamlit import — unit-tested)
+├── paste_tab.py         # Paste & inspect Streamlit render
+├── injection.py         # instruction-marker scan + reserved-delimiter boundary gate
+├── samples.py           # synthetic demo fixtures (planted secrets / planted injection)
+├── audit.py             # shared audit-record contract + idempotent JSONL append
+├── ui_helpers.py        # side-effect-free presentation helpers
+│
 ├── requirements.txt · .env.example
-├── tests/
-│   ├── test_redact.py       # redaction proof (plants secrets, asserts none leak)
-│   ├── test_injection.py    # prompt-injection resistance proof
-│   └── test_llm_providers.py # offline endpoint/payload regression tests
+├── README.md · DESIGN_AND_CHANGELOG.md   # design decisions, review log, Q&A
+│
+├── tests/               # 58 unittest methods across 9 files
+│   ├── test_redact.py            # redaction proof (plants secrets, asserts none leak)
+│   ├── test_redaction_trace.py   # trace masks values; proof and production paths cannot diverge
+│   ├── test_injection.py         # recorded injection scenario (mock + real provider)
+│   ├── test_injection_markers.py # marker scan, corpus false-positive check, boundary blocking
+│   ├── test_views_leakage.py     # strict view: 0/20 alerts leak a technique code
+│   ├── test_paste_pipeline.py    # limits, parse modes, boundary gate, consent, no raw storage
+│   ├── test_adhoc_audit.py       # one record, idempotent, sanitised, tri-state schema_valid
+│   ├── test_paste_ui.py          # Streamlit state handling (uses AppTest; no live server required)
+│   └── test_llm_providers.py     # offline endpoint/payload regression tests
+│
 └── outputs/
     ├── redaction_proof.md · injection_proof.md
-    └── runs/<run_id>/       # assistant_outputs.json, assistant_scoring.csv, audit-log.jsonl
+    ├── paste_demo_redaction_proof.md · paste_demo_injection_proof.md
+    ├── runs/<run_id>/   # assistant_outputs.json, assistant_scoring.csv, audit-log.jsonl
+    └── adhoc/           # ad hoc audit records (gitignored — runtime output, not evidence)
 ```
 
 ## 4. Run it
@@ -55,11 +93,12 @@ assistant/
 ```bash
 cd assistant
 pip install -r requirements.txt
+python -m unittest discover -s tests -p "test_*.py"   # full suite — 58 tests
 python tests/test_redact.py                       # redaction proof (non-zero exit if a secret leaks)
-python tests/test_injection.py                    # injection proof (mock resists by construction)
+python tests/test_injection.py                    # recorded injection scenario (mock)
 python runner.py --provider mock --view operational
 python runner.py --provider mock --view evaluation
-streamlit run app.py                              # analyst UI (Analyst / Evaluator modes)
+streamlit run app.py                              # UI: Triage · Paste & inspect · Evaluator
 ```
 
 Real model (this is what the measurement uses), e.g. local Ollama:
@@ -122,13 +161,13 @@ short timeout — so a misconfiguration fails in ~20s instead of hanging 300s pe
 - Use the **exact** Ollama tag (`ollama list` / `GET /v1/models`): `llama3.1:8b`, or `llama4:latest` — *with a colon*. `llama4-latest` (hyphen) returns a 404.
 - Keep provider base URLs at the API root: `https://api.openai.com/v1`, not
   `.../v1/responses` or `.../v1/chat/completions`.
-- Prefer a **small, fast** model for a 20-alert experiment. `llama3.1:8b` runs in seconds locally; large MoE models like `llama4` are impractically slow and will hit the timeout. Raise `ALERTMIND_LLM_TIMEOUT` only if you truly need a big model.
+- Prefer a **small, fast** model for a 20-alert experiment. `llama3.1:8b` took approximately 60 seconds per alert on the measured laptop CPU; performance is hardware-dependent. Large MoE models like `llama4` are impractically slow in this lab and will hit the timeout. Raise `ALERTMIND_LLM_TIMEOUT` only if you truly need a big model.
 
 ## 4a. Paste & inspect (local diagnostic)
 
-A second Streamlit tab, **🧪 Paste & inspect**, runs arbitrary *synthetic or approved* telemetry (JSON or plain text) through the **same** path as batch triage: `redact_alert_with_trace → apply_view → injection scan → boundary gate → prompt → one model call → schema`. It exists to make the redaction and injection claims inspectable live, not just via offline proof files.
+A second Streamlit tab, **🧪 Paste & inspect**, runs arbitrary *synthetic or approved* telemetry (JSON or plain text) through `redact_alert_with_trace → apply_view → injection scan → boundary gate → prompt → one model call → schema`. It **shares the batch path's redaction implementation and model boundary, but is not the same pipeline** — it adds input limits, a redaction trace, injection visibility, delimiter blocking, egress consent and explicit one-shot audit persistence, and it does not score. It exists to make the redaction and injection claims inspectable live, not just via offline proof files.
 
-- **Local, single-user only.** Bind to localhost. Not production- or multi-user-safe until the RBAC plan (`siem/rbac/…`, documented target state) is implemented.
+- **Local, single-user only.** Bind to localhost. Not production- or multi-user-safe until the RBAC plan is implemented (documented target state — see `architecture/soc-architecture.md` §8; only `admin` exists today).
 - **Input limits:** ≤ 50,000 chars, depth ≤ 20, ≤ 10,000 nodes.
 - **Hard boundary gate:** a literal `<ALERT_DATA>`/`</ALERT_DATA>` delimiter in any model-bound key or value **blocks the call**. Enforcement independently checks the complete serialized object immediately before the provider path.
 - **Egress consent:** every non-loopback model endpoint requires an explicit confirmation bound to the current input, provider, model and endpoint. Mock and verified loopback endpoints do not require external-egress consent.
@@ -144,7 +183,9 @@ New modules: `paste_core.py` (pure pipeline, unit-tested), `paste_tab.py` (Strea
 The corpus alert carries the rule's own ATT&CK label (`mitre.id`, and the T-code inside `rule_description`). If the model sees them, "did it return the right technique" only tests whether it can **copy** the label.
 
 - **operational** — full alert incl. the rule's metadata. Realistic for a Wazuh-integrated assistant. The technique metric here is **ATT&CK metadata consistency**, not classification.
-- **evaluation** — strips `mitre`, `rule_id`, and every T-code, so the model must infer from raw process/file/registry/audit fields. This is the defensible **classification accuracy** measurement.
+- **evaluation** — a **strict label-reduced** view. It removes the detection-authored label fields (`mitre`, `rule_id`, `rule_description`, `evidence_file`) and the `audit.key` detection label, strips technique codes from remaining strings, and drops any other key-shaped field *only when its value is itself a technique code* — so legitimate raw evidence such as a `registry.key` survives. The model must infer from raw process/file/registry/audit fields. This is the defensible **classification accuracy** measurement, and `tests/test_views_leakage.py` asserts that no technique code survives in any of the 20 corpus alerts.
+
+> An earlier version of this view still leaked labels through `audit.key` and `rule_description`. The figures reported in `report.md` come from the corrected, test-verified view; the correction is documented in `DESIGN_AND_CHANGELOG.md`.
 
 The mock makes the point concretely: **operational 14/20 overall → evaluation 0/20** (technique 6/20), because the mock only copies the label and cannot classify once it is removed.
 
@@ -156,8 +197,9 @@ The redaction layer removes tested classes of common credentials (passwords, AWS
 
 - **Separated metrics** (`scoring.py`): `technique_exact`, `technique_relaxed` (parent/sub), `disposition_correct`, `response_consistent`, `overall`. A right technique with a contradictory benign disposition is no longer scored correct.
 - **Analyst vs Evaluator UI modes**: Analyst mode hides ground truth (use during the assisted timing run); Evaluator mode reveals scoring (use only after).
-- **Learning effect**: the assisted pass re-triages a **counterbalanced A/B split with a washout period**, and the residual learning effect is reported as a limitation.
+- **Learning effect**: the assisted pass re-triages the **same corpus after a washout, in randomised order**. This is *not* a counterbalanced crossover, and the residual learning effect is reported as a limitation. The bias points toward an apparent speed-up, so it cannot explain the observed slowdown on false positives.
+- **Grounding review**: automated scoring covers only the technique tag and disposition. A single-reviewer manual rubric scored the summary, investigation queries and draft message across all 20 operational outputs per model on six dimensions; worksheets are in `measurement/grounding/`.
 
 ## 8. Attribution
 
-Alert-summarization core adapted from the author's prior **[AI-SOC-Assistant](https://github.com/opandey1/AI-SOC-Assistant)** (reuse permitted; disclosed). New for AlertMind: redaction, views, prompt library + injection defence, schema validation, audit logging, scoring, provider abstraction, corpus runner, and the Streamlit UI.
+Alert-summarization core adapted from the author's prior **[AI-SOC-Assistant](https://github.com/opandey1/AI-SOC-Assistant)** (reuse permitted; disclosed). New for AlertMind: redaction (with trace), strict label-reduced views, the prompt library and untrusted-data boundary, injection visibility and the delimiter gate, schema validation, audit logging, separated scoring, provider abstraction, the corpus runner, Paste & inspect, and the Streamlit UI.
