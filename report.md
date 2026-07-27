@@ -3,7 +3,7 @@
 
 **Author:** Ojas Pandey · **Mode:** Solo · **Track:** EC-Council SOC Essentials (SCE) · **Project:** CAP-SCE-3W
 **Program:** PG Certificate in AI/GenAI Powered Cybersecurity — IIT Roorkee × Futurense, Cohort 1
-**Repository:** https://github.com/opandey1/alertmind · **Report length target:** 15 pages (confirmed with the programme)
+**Repository:** https://github.com/opandey1/alertmind 
 
 ---
 
@@ -49,7 +49,7 @@ A growing SaaS company's three-person SOC processes ~1,200 alerts per day at a m
 
 The lab runs on VirtualBox with all VMs on an isolated NAT Network (`LabNet`, 10.0.2.0/24); the physical Windows host is hypervisor-only and never monitored. The SIEM host (`wazuh-siem`) carries a second Host-Only adapter for dashboard access. Telemetry flows: endpoint agent → `wazuh-remoted` (1514) → `wazuh-analysisd` (decode + rules) → `alerts.json` → Filebeat → indexer → dashboard. Detections are authored in Sigma (source of truth) and converted to Wazuh rules. The measured assistant is **not connected to Wazuh**: it consumes the frozen corpus or analyst-pasted JSON. The documented production target is pull-based, read-only Wazuh API ingestion through an `assistant-svc` identity; the assistant never sits inline with enforcement.
 
-*See `architecture/diagram.drawio` / `diagram.png` for the topology and data-flow diagram.*
+*See `architecture / diagram.drawio / diagram.png / architecture-trust-boundary.png` for the topology and data-flow diagram.*
 
 **Design principles:** high-signal-over-high-volume collection, portable (Sigma-first) detections, least privilege including the assistant, config-as-code reproducibility, and separation of detection latency from triage time as distinct metrics.
 
@@ -61,13 +61,13 @@ The lab runs on VirtualBox with all VMs on an isolated NAT Network (`LabNet`, 10
 
 **Endpoints onboarded.** (All endpoints verified with evidence unless noted.)
 
-| Source | Host | Channel / path | Format | Status |
-|---|---|---|---|---|
-| Sysmon | `win-victim` | `Microsoft-Windows-Sysmon/Operational` | eventchannel | ✅ (EVID-WIN-001) |
-| Windows System | `win-victim` | `System` (EID 7045) | eventchannel | ✅ (EVID-WIN-002) |
-| Windows Security | `win-victim` | `Security` (EID 4697) | eventchannel | 🟡 Configured; verification pending |
-| auditd | `linux-victim` | `/var/log/audit/audit.log` | audit | ✅ (EVID-LIN-002) |
-| Cloud trail | manager | sample → custom decoder | json | Sample ingested |
+| Source           | Host           | Channel / path                         | Format       | Status           |
+| ---------------- | -------------- | -------------------------------------- | ------------ | ---------------- |
+| Sysmon           | `win-victim`   | `Microsoft-Windows-Sysmon/Operational` | eventchannel | ✅ (EVID-WIN-001) |
+| Windows System   | `win-victim`   | `System` (EID 7045)                    | eventchannel | ✅ (EVID-WIN-002) |
+| Windows Security | `win-victim`   | `Security` (EID 4697)                  | eventchannel | ✅ (EVID-WIN-010) |
+| auditd           | `linux-victim` | `/var/log/audit/audit.log`             | audit        | ✅ (EVID-LIN-002) |
+| Cloud trail      | manager        | sample → custom decoder                | json         | Sample ingested  |
 
 **A reproducibility-relevant fix.** The Linux agent does not read `audit.log` by default; an explicit `audit` `localfile` block was required. Before this, only the journald copy of events was ingested (low fidelity) and auditd SYSCALL records never reached the manager. This is documented so the lab is rebuildable without rediscovering it.
 
@@ -377,37 +377,38 @@ No real credentials, customer data, or copyrighted content was provided to any m
 ### A. Evidence index
 Every ✅ claim in this report maps to a captured artifact. (Consistent with README §7a.)
 
-| Evidence ID | What it proves | File / screenshot |
-|---|---|---|
-| EVID-WAZUH-001 | Wazuh services + ports healthy | `evidence/week1/wazuh-services-ports.png` |
-| EVID-WIN-001 | Sysmon EID 1 process creation ingested | `evidence/week1/win-sysmon-eid1-whoami.png` |
-| EVID-WIN-002 | Windows service creation (7045 → rule 61138, T1543.003) | `evidence/week1/win-system-7045-service.png` |
-| EVID-LIN-001 | Linux user creation detected | `evidence/week1/linux-useradd-t1136.png` |
-| EVID-LIN-002 | auditd `/etc/shadow` rule 100100 fired (T1003.008) | `evidence/week1/linux-shadow-t1003-008.png` |
-| EVID-LIN-004 | User/group DB modification, rule 100101 (T1136 / T1098) | `evidence/week2/lin_100101-useradd-T1136-T1098.png` |
-| EVID-LIN-005 | sudoers tampering, rule 100102 (T1548.003) | `evidence/week2/lin_100102-priv_escalation-T1548_003.png` |
-| EVID-LIN-006 | Cron persistence, rule 100103 (T1053.003) | `evidence/week2/lin_100103-scheduled_task-T1053_003.png` |
-| EVID-LIN-007 | systemd persistence, rule 100104 (T1543.002) | `evidence/week2/lin_100104-systemd_persistence-T1543_002.png` |
-| EVID-LIN-008 | Init-script modification, rule 100105 (T1037) | `evidence/week2/lin_100105-init_script_modification-t1037.png` |
-| EVID-LIN-009 | Shell-init modification, rule 100106 (T1546.004) | `evidence/week2/lin_100106-shell_init-T1546_004.png` |
-| EVID-LIN-010 | LD_PRELOAD hijack (ld.so.preload), rule 100107 (T1574.006) | `evidence/week2/lin_100107-ld_preload-T1574_006.png` |
-| EVID-LIN-011 | Kernel module / LKM rootkit, rule 100108 (T1547.006 / T1014) | `evidence/week2/lin_100108-lkm_rootkit-T1547_006-T1014.png` |
-| EVID-LIN-012 | setuid/setgid change, rule 100109 (T1548.001 / T1222.002) | `evidence/week2/lin_100109-setuid_bit_change-T1548_001.png` |
-| EVID-LIN-013 | auditd config tampering, rule 100110 (T1562.001) | `evidence/week2/lin_100110-auditd_config_T1562_001.png` |
-| EVID-LIN-014 | Session-log tampering, rule 100111 (T1070) | `evidence/week2/lin_100111-session_log_modification-t1070.png` |
-| EVID-LIN-015 | Timestomping, rule 100112 (T1070.006) | `evidence/week2/lin_100112-timestamp_modification-t1070_006.png` |
-| EVID-LIN-016 | SSH key access, rule 100113 (T1552.004) | `evidence/week2/lin_100113-authorized_keys_access-t1552_004.png` |
-| EVID-LIN-017 | sshd_config change, rule 100114 (T1098 broad) | `evidence/week2/lin_100114-sshd_access-t1098.png` |
-| EVID-LIN-018 | Package/repo config change, rule 100115 (T1195.001) | `evidence/week2/lin_100115-update_repo_config-t1195_001.png` |
-| EVID-LIN-003 | SSH `authorized_keys` persistence, rule 100116 fired (T1098.004) | `evidence/week2/linux-authorized-keys-t1098-004.png` |
-| EVID-WIN-003 | Encoded PowerShell, rule 100201 fired (T1059.001) | `evidence/week2/win_100201-powershell-T1059-001.png` |
-| EVID-WIN-004 | LOLBin execution, rule 100202 fired (T1218) | `evidence/week2/win_100202-lolbin-T1218.png` |
-| EVID-WIN-005 | Run-key persistence, rule 100205 fired (T1547.001) | `evidence/week2/win_100205-runkey-T1547-001.png` |
-| EVID-WIN-006 | LSASS dump-grade access, rule 100203 fired (T1003.001) | `evidence/week2/win_100203-Lsass_Access-T1003_001.png` |
-| EVID-RULES-001 | `local_rules.xml` validates + loads clean | `evidence/week1/wazuh-rules-load.png` |
-| EVID-WIN-007 | Office spawns shell, rule 100200 fired (T1566 / T1059) | `evidence/week2/win_100200-office_shell-T1566_T1059.png` |
-| EVID-WIN-008 | PsExec service execution, rule 100204 fired (T1021.002 / T1569.002) | `evidence/week3/win_100204-PsExec-T1021_002.png` |
-| EVID-WIN-009 | DNS tunneling, rule 100206 fired (T1048 /T1071.004) | `evidence/week3/win_100206-DNS_tunneling-T1071_004.png` |
+| Evidence ID    | What it proves                                                      | File / screenshot                                                |
+| -------------- | ------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| EVID-WAZUH-001 | Wazuh services + ports healthy                                      | `evidence/week1/wazuh-services-ports.png`                        |
+| EVID-WIN-001   | Sysmon EID 1 process creation ingested                              | `evidence/week1/win-sysmon-eid1-whoami.png`                      |
+| EVID-WIN-002   | Windows service creation (7045 → rule 61138, T1543.003)             | `evidence/week1/win-system-7045-service.png`                     |
+| EVID-LIN-001   | Linux user creation detected                                        | `evidence/week1/linux-useradd-t1136.png`                         |
+| EVID-LIN-002   | auditd `/etc/shadow` rule 100100 fired (T1003.008)                  | `evidence/week1/linux-shadow-t1003-008.png`                      |
+| EVID-LIN-004   | User/group DB modification, rule 100101 (T1136 / T1098)             | `evidence/week2/lin_100101-useradd-T1136-T1098.png`              |
+| EVID-LIN-005   | sudoers tampering, rule 100102 (T1548.003)                          | `evidence/week2/lin_100102-priv_escalation-T1548_003.png`        |
+| EVID-LIN-006   | Cron persistence, rule 100103 (T1053.003)                           | `evidence/week2/lin_100103-scheduled_task-T1053_003.png`         |
+| EVID-LIN-007   | systemd persistence, rule 100104 (T1543.002)                        | `evidence/week2/lin_100104-systemd_persistence-T1543_002.png`    |
+| EVID-LIN-008   | Init-script modification, rule 100105 (T1037)                       | `evidence/week2/lin_100105-init_script_modification-t1037.png`   |
+| EVID-LIN-009   | Shell-init modification, rule 100106 (T1546.004)                    | `evidence/week2/lin_100106-shell_init-T1546_004.png`             |
+| EVID-LIN-010   | LD_PRELOAD hijack (ld.so.preload), rule 100107 (T1574.006)          | `evidence/week2/lin_100107-ld_preload-T1574_006.png`             |
+| EVID-LIN-011   | Kernel module / LKM rootkit, rule 100108 (T1547.006 / T1014)        | `evidence/week2/lin_100108-lkm_rootkit-T1547_006-T1014.png`      |
+| EVID-LIN-012   | setuid/setgid change, rule 100109 (T1548.001 / T1222.002)           | `evidence/week2/lin_100109-setuid_bit_change-T1548_001.png`      |
+| EVID-LIN-013   | auditd config tampering, rule 100110 (T1562.001)                    | `evidence/week2/lin_100110-auditd_config_T1562_001.png`          |
+| EVID-LIN-014   | Session-log tampering, rule 100111 (T1070)                          | `evidence/week2/lin_100111-session_log_modification-t1070.png`   |
+| EVID-LIN-015   | Timestomping, rule 100112 (T1070.006)                               | `evidence/week2/lin_100112-timestamp_modification-t1070_006.png` |
+| EVID-LIN-016   | SSH key access, rule 100113 (T1552.004)                             | `evidence/week2/lin_100113-authorized_keys_access-t1552_004.png` |
+| EVID-LIN-017   | sshd_config change, rule 100114 (T1098 broad)                       | `evidence/week2/lin_100114-sshd_access-t1098.png`                |
+| EVID-LIN-018   | Package/repo config change, rule 100115 (T1195.001)                 | `evidence/week2/lin_100115-update_repo_config-t1195_001.png`     |
+| EVID-LIN-003   | SSH `authorized_keys` persistence, rule 100116 fired (T1098.004)    | `evidence/week2/linux-authorized-keys-t1098-004.png`             |
+| EVID-WIN-003   | Encoded PowerShell, rule 100201 fired (T1059.001)                   | `evidence/week2/win_100201-powershell-T1059-001.png`             |
+| EVID-WIN-004   | LOLBin execution, rule 100202 fired (T1218)                         | `evidence/week2/win_100202-lolbin-T1218.png`                     |
+| EVID-WIN-005   | Run-key persistence, rule 100205 fired (T1547.001)                  | `evidence/week2/win_100205-runkey-T1547-001.png`                 |
+| EVID-WIN-006   | LSASS dump-grade access, rule 100203 fired (T1003.001)              | `evidence/week2/win_100203-Lsass_Access-T1003_001.png`           |
+| EVID-RULES-001 | `local_rules.xml` validates + loads clean                           | `evidence/week1/wazuh-rules-load.png`                            |
+| EVID-WIN-007   | Office spawns shell, rule 100200 fired (T1566 / T1059)              | `evidence/week2/win_100200-office_shell-T1566_T1059.png`         |
+| EVID-WIN-008   | PsExec service execution, rule 100204 fired (T1021.002 / T1569.002) | `evidence/week3/win_100204-PsExec-T1021_002.png`                 |
+| EVID-WIN-009   | DNS tunneling, rule 100206 fired (T1048 /T1071.004)                 | `evidence/week3/win_100206-DNS_tunneling-T1071_004.png`          |
+| EVID-WIN-010   | Windows service creation (4697)                                     | `evidence/week1/win-system-4697-service.png`                     |
 
 **Assistant, dashboard, playbook and measurement evidence:**
 
@@ -431,17 +432,16 @@ Every ✅ claim in this report maps to a captured artifact. (Consistent with REA
 
 ### A.1 Run manifest (reproducibility)
 
-| Field | llama3.1 (strict-reduced) | gpt-5.5 (strict-reduced) |
-|---|---|---|
-| Provider / model | ollama / llama3.1:8b | openai / gpt-5.5-2026-04-23 (pinned snapshot) |
-| Run ID | `20260718_180713_ollama_eval_baseline` | `20260718_183704_openai_eval_baseline` |
-| View / prompt | evaluation / baseline | evaluation / baseline |
-| Prompt version hash | `23185744b88f77b7` | `23185744b88f77b7` |
-| Redaction version hash | `3a527e33fa159616` | `3a527e33fa159616` |
-| Git commit | `149dcd8447767223b74193779eab85bb417dc748` | (same) |
-| Ollama version | 0.32.1 | n/a (hosted) |
-| Corpus SHA-256 (frozen) | `4e842637f3cbcbb6e0704320824b64bdeb63c7d7ee7e22db0278e4d96c58b929` | (same) |
-| Timing-log SHA-256 | `9ceba8e2468f44e879fa7929e528cfeaaef034ae363ffb66e98f57a21761cb9a` | (same) |
+| Field                   | llama3.1 (strict-reduced)                                          | gpt-5.5 (strict-reduced)                      |
+| ----------------------- | ------------------------------------------------------------------ | --------------------------------------------- |
+| Provider / model        | ollama / llama3.1:8b                                               | openai / gpt-5.5-2026-04-23 (pinned snapshot) |
+| Run ID                  | `20260718_180713_ollama_eval_baseline`                             | `20260718_183704_openai_eval_baseline`        |
+| View / prompt           | evaluation / baseline                                              | evaluation / baseline                         |
+| Prompt version hash     | `23185744b88f77b7`                                                 | `23185744b88f77b7`                            |
+| Redaction version hash  | `3a527e33fa159616`                                                 | `3a527e33fa159616`                            |
+| Ollama version          | 0.32.1                                                             | n/a (hosted)                                  |
+| Corpus SHA-256 (frozen) | `4e842637f3cbcbb6e0704320824b64bdeb63c7d7ee7e22db0278e4d96c58b929` | (same)                                        |
+| Timing-log SHA-256      | `9ceba8e2468f44e879fa7929e528cfeaaef034ae363ffb66e98f57a21761cb9a` | (same)                                        |
 
 Operational-view runs share the same prompt/redaction/corpus/commit; run IDs are in the audit logs under `assistant/outputs/runs/`.
 
