@@ -1,6 +1,6 @@
 # Sigma rule pack — notes & Sigma → Wazuh crosswalk
 
-This directory holds the **portable, source-of-truth detections** for AlertMind, authored in Sigma. The deployed, SIEM-native form is `siem/wazuh/local_rules.xml` (Linux) plus Wazuh's built-in ruleset (Windows). This file documents the pack and maps each Sigma rule to its Wazuh implementation and verification status.
+This directory holds the **portable detection-intent source** for AlertMind, authored in Sigma. The deployed, SIEM-native form is `siem/wazuh/local_rules.xml`, containing 17 Linux and 7 Windows custom rules, plus Wazuh built-in rule 61138 for Windows service creation. This file documents the pack and maps each Sigma rule to its Wazuh implementation and verification status.
 
 - **25 rules** — 8 Windows, 17 Linux.
 - **All 25 validate** against the Sigma spec (`pysigma` / `SigmaCollection.from_yaml`).
@@ -72,14 +72,14 @@ Every Linux Sigma rule maps to a deployed Wazuh rule in `siem/wazuh/local_rules.
 
 ## Hand-translation notes (per reproducibility requirement)
 
-- **Linux 100100–100115:** direct translation — `<if_sid>80700</if_sid>` + `<field name="audit.key">{key}</field>` + `<mitre>` tag. No semantic loss.
+- **Linux 100100–100115:** direct audit-key and condition translation — `<if_sid>80700</if_sid>` + `<field name="audit.key">{key}</field>` + `<mitre>` metadata. ATT&CK metadata is generally retained; rule 100109 records T1548.001 in Wazuh while the portable Sigma rule additionally records T1222.002 for the broader permission-change behaviour. This is a metadata difference, not a rule-firing difference.
 - **Rule 100116 (authorized_keys) is the one exception** — it is *not* a direct `audit.key` translation. Overlapping `/root/.ssh` watches mean the write is keyed `t1552_004_ssh_keys`, so 100116 chains from 100113 (`<if_sid>100113</if_sid>`) and narrows on `audit.file.name` containing `authorized_keys`. This is the "broad sensor, specific SIEM rule" pattern.
 - **Windows 7045 → 61138:** no custom rule needed; Wazuh's built-in rule already fires on the System EID 7045 event the Sigma rule targets.
-- **Windows Sysmon rules:** implemented as custom rules **100200–100206** in `local_rules.xml`, narrowing on `win.eventdata.*` fields with `type="pcre2"`. Most chain off the relevant Wazuh built-in Sysmon base rule (EID 1 = 61603, EID 10 = 61612). 
-**Exceptions:** 
-- Rule **100205**: the Sysmon EID 13 base rule (61615) is level 0 and Wazuh already ships a Run-key parent, so 100205 chains off the built-in **92300** instead. 
-- Rule **100206** chains from `sysmon_event_22` rather than direct `if_sid 61624`; this mirrors the final working pattern for Sysmon DNS Query events.
-All of 100200–100206 are verified firing (EVID-WIN-003 through EVID-WIN-009). Service creation (T1543.003) stays on built-in rule 61138 (already ✅).
+- **Windows Sysmon rules:** implemented as custom rules **100200–100206** in `local_rules.xml`, narrowing on `win.eventdata.*` fields with `type="pcre2"`. Most chain off the relevant Wazuh built-in Sysmon base rule (EID 1 = 61603, EID 10 = 61612).
+- **Rule 100205 exception:** the Sysmon EID 13 base rule (61615) is level 0 and Wazuh already ships a Run-key parent, so 100205 chains off the built-in **92300** instead.
+- **Rule 100206 exception:** it chains from `sysmon_event_22` rather than direct `if_sid 61624`; this mirrors the final working pattern for Sysmon DNS Query events.
+- **Intentional Windows narrowing:** rule 100201 requires an encoded-command switch followed by at least 20 base64-like characters in Wazuh, while the portable Sigma rule detects the switch itself. Rule 100206 is also lab-narrowed: Wazuh requires a label of at least 45 characters under `alertmind-lab.invalid`, while the portable Sigma heuristic detects generic labels of 30 or more characters. These differences reduce lab noise and are intentional semantic narrowing, not exact translations.
+- **Verification:** all of 100200–100206 are verified firing (EVID-WIN-003 through EVID-WIN-009). Service creation (T1543.003) stays on built-in rule 61138 (already ✅).
 - **Exfil DNS tunneling** is a heuristic (long-label regex on Sysmon EID 22); it needs threshold tuning and a domain allowlist before it is alert-worthy — kept `experimental`.
 
 ## Validate locally
