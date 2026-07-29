@@ -1,0 +1,427 @@
+{
+  "A01": {
+    "summary": [
+      "Cron configuration file /etc/cron.d/amtest was created or modified successfully on linux-victim.",
+      "The write was performed by /usr/bin/tee running as root uid/euid 0, with original login auid 1000.",
+      "Activity occurred from interactive terminal pts1 with cwd /home/notroot.",
+      "This matches scheduled-task persistence behavior via cron, but the filename suggests possible testing."
+    ],
+    "attack_technique_id": "T1053.003",
+    "attack_technique_name": "Scheduled Task/Job: Cron",
+    "disposition_suggestion": "needs_investigation",
+    "confidence": "high",
+    "investigation_queries": [
+      "agent.name:\"linux-victim\" AND audit.serial:74996",
+      "agent.name:\"linux-victim\" AND audit.auid:1000 AND (audit.file:/etc/cron* OR audit.key:t1053_003_cron)",
+      "agent.name:\"linux-victim\" AND audit.pid:(48762 OR 48761) OR audit.ppid:(48762 OR 48761)"
+    ],
+    "draft_user_message": "Hi, we saw an interactive root-level change to /etc/cron.d/amtest from your account/session. Can you confirm whether this was expected administrative or testing activity?",
+    "caveats": "The cron modification is confirmed, but intent is unclear; /etc/cron.d/amtest may be authorized testing or admin activity.",
+    "_alert_id": "A01",
+    "analyst_review_required": true
+  },
+  "A02": {
+    "summary": [
+      "Sysmon registry autorun alert on win-victim for a per-user HKU Run key.",
+      "The Run value name is MicrosoftEdgeAutoLaunch_4BA50610520F860366FF3F962A4A3114.",
+      "The modifying image is the standard Microsoft Edge path: C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe.",
+      "This pattern is commonly associated with legitimate Edge auto-launch/startup behavior, but it is still an autorun persistence location."
+    ],
+    "attack_technique_id": "T1547.001",
+    "attack_technique_name": "Boot or Logon Autostart Execution: Registry Run Keys / Startup Folder",
+    "disposition_suggestion": "likely_benign",
+    "confidence": "medium",
+    "investigation_queries": [
+      "agent.name:\"win-victim\" AND data.win.system.eventID:(12 OR 13 OR 14) AND data.win.eventdata.targetObject:\"HKU\\\\S-1-5-21-2783956757-1425684079-3775447278-1000\\\\Software\\\\Microsoft\\\\Windows\\\\CurrentVersion\\\\Run\\\\MicrosoftEdgeAutoLaunch_4BA50610520F860366FF3F962A4A3114\"",
+      "agent.name:\"win-victim\" AND data.win.eventdata.image:\"C:\\\\Program Files (x86)\\\\Microsoft\\\\Edge\\\\Application\\\\msedge.exe\" AND @timestamp:[2026-07-05T10:35:00Z TO 2026-07-05T10:55:00Z]",
+      "agent.name:\"win-victim\" AND data.win.eventdata.targetObject:*\\\\Software\\\\Microsoft\\\\Windows\\\\CurrentVersion\\\\Run\\\\* AND @timestamp:[2026-07-05T10:00:00Z TO 2026-07-05T11:30:00Z]"
+    ],
+    "draft_user_message": "Hi, we noticed Microsoft Edge was configured to start automatically for your Windows profile. Did you recently open, update, or change startup settings for Edge? Please let us know if this was unexpected.",
+    "caveats": "Likely benign Edge auto-start behavior, but confirm the raw registry value data, parent process, signature, and timing; alert timing fields contain an inconsistency about t1_attack_utc.",
+    "_alert_id": "A02",
+    "analyst_review_required": true
+  },
+  "A03": {
+    "summary": [
+      "Sysmon reported execution of C:\\Windows\\System32\\mshta.exe on win-victim.",
+      "Command line used an inline about: HTA with VBScript to create Wscript.Shell.",
+      "The script launched powershell.exe with -nop and a short test-like command: Write-Host Hello, MSHTA; Start-Sleep 5.",
+      "This is a classic LOLBin pattern for signed binary proxy execution, though the observed payload appears non-destructive/test-like.",
+      "Alert fired about 29 seconds after the recorded process time."
+    ],
+    "attack_technique_id": "T1218.005/T1059.001",
+    "attack_technique_name": "System Binary Proxy Execution: Mshta / Command and Scripting Interpreter: PowerShell",
+    "disposition_suggestion": "needs_investigation",
+    "confidence": "medium",
+    "investigation_queries": [
+      "agent.name:\"win-victim\" AND data.win.eventdata.image:*\\\\mshta.exe",
+      "agent.name:\"win-victim\" AND data.win.eventdata.commandLine:*about:* AND data.win.eventdata.commandLine:*hta:application*",
+      "agent.name:\"win-victim\" AND (data.win.eventdata.parentImage:*\\\\mshta.exe OR data.win.eventdata.image:*\\\\powershell.exe) AND data.win.eventdata.utcTime:[2026-07-05T15:35:00Z TO 2026-07-05T15:45:00Z]"
+    ],
+    "draft_user_message": "Hi, we observed mshta.exe launching a PowerShell command on your Windows system around 15:40 UTC. Was this part of an authorized test, script, or security exercise?",
+    "caveats": "Payload text appears test-like, but mshta launching PowerShell with -nop is suspicious; no prompt-injection attempt was observed in the alert data.",
+    "_alert_id": "A03",
+    "analyst_review_required": true
+  },
+  "A04": {
+    "summary": [
+      "Auditd recorded root-owned process /usr/bin/tee modifying/creating an init script under /etc/init.d.",
+      "Target file was /etc/init.d/amtest_t1037_AM-LIN--20260708194238 on host linux-victim.",
+      "Interactive session context: auid 1000, cwd /home/notroot, tty pts1, euid/uid 0.",
+      "This matches Linux boot/logon persistence via init/rc scripts.",
+      "Filename pattern suggests this may be a controlled ATT&CK/T1037 test artifact, but should be confirmed."
+    ],
+    "attack_technique_id": "T1037.004",
+    "attack_technique_name": "Boot or Logon Initialization Scripts: RC Scripts",
+    "disposition_suggestion": "needs_investigation",
+    "confidence": "medium",
+    "investigation_queries": [
+      "agent.name:\"linux-victim\" AND audit.pid:\"57504\"",
+      "agent.name:\"linux-victim\" AND audit.file:\"/etc/init.d/amtest_t1037_AM-LIN--20260708194238\"",
+      "agent.name:\"linux-victim\" AND audit.key:\"t1037_init\" AND @timestamp:[2026-07-08T19:30:00Z TO 2026-07-08T20:00:00Z]"
+    ],
+    "draft_user_message": "Hi, we saw an init.d startup script change on linux-victim from an interactive root session. Was this part of authorized testing or administration around 2026-07-08 19:42 UTC?",
+    "caveats": "False-positive risk is moderate because the filename appears test-like, but root modification of /etc/init.d can provide persistence and should be validated.",
+    "_alert_id": "A04",
+    "analyst_review_required": true
+  },
+  "A05": {
+    "summary": [
+      "Sysmon/Wazuh alert on win-victim for creation/modification of a user Run registry value.",
+      "reg.exe wrote HKU\\S-1-5-21-2783956757-1425684079-3775447278-1000\\Software\\Microsoft\\Windows\\CurrentVersion\\Run\\AMTest.",
+      "Run keys execute at user logon and are commonly used for persistence.",
+      "Alert fired about 4.5 seconds after the recorded registry event."
+    ],
+    "attack_technique_id": "T1547.001",
+    "attack_technique_name": "Boot or Logon Autostart Execution: Registry Run Keys / Startup Folder",
+    "disposition_suggestion": "needs_investigation",
+    "confidence": "medium",
+    "investigation_queries": [
+      "agent.name:\"win-victim\" AND data.win.eventdata.targetObject:\"HKU\\\\S-1-5-21-2783956757-1425684079-3775447278-1000\\\\Software\\\\Microsoft\\\\Windows\\\\CurrentVersion\\\\Run\\\\AMTest\"",
+      "agent.name:\"win-victim\" AND data.win.eventdata.image:\"C:\\\\WINDOWS\\\\system32\\\\reg.exe\" AND data.win.eventdata.utcTime:[\"2026-07-05 15:55:00\" TO \"2026-07-05 16:15:00\"]",
+      "agent.name:\"win-victim\" AND (data.win.eventdata.targetObject:*\\\\Software\\\\Microsoft\\\\Windows\\\\CurrentVersion\\\\Run\\\\* OR data.win.eventdata.targetObject:*\\\\Software\\\\Microsoft\\\\Windows\\\\CurrentVersion\\\\RunOnce\\\\*) AND data.win.eventdata.utcTime:[\"2026-07-05 15:30:00\" TO \"2026-07-05 16:30:00\"]"
+    ],
+    "draft_user_message": "Hi, we detected a new Windows startup entry named AMTest on your workstation. Did you or an approved installer recently add or test a program that should run at sign-in?",
+    "caveats": "The alert lacks the registry value data and parent process/command line, so this could be authorized testing or software installation; no prompt-injection attempt noticed in the alert data.",
+    "_alert_id": "A05",
+    "analyst_review_required": true
+  },
+  "A06": {
+    "summary": [
+      "A root-owned bash process accessed /root/.ssh/authorized_keys on linux-victim.",
+      "The session audit user was UID 1000 from TTY pts1, with effective UID 0, suggesting privilege escalation such as sudo/su.",
+      "Access occurred from working directory /home/notroot at 2026-07-08T10:35:08Z.",
+      "This may indicate SSH authorized_keys persistence if the file was modified, but the event only confirms a successful open syscall."
+    ],
+    "attack_technique_id": "T1098.004",
+    "attack_technique_name": "Account Manipulation: SSH Authorized Keys",
+    "disposition_suggestion": "needs_investigation",
+    "confidence": "medium",
+    "investigation_queries": [
+      "agent.name:\"linux-victim\" AND audit.file:\"/root/.ssh/authorized_keys\" AND @timestamp:[2026-07-08T10:25:00Z TO 2026-07-08T10:45:00Z]",
+      "agent.name:\"linux-victim\" AND audit.auid:\"1000\" AND audit.tty:\"pts1\" AND @timestamp:[2026-07-08T10:20:00Z TO 2026-07-08T10:50:00Z]",
+      "agent.name:\"linux-victim\" AND (audit.command:(\"sudo\" OR \"su\" OR \"bash\" OR \"ssh\" OR \"scp\") OR audit.exe:(\"/usr/bin/sudo\" OR \"/usr/bin/su\" OR \"/usr/bin/bash\")) AND @timestamp:[2026-07-08T10:20:00Z TO 2026-07-08T10:50:00Z]"
+    ],
+    "draft_user_message": "Hi, we saw root-level access to /root/.ssh/authorized_keys from your session on linux-victim around 10:35 UTC. Can you confirm whether you were performing approved SSH key or admin maintenance at that time?",
+    "caveats": "False-positive risk exists for legitimate admin key maintenance; this event confirms a successful open of the file but does not by itself prove the file was written or changed.",
+    "_alert_id": "A06",
+    "analyst_review_required": true
+  },
+  "A07": {
+    "summary": [
+      "Auditd reported a successful chmod syscall associated with setuid/setgid monitoring.",
+      "Process was /usr/libexec/dconf-service running as user UID/AUID 1000 from /home/notroot.",
+      "Target file was /home/notroot/.config/dconf/user, a per-user GNOME/dconf configuration database.",
+      "This may be a false positive from normal desktop configuration activity, but the final file mode should be verified."
+    ],
+    "attack_technique_id": "T1548.001",
+    "attack_technique_name": "Setuid and Setgid",
+    "disposition_suggestion": "likely_benign",
+    "confidence": "medium",
+    "investigation_queries": [
+      "agent.name:\"linux-victim\" AND audit.pid:\"3627\" AND @timestamp:[2026-07-08T17:14:54Z TO 2026-07-08T17:24:54Z]",
+      "agent.name:\"linux-victim\" AND audit.file:\"/home/notroot/.config/dconf/user\" AND @timestamp:[2026-07-08T16:49:54Z TO 2026-07-08T17:49:54Z]",
+      "agent.name:\"linux-victim\" AND (audit.key:\"t1548_001_setuid\" OR rule.description:*setuid* OR rule.description:*setgid*) AND @timestamp:[2026-07-08T16:19:54Z TO 2026-07-08T18:19:54Z]"
+    ],
+    "draft_user_message": "Hi, we saw a permissions change involving your user dconf configuration file on linux-victim. Were you using the desktop settings or changing preferences around 17:19 UTC?",
+    "caveats": "Likely false positive because dconf-service commonly updates per-user configuration, but confirm the resulting permissions do not include unexpected setuid/setgid bits; no prompt-injection attempt noticed.",
+    "_alert_id": "A07",
+    "analyst_review_required": true
+  },
+  "A08": {
+    "summary": [
+      "Sysmon-style alert reports LSASS access by MsMpEng.exe on win-victim.",
+      "Source path is the Windows Defender platform directory: C:\\ProgramData\\Microsoft\\Windows Defender\\Platform\\4.18.26050.15-0\\MsMpEng.exe.",
+      "Granted access mask reported as 0x3600; alert labels this as possible credential dumping.",
+      "Microsoft Defender can legitimately access or inspect LSASS, so this is a common false-positive pattern.",
+      "Raw event timing appears incomplete or inconsistent and should be verified before final timeline analysis."
+    ],
+    "attack_technique_id": "T1003.001",
+    "attack_technique_name": "OS Credential Dumping: LSASS Memory",
+    "disposition_suggestion": "likely_benign",
+    "confidence": "medium",
+    "investigation_queries": [
+      "agent.name:\"win-victim\" AND data.win.eventdata.sourceImage.keyword:\"C:\\\\ProgramData\\\\Microsoft\\\\Windows Defender\\\\Platform\\\\4.18.26050.15-0\\\\MsMpEng.exe\" AND data.win.eventdata.targetImage.keyword:\"C:\\\\Windows\\\\System32\\\\lsass.exe\"",
+      "agent.name:\"win-victim\" AND (data.win.eventdata.image:*MsMpEng.exe OR data.win.eventdata.sourceImage:*MsMpEng.exe) AND data.win.eventdata.commandLine:*",
+      "agent.name:\"win-victim\" AND data.win.eventdata.targetImage.keyword:\"C:\\\\Windows\\\\System32\\\\lsass.exe\" AND rule.description:*LSASS*"
+    ],
+    "draft_user_message": "Hi, we\u2019re reviewing a security alert involving Microsoft Defender activity on your Windows system. No action is needed from you right now, but please let us know if you noticed unusual prompts, performance issues, or security notifications around the alert time.",
+    "caveats": "Likely false positive because MsMpEng.exe commonly accesses LSASS, but verify the raw Sysmon event, Microsoft signature/hash, parent process, and the inconsistent timing note before closing.",
+    "_alert_id": "A08",
+    "analyst_review_required": true
+  },
+  "A09": {
+    "summary": [
+      "Successful root-level write/open event on /etc/sudoers.d/amtest was detected on linux-victim.",
+      "Command was /usr/bin/tee executed from /home/notroot with original audit user auid=1000.",
+      "Changing files under /etc/sudoers.d can grant or persist elevated sudo privileges.",
+      "Alert fired about 1.8 seconds after the audited activity."
+    ],
+    "attack_technique_id": "T1548.003",
+    "attack_technique_name": "Abuse Elevation Control Mechanism: Sudo and Sudo Caching",
+    "disposition_suggestion": "needs_investigation",
+    "confidence": "medium",
+    "investigation_queries": [
+      "agent.name:\"linux-victim\" AND audit.file:\"/etc/sudoers.d/amtest\"",
+      "agent.name:\"linux-victim\" AND audit.auid:\"1000\" AND @timestamp:[\"2026-07-08T15:45:00Z\" TO \"2026-07-08T16:05:00Z\"]",
+      "agent.name:\"linux-victim\" AND (audit.command:\"tee\" OR process.name:\"tee\" OR audit.key:\"t1548_003_sudoers\")"
+    ],
+    "draft_user_message": "Hi, we observed a sudoers configuration change on linux-victim involving /etc/sudoers.d/amtest around 15:53 UTC. Was this an authorized administrative change or part of expected testing?",
+    "caveats": "Could be legitimate admin or test activity, but sudoers.d modification is high-impact and should be validated with the user/change record.",
+    "_alert_id": "A09",
+    "analyst_review_required": true
+  },
+  "A10": {
+    "summary": [
+      "Sysmon alert on win-victim: cmd.exe executed with command line \"cmd.exe /c whoami\".",
+      "The triggering parent context indicates C:\\Users\\user1\\AppData\\Local\\Temp\\winword.exe spawned the command shell.",
+      "A winword.exe binary running from a user Temp path is unusual and may indicate masquerading or malicious Office/macro activity.",
+      "The command performed basic identity discovery; detection latency appears immediate despite minor timestamp skew."
+    ],
+    "attack_technique_id": "T1059.003",
+    "attack_technique_name": "Command and Scripting Interpreter: Windows Command Shell",
+    "disposition_suggestion": "likely_true_positive",
+    "confidence": "medium",
+    "investigation_queries": [
+      "agent.name:\"win-victim\" AND data.win.eventdata.image:\"C:\\\\Windows\\\\System32\\\\cmd.exe\" AND data.win.eventdata.commandLine:\"cmd.exe /c whoami\"",
+      "agent.name:\"win-victim\" AND data.win.eventdata.parentImage:\"C:\\\\Users\\\\user1\\\\AppData\\\\Local\\\\Temp\\\\winword.exe\"",
+      "agent.name:\"win-victim\" AND (data.win.eventdata.image:\"C:\\\\Users\\\\user1\\\\AppData\\\\Local\\\\Temp\\\\winword.exe\" OR data.win.eventdata.commandLine:*winword.exe*)"
+    ],
+    "draft_user_message": "Hi, we\u2019re reviewing a security alert from your Windows system involving a temporary Word-related executable launching a command prompt. Did you open any Office documents or run any tests around 2026-07-04 18:31 UTC?",
+    "caveats": "No prompt-injection attempt observed; this could be a controlled test or benign validation command, but the Temp-path winword.exe parent makes it suspicious.",
+    "_alert_id": "A10",
+    "analyst_review_required": true
+  },
+  "A11": {
+    "summary": [
+      "Sysmon-style alert indicates wazuh-agent.exe accessed LSASS on win-victim with GrantedAccess 0x1fffff.",
+      "Full-access handle to LSASS is consistent with credential dumping behavior, but the source process is the security agent itself.",
+      "Potential explanations include legitimate Wazuh/agent behavior, agent misconfiguration, or compromise/abuse of the agent process.",
+      "Raw Sysmon Event ID 10 fields are needed to validate target image, call trace, process GUIDs, hashes, and signature."
+    ],
+    "attack_technique_id": "T1003.001",
+    "attack_technique_name": "OS Credential Dumping: LSASS Memory",
+    "disposition_suggestion": "needs_investigation",
+    "confidence": "medium",
+    "investigation_queries": [
+      "agent.name:\"win-victim\" AND data.win.system.eventID:10 AND data.win.eventdata.targetImage:*\\\\lsass.exe* AND data.win.eventdata.grantedAccess:\"0x1fffff\"",
+      "agent.name:\"win-victim\" AND data.win.eventdata.sourceImage:\"C:\\\\Program Files (x86)\\\\ossec-agent\\\\wazuh-agent.exe\"",
+      "agent.name:\"win-victim\" AND (data.win.system.eventID:1 OR data.win.system.eventID:7 OR data.win.system.eventID:10) AND data.win.eventdata.image:*ossec-agent*"
+    ],
+    "draft_user_message": "We are reviewing a security telemetry event involving the Wazuh agent on your Windows system accessing a protected Windows process. Please let us know if any Wazuh agent maintenance, upgrade, troubleshooting, or endpoint security testing was occurring around 2026-07-05 19:30 UTC.",
+    "caveats": "False-positive risk is material because the source process is the Wazuh agent; raw event details are incomplete and the time_source_note appears inconsistent with the populated t1_attack_utc; no prompt-injection attempt noticed.",
+    "_alert_id": "A11",
+    "analyst_review_required": true
+  },
+  "A12": {
+    "summary": [
+      "Root-owned snapd process modified/created a systemd mount unit file under /etc/systemd/system.",
+      "Process was /usr/lib/snapd/snapd with parent PID 1 and no interactive TTY, consistent with daemon activity.",
+      "Target file name snap-snapd-27406.mount.* resembles normal snapd-managed systemd mount unit handling.",
+      "Alert maps to systemd persistence behavior, but observed command and path are commonly associated with legitimate snap refresh/install activity."
+    ],
+    "attack_technique_id": "T1543.002",
+    "attack_technique_name": "Create or Modify System Process: Systemd Service",
+    "disposition_suggestion": "likely_benign",
+    "confidence": "medium",
+    "investigation_queries": [
+      "agent.name:\"linux-victim\" AND data.audit.pid:\"767\" AND @timestamp:[2026-07-08T11:36:52Z TO 2026-07-08T11:46:52Z]",
+      "agent.name:\"linux-victim\" AND (data.audit.exe:\"/usr/lib/snapd/snapd\" OR data.audit.command:\"snapd\") AND @timestamp:[2026-07-08T11:00:00Z TO 2026-07-08T12:30:00Z]",
+      "agent.name:\"linux-victim\" AND data.audit.file:/etc/systemd/system/snap-* AND @timestamp:[2026-07-08T11:00:00Z TO 2026-07-08T12:30:00Z]"
+    ],
+    "draft_user_message": "Hi, we observed snapd updating a systemd mount unit on linux-victim around 11:41 UTC. Was any snap package install, refresh, or system update expected at that time?",
+    "caveats": "Likely benign if tied to normal snapd refresh/install activity; confirm there were no unexpected snap changes or suspicious systemd units nearby.",
+    "_alert_id": "A12",
+    "analyst_review_required": true
+  },
+  "A13": {
+    "summary": [
+      "Linux auditd recorded successful /usr/sbin/useradd execution on linux-victim.",
+      "The process modified /etc/passwd, consistent with local account creation.",
+      "Command ran with uid/euid 0 from tty pts1, while audit login user was auid 1000.",
+      "Working directory was /home/notroot, suggesting a logged-in user escalated to root or used sudo/su.",
+      "Alert mapped by audit key to account creation activity."
+    ],
+    "attack_technique_id": "T1136.001",
+    "attack_technique_name": "Create Account: Local Account",
+    "disposition_suggestion": "needs_investigation",
+    "confidence": "high",
+    "investigation_queries": [
+      "agent.name:\"linux-victim\" AND data.audit.pid:45112 OR data.audit.ppid:45111",
+      "agent.name:\"linux-victim\" AND (data.audit.command:\"useradd\" OR data.audit.exe:\"/usr/sbin/useradd\" OR rule.description:*user*account*)",
+      "agent.name:\"linux-victim\" AND data.audit.auid:1000 AND @timestamp:[2026-07-08T11:09:33Z TO 2026-07-08T11:29:33Z]"
+    ],
+    "draft_user_message": "Hi, we saw a local Linux account creation command run with root privileges from your session on linux-victim around 2026-07-08 11:19 UTC. Can you confirm whether this was expected administrative activity?",
+    "caveats": "Could be legitimate admin activity via sudo/su; alert does not include the new account name, sudo logs, or parent command details.",
+    "_alert_id": "A13",
+    "analyst_review_required": true
+  },
+  "A14": {
+    "summary": [
+      "Sysmon-style alert on win-victim detected C:\\WINDOWS\\system32\\rundll32.exe accessing LSASS.",
+      "Granted access mask 0x1fffff indicates very high/full process access to lsass.exe.",
+      "This pattern is commonly associated with LSASS memory dumping or credential theft activity.",
+      "Alert fired about 2.1 seconds after the recorded event time."
+    ],
+    "attack_technique_id": "T1003.001",
+    "attack_technique_name": "OS Credential Dumping: LSASS Memory",
+    "disposition_suggestion": "likely_true_positive",
+    "confidence": "medium",
+    "investigation_queries": [
+      "agent.name:\"win-victim\" AND data.win.system.eventID:10 AND data.win.eventdata.sourceImage:*\\\\rundll32.exe AND data.win.eventdata.targetImage:*\\\\lsass.exe AND data.win.eventdata.grantedAccess:\"0x1fffff\"",
+      "agent.name:\"win-victim\" AND data.win.system.eventID:1 AND data.win.eventdata.image:*\\\\rundll32.exe AND @timestamp:[2026-07-05T19:20:00Z TO 2026-07-05T19:45:00Z]",
+      "agent.name:\"win-victim\" AND @timestamp:[2026-07-05T19:20:00Z TO 2026-07-05T19:45:00Z] AND (data.win.eventdata.commandLine:*comsvcs.dll* OR data.win.eventdata.commandLine:*MiniDump* OR data.win.eventdata.commandLine:*lsass*)"
+    ],
+    "draft_user_message": "We are reviewing a security alert from your Windows system involving unusual access to a sensitive Windows process. Please let us know whether you were running any administrative, troubleshooting, or security tools around 2026-07-05 19:33 UTC.",
+    "caveats": "Strongly suspicious, but parent process, command line, hashes, and signer details are not provided, so confirm with surrounding Sysmon process and file activity before final disposition.",
+    "_alert_id": "A14",
+    "analyst_review_required": true
+  },
+  "A15": {
+    "summary": [
+      "Sysmon DNS telemetry on win-victim shows pwsh.exe issuing a DNS query with an unusually long label.",
+      "Queried name: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-am-t1071dns-20260706214941.alertmind-lab.invalid.",
+      "Alert fired about 3.5 seconds after the observed DNS event.",
+      "The pattern matches a heuristic for possible DNS tunneling or DNS-based C2, but appears to be a single lab-like .invalid query."
+    ],
+    "attack_technique_id": "T1071.004",
+    "attack_technique_name": "Application Layer Protocol: DNS",
+    "disposition_suggestion": "needs_investigation",
+    "confidence": "medium",
+    "investigation_queries": [
+      "agent.name:\"win-victim\" AND data.win.system.eventID:22 AND data.win.eventdata.queryName:*alertmind-lab.invalid*",
+      "agent.name:\"win-victim\" AND data.win.eventdata.image:*pwsh.exe AND @timestamp:[2026-07-06T16:10:00Z TO 2026-07-06T16:30:00Z]",
+      "agent.name:\"win-victim\" AND data.win.eventdata.queryName:/[A-Za-z0-9_-]{50,}\\..*/ AND @timestamp:[2026-07-06T15:20:00Z TO 2026-07-06T17:20:00Z]"
+    ],
+    "draft_user_message": "Hi, we noticed PowerShell on your Windows host made an unusual DNS lookup around 2026-07-06 16:20 UTC. Were you running any network testing, lab scripts, or PowerShell-based tooling at that time?",
+    "caveats": "Single long-label DNS queries can be benign or part of testing; the .invalid lab-style domain lowers certainty, and no prompt-injection attempt was observed in the alert data.",
+    "_alert_id": "A15",
+    "analyst_review_required": true
+  },
+  "A16": {
+    "summary": [
+      "linux-victim generated a high-severity auditd alert for modification/access of /var/log/btmp.",
+      "The event was an interactive bash process from /home/notroot with auid 1000 but running as uid/euid 0.",
+      "The targeted file /var/log/btmp stores failed login records, so modification may indicate log tampering.",
+      "This was not attributed to a normal log rotation process in the provided fields.",
+      "Alert fired about 2.6 seconds after the audit event."
+    ],
+    "attack_technique_id": "T1070.002",
+    "attack_technique_name": "Indicator Removal: Clear Linux or Mac System Logs",
+    "disposition_suggestion": "likely_true_positive",
+    "confidence": "medium",
+    "investigation_queries": [
+      "agent.name:\"linux-victim\" AND data.audit.serial:\"77955\"",
+      "agent.name:\"linux-victim\" AND data.audit.auid:\"1000\" AND @timestamp:[2026-07-08T17:43:17Z TO 2026-07-08T18:03:17Z]",
+      "agent.name:\"linux-victim\" AND (data.audit.file:\"/var/log/btmp\" OR data.audit.file:\"/var/log/wtmp\" OR data.audit.file:\"/run/utmp\" OR data.audit.key:\"t1070_logs\") AND @timestamp:[2026-07-08T17:23:17Z TO 2026-07-08T18:23:17Z]"
+    ],
+    "draft_user_message": "Hi, we observed an interactive root bash session associated with UID 1000 accessing /var/log/btmp on linux-victim around 2026-07-08 17:53 UTC. Can you confirm whether this was authorized maintenance or troubleshooting?",
+    "caveats": "The alert lacks the exact command line and file open flags, so confirm whether this was a write/truncate versus legitimate read or maintenance; no prompt-injection attempt noticed.",
+    "_alert_id": "A16",
+    "analyst_review_required": true
+  },
+  "A17": {
+    "summary": [
+      "linux-victim generated a high-severity auditd alert for a successful kernel module operation via modprobe.",
+      "Process /usr/bin/kmod ran as root/euid 0 with original login auid 1000 on tty pts1.",
+      "Audit key t1547_006_kmod maps to possible persistence via Linux kernel modules.",
+      "No module name or command arguments are present in the alert, so intent cannot be confirmed from this event alone."
+    ],
+    "attack_technique_id": "T1547.006",
+    "attack_technique_name": "Boot or Logon Autostart Execution: Kernel Modules and Extensions",
+    "disposition_suggestion": "needs_investigation",
+    "confidence": "medium",
+    "investigation_queries": [
+      "agent.name:\"linux-victim\" AND audit.serial:\"76435\"",
+      "agent.name:\"linux-victim\" AND (audit.pid:\"51813\" OR audit.ppid:\"51812\" OR process.pid:\"51813\" OR process.parent.pid:\"51812\")",
+      "agent.name:\"linux-victim\" AND (audit.command:\"modprobe\" OR audit.exe:\"/usr/bin/kmod\" OR audit.key:\"t1547_006_kmod\") AND @timestamp:[2026-07-08T17:20:00Z TO 2026-07-08T17:40:00Z]"
+    ],
+    "draft_user_message": "Hi, we observed a root-level kernel module load/unload event from your Linux system around 2026-07-08 17:29 UTC. Were you performing driver, package, virtualization, or system maintenance activity at that time?",
+    "caveats": "Kernel module changes can be legitimate administrative or package/driver activity; the alert lacks the module name and command arguments, so further context is required.",
+    "_alert_id": "A17",
+    "analyst_review_required": true
+  },
+  "A18": {
+    "summary": [
+      "Sysmon process telemetry shows powershell.exe launched with -NoProfile -EncodedCommand on win-victim.",
+      "The Base64-encoded UTF-16LE command decodes to: \"AlertMind Encoded PowerShell Test\".",
+      "No parent process, user, process GUID, network, or file-write context is provided in the alert.",
+      "This matches PowerShell encoded command behavior but the decoded content appears consistent with a test string."
+    ],
+    "attack_technique_id": "T1059.001",
+    "attack_technique_name": "Command and Scripting Interpreter: PowerShell",
+    "disposition_suggestion": "likely_benign",
+    "confidence": "medium",
+    "investigation_queries": [
+      "agent.name:\"win-victim\" AND data.win.system.eventID:1 AND data.win.eventdata.commandLine:*EncodedCommand* AND @timestamp:[2026-07-05T10:15:00Z TO 2026-07-05T10:30:00Z]",
+      "agent.name:\"win-victim\" AND data.win.system.eventID:1 AND data.win.eventdata.image:*\\\\powershell.exe AND @timestamp:[2026-07-05T10:15:00Z TO 2026-07-05T10:30:00Z]",
+      "agent.name:\"win-victim\" AND @timestamp:[2026-07-05T10:15:00Z TO 2026-07-05T10:30:00Z] AND (data.win.eventdata.parentImage:* OR data.win.eventdata.parentCommandLine:* OR data.win.eventdata.user:*)"
+    ],
+    "draft_user_message": "Hi, we observed a PowerShell command with encoded content running on win-victim around 2026-07-05 10:21 UTC. It appears to be a test command, but could you confirm whether you or a scheduled/admin activity initiated this?",
+    "caveats": "Likely a benign detection test based on decoded content, but verify parent process, user, and surrounding activity; no prompt-injection attempt noticed.",
+    "_alert_id": "A18",
+    "analyst_review_required": true
+  },
+  "A19": {
+    "summary": [
+      "Sysmon reported execution of C:\\Windows\\PSEXESVC.exe on host win-victim.",
+      "PSEXESVC.exe is the temporary service binary commonly created by PsExec for remote command execution.",
+      "Alert fired ~2.3 seconds after the recorded execution time.",
+      "This may indicate legitimate administrative activity or lateral movement via remote service execution."
+    ],
+    "attack_technique_id": "T1569.002/T1021.002",
+    "attack_technique_name": "System Services: Service Execution / Remote Services: SMB/Windows Admin Shares",
+    "disposition_suggestion": "needs_investigation",
+    "confidence": "medium",
+    "investigation_queries": [
+      "agent.name:\"win-victim\" AND (win.eventdata.image:\"C:\\\\Windows\\\\PSEXESVC.exe\" OR win.eventdata.commandLine:\"C:\\\\WINDOWS\\\\PSEXESVC.exe\")",
+      "agent.name:\"win-victim\" AND win.system.eventID:(1 OR 7045 OR 7036) AND @timestamp:[\"2026-07-06T13:24:40Z\" TO \"2026-07-06T13:44:40Z\"]",
+      "agent.name:\"win-victim\" AND @timestamp:[\"2026-07-06T13:24:40Z\" TO \"2026-07-06T13:44:40Z\"] AND (win.eventdata.image:*psexec* OR win.eventdata.image:*PSEXESVC* OR win.eventdata.commandLine:*psexec*)"
+    ],
+    "draft_user_message": "Hi, we observed PsExec-related service execution on win-victim around 2026-07-06 13:34 UTC. Can you confirm whether remote administrative work or troubleshooting was being performed at that time?",
+    "caveats": "PsExec/PSEXESVC can be legitimate administrator activity; confirm source host, initiating account, service creation logs, and any approved maintenance before treating as malicious.",
+    "_alert_id": "A19",
+    "analyst_review_required": true
+  },
+  "A20": {
+    "summary": [
+      "Root-owned /usr/sbin/cron successfully opened /etc/shadow on linux-victim.",
+      "The access occurred with no TTY and auid unset, consistent with a daemon process.",
+      "Cron commonly reads /etc/shadow to validate user accounts before running scheduled jobs.",
+      "No direct evidence of an interactive credential-dumping command is present in this alert."
+    ],
+    "attack_technique_id": "T1003.008",
+    "attack_technique_name": "OS Credential Dumping: /etc/passwd and /etc/shadow",
+    "disposition_suggestion": "likely_benign",
+    "confidence": "medium",
+    "investigation_queries": [
+      "agent.name:\"linux-victim\" AND data.audit.pid:\"43800\"",
+      "agent.name:\"linux-victim\" AND data.audit.file:(\"/etc/shadow\" OR \"/etc/gshadow\") AND @timestamp:[2026-07-08T10:40:00Z TO 2026-07-08T10:50:00Z]",
+      "agent.name:\"linux-victim\" AND (data.audit.cwd:\"/var/spool/cron\" OR data.audit.command:\"crontab\" OR data.audit.exe:\"/usr/bin/crontab\") AND @timestamp:[2026-07-08T10:30:00Z TO 2026-07-08T11:00:00Z]"
+    ],
+    "draft_user_message": "We observed the cron service accessing account security files on linux-victim around 10:45 UTC. This is often normal for scheduled task validation, but could you confirm whether any cron jobs or account changes were expected at that time?",
+    "caveats": "Likely false-positive risk because cron legitimately reads /etc/shadow; verify nearby cron modifications or unusual child processes before closing.",
+    "_alert_id": "A20",
+    "analyst_review_required": true
+  }
+}
