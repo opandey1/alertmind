@@ -1,6 +1,6 @@
 # SOC Architecture — AlertMind
 
-**Document owner:** AlertMind (CAP-SCE-3W) · **Scope:** Solo build · **Status:** Final lab state, 27 Jul 2026  
+**Document owner:** AlertMind (CAP-SCE-3W) · **Scope:** Solo build · **Status:** Final lab state, 31 Jul 2026
 **Companion diagram:** [`diagram.drawio`](diagram.drawio) (editable) → export to `diagram.png`
 
 ---
@@ -31,7 +31,7 @@ The measured assistant is **not connected live to Wazuh**. It consumes the froze
 | LLM assistant | ✅ Batch evaluator + Streamlit UI + Paste & inspect | Repeat hosted evaluation and production hardening |
 | Live Wazuh→assistant ingestion | ❌ Not implemented | Read-only pull through `assistant-svc` |
 | RBAC (`socanalyst`, `assistant-svc`) | ❌ Not implemented; only `admin` exists | Create and validate least-privilege roles |
-| Retention ISM policies | Documented, not enforced | Enforce alerts/archive retention windows |
+| Alert-retention ISM policy | ✅ Implemented 29 Jul 2026: `wazuh-alert-retention-policy` manages `wazuh-alerts-4.x-*`; 90-day delete configured | Monitor transitions; validate expiry when an index reaches 90 days; define snapshot/legal-hold requirements |
 | Dashboard interface restriction | Not enforced; dashboard binds `0.0.0.0:443` | Bind Host-Only or enforce firewall restrictions |
 
 ## 2. Design principles
@@ -150,13 +150,15 @@ Known and documented tuning findings include:
 
 | Data class | Location | Final lab setting | Production intent |
 |---|---|---|---|
-| Wazuh alerts | `wazuh-alerts-4.x-*` | Retained for the project window | ISM rollover; delete after 90 days |
+| Wazuh alerts | `wazuh-alerts-4.x-*` | ISM policy `wazuh-alert-retention-policy`; delete transition configured after 90 days | Monitor transition history; validate expiry; add snapshot/legal-hold controls if required |
 | Full-event archives | `wazuh-archives-*` / `archives.json` | Off by default; enabled around selected validation windows | Retain 7–14 days |
 | Raw audit logs | `/var/log/audit/audit.log` | auditd defaults | Size-based rotation and offload |
 | Batch assistant audit logs | `assistant/outputs/runs/<run_id>/audit-log*.jsonl` | Retained as measurement evidence; runs never overwrite | Retain per audit policy |
 | Paste & inspect audit | `assistant/outputs/adhoc/adhoc-audit.jsonl` | Saved only on explicit request; idempotent | Retain per audit policy |
 
-ISM policies express production intent but are **not enforced** in the final lab. Full-event archives stay off by default because `execve` collection is volume-heavy on the constrained single-node SIEM.
+The alert policy was implemented on **29 Jul 2026**. At evidence capture, the Wazuh Indexer showed **21 policy-managed daily alert indices** in `retention_state`; the action was `Transition`, the job status was `Running`, and the UI reported that transition conditions were being evaluated. Daily indices dated 30 and 31 Jul were also attached, showing that post-update daily indices were covered by the policy. This validates policy presence, attachment and scheduling. It does **not** demonstrate actual deletion after 90 days, because the lab had not existed long enough for any managed index to reach the threshold. Evidence: `EVID-WAZUH-RET-001` and `EVID-WAZUH-RET-002` in `evidence/week3/`.
+
+Full-event archives stay off by default because `execve` collection is volume-heavy on the constrained single-node SIEM. Their proposed 7–14-day window remains production intent, not an implemented archive policy.
 
 Paste & inspect does not persist raw pasted input. Its optional audit record contains a correlation hash and sanitised metadata; tested secret values and unsalted secret hashes are excluded.
 

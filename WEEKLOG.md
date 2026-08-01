@@ -133,5 +133,10 @@ Dashboards (daily SOC briefing + ATT&CK heatmap) · three NIST 800-61 IR playboo
 - Automate the (currently single-reviewer, operational-view) grounding rubric; add a second independent reviewer and strict-view coverage.
 - Migrate the three IR playbooks from NIST 800-61 **r2** (four-phase lifecycle) to **r3** (CSF 2.0 functions), which superseded r2 in Apr 2025 — production follow-on.
 
+### Submission-extension hardening — 29 Jul 2026
+- **90-day Wazuh alert retention implemented.** Created Index State Management policy `wazuh-alert-retention-policy` for the `wazuh-alerts-4.x-*` daily alert indices, with a transition to deletion after a minimum index age of **90 days**. The policy was last updated at 21:57 on **29 Jul 2026**. _Evidence: EVID-WAZUH-RET-001._
+- **Current and post-deployment attachment verified.** The policy-managed-index view showed **21 indices** in `retention_state`, action `Transition`, job status `Running`, and transition conditions being evaluated. It included daily indices dated 30 and 31 Jul, showing that post-deployment daily indices were covered by the policy. _Evidence: EVID-WAZUH-RET-002._
+- **Validation boundary:** configuration, policy attachment and scheduler activity are verified; actual deletion at day 90 is not yet observed because no managed index had reached the threshold. Full-event archive retention remains a documented production target rather than an implemented policy.
+
 ### Final wrap-up
-- Report finalised (15 pages; reported measurement and model figures traceable to retained artifacts); defense deck + transcript; frozen corpus and run directories committed. Lab snapshots archived clean.
+- Report finalised (15 pages; reported measurement and model figures traceable to retained artifacts); defense deck + transcript; frozen corpus and run directories committed; 90-day alert retention and supporting Wazuh evidence added during the submission extension. Lab snapshots archived clean.

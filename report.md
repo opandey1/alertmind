@@ -71,7 +71,7 @@ The lab runs on VirtualBox with all VMs on an isolated NAT Network (`LabNet`, 10
 
 **A reproducibility-relevant fix.** The Linux agent does not read `audit.log` by default; an explicit `audit` `localfile` block was required. Before this, only the journald copy of events was ingested (low fidelity) and auditd SYSCALL records never reached the manager. This is documented so the lab is rebuildable without rediscovering it.
 
-**Retention.** Alerts (`wazuh-alerts-4.x-*`) retained for the project window; full-event archives kept off by default and enabled only around attack runs (execve auditing makes them volume-heavy). ISM policies expressing the modelled production windows (alerts 90d, archives 7–14d) are **documented but not yet enforced** in the Week-1 lab. _Detail in `architecture/soc-architecture.md` §7._
+**Retention (implemented 29 Jul 2026).** Wazuh Indexer policy `wazuh-alert-retention-policy` now manages the `wazuh-alerts-4.x-*` daily alert indices and is configured to transition them to deletion at a minimum index age of **90 days**. The managed-index view showed **21 indices** in `retention_state`, with the transition action evaluating and job status `Running`; indices dated 30 and 31 Jul, after the policy update at 21:57 on 29 Jul, demonstrate coverage of subsequently created daily indices. This verifies policy creation, index attachment and active transition evaluation—not execution of the 90-day delete, because no managed index had yet reached that age. Full-event archives remain off by default and are enabled only around selected attack runs because `execve` auditing is volume-heavy. _EVID-WAZUH-RET-001/002; detail in `architecture/soc-architecture.md` §7._
 
 **RBAC target state.** A production integration would use three least-privilege identities: `admin` (setup only), `socanalyst` (read-only triage), and `assistant-svc` (read-only, alert-scoped API). The current no-action property comes from the implemented no-tools, text-only architecture; DRAFT labelling and mandatory analyst review add a procedural guardrail. The planned service identity would add defense in depth for read-only ingestion. _Final lab state: only `admin` exists for setup and validation; `socanalyst`, `assistant-svc`, and live Wazuh API ingestion remain documented but unimplemented. Detail in §8 of the architecture doc._
 
@@ -428,10 +428,12 @@ Every ✅ claim in this report maps to a captured artifact. (Consistent with REA
 | EVID-WIN-009   | DNS tunneling, rule 100206 fired (T1048 /T1071.004)                 | `evidence/week3/win_100206-DNS_tunneling-T1071_004.png`          |
 | EVID-WIN-010   | Windows service creation (4697)                                     | `evidence/week1/win-system-4697-service.png`                     |
 
-**Assistant, dashboard, playbook and measurement evidence:**
+**SIEM, assistant, dashboard, playbook and measurement evidence:**
 
 | Evidence ID | What it proves | File / screenshot |
 |---|---|---|
+| EVID-WAZUH-RET-001 | `wazuh-alert-retention-policy` exists; 90-day alert-retention policy updated 29 Jul 2026 | `evidence/week3/wazuh-alert-retention-policy-90d.png` |
+| EVID-WAZUH-RET-002 | 21 `wazuh-alerts-4.x-*` indices attached in `retention_state`; transition evaluation running | `evidence/week3/wazuh-alert-retention-managed-indices.png` |
 | EVID-DASH-001 | Daily SOC-briefing dashboard | `evidence/week3/dashboards_alertmind-daily-brief.png` |
 | EVID-DASH-002 | ATT&CK heatmap dashboard | `evidence/week3/dashboards_alertmind-ATT&CK-heatmap.png` |
 | EVID-PLAYBOOK-001 | Phishing playbook (NIST 800-61r2) | `playbooks/phishing.md` |
@@ -494,7 +496,7 @@ A18 is a scored false negative for GPT-5.5 under the frozen ground truth (a real
 `siem/wazuh/local_rules.xml` (deployed Wazuh-native rules) · `detections/auditd/alertmind.rules` (auditd ruleset) · `detections/sigma/` (portable Sigma source, 25 rules validated).
 
 ### C. Configurations
-Agent `ossec.conf` blocks (audit + Windows channels), Sysmon config edit (EID 10), retention/ISM policies.
+Agent `ossec.conf` blocks (audit + Windows channels), Sysmon config edit (EID 10), and the implemented 90-day alert-retention ISM policy (EVID-WAZUH-RET-001/002).
 
 ### D. Runbooks
 `docs/runbooks/wazuh-recovery.md`.
