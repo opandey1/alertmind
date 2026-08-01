@@ -151,7 +151,7 @@ The design principle is that every guardrail is **enforced in code and proved by
 |---|---|---|
 | Tested credential classes redacted before prompt construction | `redact_alert()` runs before prompt construction | `assistant/outputs/redaction_proof.md` — **0/7 planted secrets leaked**; unsupported formats are residual risk |
 | Never takes autonomous action | **Implemented + tested:** model has no tools, text-only response, every output stamped `analyst_review_required: true`. **Planned (production):** an alert-scoped read-only `assistant-svc` API identity (not yet created — see §3, §4). | Code + UI banner |
-| Injection detection and containment | Tested markers surfaced from keys/values; reserved `<ALERT_DATA>` delimiter blocked pre-call; no model tools/write capability | `assistant/outputs/injection_proof.md`, `assistant/outputs/paste_demo_injection_proof.md` — detection/blocking verified; one model did not comply with a planted instruction, but general prevention is not claimed |
+| Injection detection and containment | Tested markers surfaced from keys/values; reserved `<ALERT_DATA>` delimiter blocked pre-call; no Wazuh write/action path, no response tools and no enforcement integration | `assistant/outputs/injection_proof.md`, `assistant/outputs/paste_demo_injection_proof.md` — detection/blocking verified; one model did not comply with a planted instruction, but general prevention is not claimed |
 | Human review on every output | All output labelled DRAFT; UI banner; draft message editable | Streamlit UI |
 | Output validated | `schema.py` — keys, types, enums, ATT&CK-ID syntax, ≤5 summary lines | `parse_status` per call |
 | Full, persistent logging | Per-run directory; 25 fields per call; runs never overwrite | `outputs/runs/<run_id>/audit-log.jsonl` |
@@ -160,7 +160,7 @@ Two proofs deserve emphasis.
 
 **Redaction.** `tests/test_redact.py` plants seven fake secrets — a password, AWS access and secret keys, a bearer token, an `sk-` API key, an OpenSSH private key, and a sensitive-key field — into a realistic alert, then asserts none survive into the object the model would receive. Result: **0/7 leaked**, with the SHA-256 file hash deliberately *preserved*, because file hashes are IOCs the analyst needs, not credentials. The instructor's requirement was a before/after demonstration; implementing it as a test rather than a screenshot means an examiner can re-run it, and redaction regressions fail loudly.
 
-**Prompt-injection handling.** Attacker-controlled fields may contain instructions. A deterministic scan flags tested markers in keys and values; the reserved delimiter is blocked pre-call. Other marked content is preserved as evidence and may reach the model inside an untrusted-data block, which reduces ambiguity but cannot guarantee semantic compliance. Schema validation checks format, not correctness. Impact is contained through redaction, no tools/write capability, draft-only output and human review. In one LSASS test the model rejected the planted instruction; that is one observation, not general resistance.
+**Prompt-injection handling.** Attacker-controlled fields may contain instructions. A deterministic scan flags tested markers in keys and values; the reserved delimiter is blocked pre-call. Other marked content is preserved as evidence and may reach the model inside an untrusted-data block, which reduces ambiguity but cannot guarantee semantic compliance. Schema validation checks format, not correctness. Impact is contained through redaction, no Wazuh write/action path, no response tools or enforcement integration, draft-only output and human review. In one LSASS test the model rejected the planted instruction; that is one observation, not general resistance.
 
 **Scope of the redaction claim.** The layer removes tested classes of common credentials and materially reduces disclosure risk. It is **not** a guarantee that every possible secret is removed; residual risk remains for unknown, encoded, or unlabelled secrets. Broadening coverage (Basic auth, JWTs, `ghp_`/`xoxb-` tokens, URL credentials, decode-then-redact for encoded PowerShell) and context-aware hash handling are identified follow-ups (§12).
 
@@ -209,10 +209,12 @@ Technique accuracy on the 14 attack alerts:
 
 | Model | exact — operational | exact — reduced | relaxed — operational | relaxed — reduced |
 |---|---|---|---|---|
-| llama3.1:8b | **13/14** | **1/14** | 14/14 | **1/14** |
+| llama3.1:8b | **14/14** | **1/14** | 14/14 | **1/14** |
 | gpt-5.5 | 11/14 | **8/14** | 14/14 | **12/14** |
 
-**Removing the label is decisive, and model-dependent.** llama3.1's exact technique accuracy falls from 13/14 to **1/14** and relaxed from 14/14 to **1/14** — on the honest measure it is essentially not classifying at all; its operational score was almost entirely the rule's own label. GPT-5.5 falls only 11→8 exact and 14→12 relaxed. The methodological point is the stronger one: **our first "evaluation" figure (7/14 for llama) was itself inflated by residual leakage we had not caught**, and only a strict label-reduced view, verified for the tested alert classes, exposed how total the reliance was. Because the hosted runs are single stochastic samples, "GPT-5.5 does not lean on the label" is a well-supported interpretation rather than a proven causal fact.
+**Removing the label is decisive, and model-dependent.** llama3.1's exact and relaxed technique accuracy both fall from 14/14 to **1/14** — a loss of 13 attack alerts of credit; on the honest measure it is essentially not classifying at all, and its operational score was the rule's own label. GPT-5.5 falls only 11→8 exact and 14→12 relaxed. The methodological point is the stronger one: **our first "evaluation" figure (7/14 for llama) was itself inflated by residual leakage we had not caught**, and only a strict label-reduced view, verified for the tested alert classes, exposed how total the reliance was. Because the hosted runs are single stochastic samples, "GPT-5.5 does not lean on the label" is a well-supported interpretation rather than a proven causal fact.
+
+The matched llama3.1 automated comparison uses operational run `20260715_060542_ollama_oper_baseline` and strict run `20260718_180713_ollama_eval_baseline`; both record prompt version `23185744b88f77b7` and redaction version `3a527e33fa159616`. This is distinct from the earlier operational run used for the manual grounding worksheet (§9.5).
 
 *(Technique credit is **exact-ID overlap** — the assistant's technique set overlaps the ground-truth set — not full-set exact matching.)*
 
@@ -231,7 +233,7 @@ Disposition assigned to the six benign false positives, strict label-reduced vie
 This inverts the pilot's purpose: false positives *are* the alert-fatigue workload the brief set out to cut. An assistant that rubber-stamps them works against that goal; one that clears or flags them without false confidence supports it.
 
 ### 9.5 Grounding of the free-text deliverables
-Automated scoring (§9.2–9.4) covers only the technique tag and disposition. A manual grounding review scored all 20 **operational** outputs of each model on six dimensions: whether every summary line is supported by the alert, the number of unsupported statements, whether the investigation queries are valid (runnable) and relevant, whether the draft user message is appropriate, and whether stated confidence is calibrated to the evidence.
+Automated scoring (§9.2–9.4) covers only the technique tag and disposition. A manual grounding review scored all 20 **operational** outputs of each model on six dimensions: whether every summary line is supported by the alert, the number of unsupported statements, whether the investigation queries are valid (runnable) and relevant, whether the draft user message is appropriate, and whether stated confidence is calibrated to the evidence. The source runs are `20260713T115729Z_ollama_operational` for llama3.1 (legacy prompt version `88b9c3f1656b683b`) and `20260717_073045_openai_oper_baseline` for GPT-5.5 (prompt version `23185744b88f77b7`). The llama worksheet therefore evaluates an earlier operational output sample than the matched 14/14→1/14 automated comparison in §9.3; its free-text verdicts must not be attributed to the later `20260715_060542` run.
 
 | Dimension | llama3.1:8b | gpt-5.5 |
 |---|---|---|
@@ -286,9 +288,24 @@ The analyst's contemporaneous notes corroborate the split independently: every "
 | Investigation queries runnable (grounding) | **0/20** | **20/20** |
 | Attacks classified benign (false negatives) | 0 | 1 (A18 — §11) |
 | Valid JSON, matched operational+eval runs | **40/40** | **40/40** |
-| Median latency · reasoning tokens (strict run) | ~60.4 s · n/a | **~10.7 s** · ~338 |
 
-**Comparison fairness.** This is an **exploratory system-level comparison, not a controlled model benchmark**: model scale, training, reasoning configuration, hosting, output budgets and sampling behaviour differ simultaneously. Both GPT-5.5 runs used the same baseline prompt, evaluation transform, redaction version, corpus, schema and scoring code as the llama3.1 runs; only the provider/model and inference configuration differ. Full derivation and re-runnable computation: `measurement/analysis.ipynb`.
+The grounding rows are from the separately identified **operational-view** manual review (§9.5). They are not strict-view grounding scores, and the llama grounding worksheet uses the earlier `20260713T115729Z` output sample rather than the matched operational comparison run.
+
+#### Usage and latency — matched strict-view runs
+
+| Strict label-reduced view (20 calls per model) | `llama3.1:8b` local | `gpt-5.5-2026-04-23` hosted |
+|---|---:|---:|
+| Prompt tokens, median | 963.5 | 970.0 |
+| Completion tokens, median | 218.5 | 786.5 |
+| Reasoning-token subset, median | Not separately reported | 337.5 |
+| Estimated visible completion tokens, median | 218.5 | 419.5 |
+| Total tokens, median | 1,182.5 | 1,708.5 |
+| End-to-end call latency, median | 60.37 s | **10.66 s** |
+| Sum of call latency, 20 alerts | 21.18 min | **3.81 min** |
+
+For GPT-5.5, `completion_tokens` includes the separately reported reasoning-token subset; “estimated visible completion” is therefore calculated as completion minus reasoning. Ollama reported `reasoning_tokens: null`, so its visible estimate uses the completion count unchanged. That means **not separately reported**, not “the model did not reason.” Token counts are provider-tokenizer-specific usage measures and should not be compared as if one token had identical meaning across models.
+
+**Comparison fairness.** All 20 paired strict-view records have matching `input_hash` and `redacted_prompt_hash` values and use prompt version `23185744b88f77b7` and redaction version `3a527e33fa159616`. Those hashes establish matched serialized inputs; the similar prompt-token medians do not. This remains an **exploratory system-level comparison, not a controlled model benchmark**: model scale, architecture, training, tokenizer, reasoning configuration, hosting, output budgets and sampling behaviour differ simultaneously. The association between more reported GPT-5.5 completion/reasoning tokens and better quality does not establish that reasoning tokens caused the quality difference. Latency is the observed end-to-end call time on this laptop CPU and hosted service, not an intrinsic model-speed ranking. Full derivation and re-runnable computation: `measurement/analysis.ipynb`.
 
 ## 10. AI disclosure
 
@@ -298,7 +315,7 @@ The analyst's contemporaneous notes corroborate the split independently: every "
 | **`gpt-5.5-2026-04-23` via OpenAI** (hosted, pinned snapshot, `max_completion_tokens=25000`, vendor-default reasoning effort) — comparison artifact | Same four outputs, on the same frozen corpus, in both views, to test whether the disposition bias was model-dependent | Scored identically. Temperature is unsupported on reasoning models, so these runs are **stochastic single samples**, reported as such. Redacted alerts (synthetic lab data, no real secrets) were sent to a hosted API — permitted per instructor guidance conditional on the redaction guardrail (§8.3). The audit log records the effective request configuration and the model actually served. |
 | **Claude (Anthropic)** | Pair-programming and review aid during development of the assistant package, the measurement design, and drafting of this report | All code executed and tested by the author; every technical claim validated against system behaviour and re-runnable artifacts. No result in this report is an AI assertion — each derives from a committed audit log or timing record. |
 
-No real credentials, customer data, or copyrighted content was provided to any model. Lab alerts are synthetic, and the redaction layer (§8.3) strips tested credential patterns before any prompt is constructed. Measured hosted API cost was **$1.11** for the two GPT-5.5 runs (operational + evaluation; 42 requests including preflight, 42,562 input tokens) — roughly $0.03 per alert. Prompts, prompt-version hashes, model versions and raw responses for every reported number are committed under `assistant/outputs/runs/` and integrity-checked by SHA-256 (run manifest, Appendix A.1).
+No real credentials, customer data, or copyrighted content was provided to any model. Lab alerts are synthetic, and the redaction layer (§8.3) strips tested credential patterns before any prompt is constructed. An account-level billing observation of **$1.11** was recorded for the original operational + superseded evaluation pair (42 requests including two preflight calls; 42,562 prompt tokens). Amortised across the 40 scored alert-view calls, that is about **$0.028 per scored call**, or **$0.056 per unique corpus alert across two views**. It does **not** price the later corrected strict-view rerun, and the repository logs do not retain the historical tariff or an invoice line item, so this cost is not independently reconstructible from token counts alone. Prompts, prompt-version hashes, model versions and raw responses for every reported number are committed under `assistant/outputs/runs/` and integrity-checked by SHA-256 (run manifest, Appendix A.1).
 
 ---
 
@@ -306,7 +323,7 @@ No real credentials, customer data, or copyrighted content was provided to any m
 
 **Measurement**
 
-- **ATT&CK label leakage (identified in our own method).** The operational view shows the model the rule's own label, so llama3.1's 13/14 attack-technique accuracy is largely copying. A first "evaluation" view still leaked labels through `audit.key` and `rule_description`; only a strict label-reduced view (verified for the tested alert classes) exposed the honest figure — **1/14 for llama3.1, 8/14 for GPT-5.5**. This report leads with the label-reduced number. §9.3.
+- **ATT&CK label leakage (identified in our own method).** The operational view shows the model the rule's own label, so llama3.1's 14/14 attack-technique accuracy is label copying, not independent classification. A first "evaluation" view still leaked labels through `audit.key` and `rule_description`; only a strict label-reduced view (verified for the tested alert classes) exposed the honest figure — **1/14 for llama3.1, 8/14 for GPT-5.5**. This report leads with the label-reduced number. §9.3.
 - **Self-generation bias.** The analyst authored the attacks and therefore knew the ground truth. The unassisted 20/20 disposition accuracy is an optimistic ceiling that a real Tier-1 analyst on unfamiliar traffic would not reach, and it means the assistant could only match or worsen accuracy, never improve it. The six deliberately deceptive false positives partially counter this, but do not eliminate it.
 - **Learning effect — with its bias direction stated.** The assisted pass is a second exposure to the same corpus; a washout period and randomised order mitigate but do not eliminate familiarity. Critically, this confound biases **toward** an apparent assistant speed-up — so the finding that the assistant *slowed down* false-positive triage is robust despite a learning tailwind. The categorical 14-of-14 versus 0-of-6 split is also not explicable by memory, which would not align itself with assistant correctness.
 - **Small n, single analyst, single environment; two models, one run per condition.** The `llama3.1` outputs were byte-identical across the two recorded runs at `temperature=0`; the hosted GPT-5.5 runs are one stochastic sample per view (temperature is unsupported on reasoning models). Temperature 0 reduces sampling variability but does not guarantee determinism. Results are directional, not statistically powered.
@@ -345,11 +362,12 @@ No real credentials, customer data, or copyrighted content was provided to any m
 1. **The deployment gate is not "is it fast?" — it is "is it right on the alerts you would otherwise dismiss?"** Measured on that gate, the two models diverge (llama3.1 0/6; GPT-5.5 3/6 cleared + 3 hedged in the strict view, 5/6 cleared operationally) while their aggregate `overall` scores look similar. Choose the model on the false-positive test, not the headline.
 2. **Evaluate on a benign-salted corpus, or you will measure nothing.** Had the corpus contained only real attacks, the 8B assistant would have scored ~100% and been judged a success. The six false positives are what exposed the failure — and what later showed the GPT-5.5 configuration substantially reducing it in this sample.
 3. **Human review is not free, and it can be priced.** In this single-analyst study, review absorbed all six model errors, so observed accuracy did not degrade. It cost about two minutes per false positive: the number to weigh against the time saved elsewhere.
-4. **A rigorous evaluation audits itself, not just the model.** This one caught two defects in its own instruments: an ATT&CK label leaking into the input and inflating accuracy (13/14 → 1/14 once rigorously removed), and a synthetic corpus whose payload announced itself as a test — which only became visible when a model capable enough to decode it disagreed with our ground truth (A18, §11). Both were reported rather than repaired after the fact.
+4. **A rigorous evaluation audits itself, not just the model.** This one caught two defects in its own instruments: an ATT&CK label leaking into the input and inflating accuracy (14/14 → 1/14 once rigorously removed), and a synthetic corpus whose payload announced itself as a test — which only became visible when a model capable enough to decode it disagreed with our ground truth (A18, §11). Both were reported rather than repaired after the fact.
 
 **Future work.**
 
 - **Close the measurement's own gaps first.** A larger, independently-generated corpus — with payloads that do not self-identify as tests — would remove the self-generation bias and the A18 construct-validity problem; the learning effect additionally requires fresh alerts per condition, a between-subject design, or a properly counterbalanced crossover (a second analyst alone does not remove it). These are the biggest threats to validity in this report.
+- **Test model-family generality at comparable local scale.** Pre-register a second 7–9B local instruct model and run the same corpus, strict/operational views, prompt, sampling setting, hardware, automated scoring and six-dimension manual grounding rubric. That experiment would test whether llama3.1's 0/6 benign result is model-specific; adding an ungrounded third column late would create apparent breadth without equivalent evidence.
 - **Characterise the frontier result properly.** Repeat the hosted runs to estimate sampling variance, re-run the assisted-timing pass with that model to test whether the +38% false-positive penalty disappears as the mechanism predicts, and reconsider the pre-registered convention that a benign disposition must carry no technique tag.
 - **Harden the assistant:** broaden redaction (Basic auth, JWTs, `ghp_`/`xoxb-` tokens, URL credentials, decode-then-redact for encoded PowerShell), make hash handling context-aware, and automate the (currently manual, single-reviewer) output-grounding rubric across all four deliverables.
 - **Enforce an injection-response policy:** quarantine high-confidence detections by default; require an explicit, reasoned and audited analyst override before model submission.
@@ -426,8 +444,11 @@ Every ✅ claim in this report maps to a captured artifact. (Consistent with REA
 | EVID-AI-PASTE-003 | Redaction trace covers tested secret patterns and non-string sensitive values without retaining unsalted secret hashes | `assistant/tests/test_redaction_trace.py`, `assistant/outputs/paste_demo_redaction_proof.md` |
 | EVID-AI-PASTE-004 | Paste-tab stale-state, consent-reset and invalid-input behaviour | `assistant/tests/test_paste_ui.py` |
 | EVID-AI-UI-001 | Analyst vs Evaluator UI modes | `evidence/week3/assistant-ui-analyst-mode.png` |
-| EVID-AI-LLAMA-001 | llama3.1 operational + strict-reduced runs (scoring + audit log) | `assistant/outputs/runs/20260718_180713_ollama_eval_baseline/` |
-| EVID-AI-GPT-001 | gpt-5.5 operational + strict-reduced runs (scoring + audit log) | `assistant/outputs/runs/20260718_183704_openai_eval_baseline/` |
+| EVID-AI-LLAMA-OP-001 | llama3.1 matched operational baseline: 14/14 exact, 14/14 relaxed, 14/20 disposition | `assistant/outputs/runs/20260715_060542_ollama_oper_baseline/` |
+| EVID-AI-LLAMA-STRICT-001 | llama3.1 strict label-reduced run | `assistant/outputs/runs/20260718_180713_ollama_eval_baseline/` |
+| EVID-AI-LLAMA-GROUND-001 | Earlier llama3.1 operational output sample used by the manual grounding worksheet | `assistant/outputs/runs/20260713T115729Z_ollama_operational/` |
+| EVID-AI-GPT-OP-001 | GPT-5.5 operational baseline run | `assistant/outputs/runs/20260717_073045_openai_oper_baseline/` |
+| EVID-AI-GPT-STRICT-001 | GPT-5.5 strict label-reduced run | `assistant/outputs/runs/20260718_183704_openai_eval_baseline/` |
 | EVID-MEASURE-001 | Timing log + analysis notebook | `measurement/timing-log.csv`, `measurement/analysis.ipynb` |
 
 ### A.1 Run manifest (reproducibility)
@@ -443,7 +464,7 @@ Every ✅ claim in this report maps to a captured artifact. (Consistent with REA
 | Corpus SHA-256 (frozen) | `4e842637f3cbcbb6e0704320824b64bdeb63c7d7ee7e22db0278e4d96c58b929` | (same)                                        |
 | Timing-log SHA-256      | `9ceba8e2468f44e879fa7929e528cfeaaef034ae363ffb66e98f57a21761cb9a` | (same)                                        |
 
-Operational-view runs share the same prompt/redaction/corpus/commit; run IDs are in the audit logs under `assistant/outputs/runs/`.
+The matched operational comparison runs are `20260715_060542_ollama_oper_baseline` and `20260717_073045_openai_oper_baseline`; both use prompt version `23185744b88f77b7` and redaction version `3a527e33fa159616`. Their audit records contain `git_commit: unknown`, so run-to-commit provenance is not claimed. The earlier llama grounding source uses prompt version `88b9c3f1656b683b` and is retained separately.
 
 The corpus is frozen (`frozen_at_utc: 2026-07-12T15:30:00Z`, all 20 `t1_attack_utc` populated); the SHA-256 above is over that frozen file. Run directories for all reported runs are committed to the repository.
 
@@ -453,9 +474,14 @@ The corpus is frozen (`frozen_at_utc: 2026-07-12T15:30:00Z`, all 20 `t1_attack_u
 |---|---|---|
 | Benign FPs cleared (strict-reduced) | 0/6 | 3/6 (+3 hedged) |
 | Technique, attacks (strict-reduced, exact-ID/relaxed) | 1/14 · 1/14 | 8/14 · 12/14 |
-| Median latency (strict run) | ~60.4 s | ~10.7 s |
+| Prompt tokens, median (strict run) | 963.5 | 970.0 |
+| Completion tokens, median (strict run) | 218.5 | 786.5 |
+| Reasoning-token subset, median (strict run) | Not separately reported | 337.5 |
+| Estimated visible completion tokens, median (strict run) | 218.5 | 419.5 |
+| Total tokens, median (strict run) | 1,182.5 | 1,708.5 |
+| End-to-end call latency, median / 20-call total (strict run) | 60.37 s / 21.18 min | 10.66 s / 3.81 min |
 | Data egress | None (local) | Redacted synthetic alerts sent to hosted API |
-| Direct API cost | None | ~$1.11 total for both runs (~$0.03/alert) |
+| Direct API cost | $0; local compute/electricity not measured | Strict-rerun cost not retained; $1.11 account observation applies to the earlier 42-request pair described in §10 |
 | JSON validity (matched operational+eval runs) | 40/40 | 40/40 |
 | Reproducibility | Local model digest; temp=0 repeatable | Pinned snapshot; stochastic single sample |
 | Deployment implication | Private but weak on FPs | Stronger, but externally hosted |

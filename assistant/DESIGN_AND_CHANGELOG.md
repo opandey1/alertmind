@@ -201,19 +201,25 @@ Disposition assigned to the **6 benign false-positives**:
 
 ### 6.4b Two-model comparison — `gpt-5.5-2026-04-23` vs `llama3.1:8b`
 
-> **AUTHORITATIVE RESULTS** (as of run IDs `20260718_180713_ollama_eval_baseline` and `20260718_183704_openai_eval_baseline`, strict label-reduced view, verified for the tested alert classes per `tests/test_views_leakage.py`). **Any figure elsewhere in this document that differs from this table is from a superseded run and is retained only as history.**
+> **AUTHORITATIVE RESULTS** (matched operational runs `20260715_060542_ollama_oper_baseline` and `20260717_073045_openai_oper_baseline`; strict runs `20260718_180713_ollama_eval_baseline` and `20260718_183704_openai_eval_baseline`, with the strict view verified for the tested alert classes per `tests/test_views_leakage.py`). **Any figure elsewhere in this document that differs from this table is from a superseded run and is retained only as history.**
 >
 > | Metric (attacks n=14 unless noted) | llama3.1 op | llama3.1 strict | gpt-5.5 op | gpt-5.5 strict |
 > |---|---|---|---|---|
-> | Technique exact-ID overlap | 13/14 | **1/14** | 11/14 | **8/14** |
+> | Technique exact-ID overlap | 14/14 | **1/14** | 11/14 | **8/14** |
 > | Technique relaxed | 14/14 | **1/14** | 14/14 | **12/14** |
 > | Disposition (all 20) | 14/20 | 14/20 | 18/20 | **16/20** |
 > | Benign cleared / hedged / conf-wrong (n=6) | 0/0/6 | 0/2/4 | 5/1/0 | **3/3/0** |
 > | Valid JSON (op+strict, /40) | 40/40 | — | 40/40 | — |
-> | Median latency (strict run) | 60.4 s | — | 10.7 s (≈338 reasoning tok) | — |
-> | Cost (both runs) | $0 (local) | — | ~$1.11 total (~$0.03/alert) | — |
+> | Median prompt tokens (strict) | — | 963.5 | — | 970.0 |
+> | Median completion tokens (strict) | — | 218.5 | — | 786.5 |
+> | Median reasoning-token subset (strict) | — | not separately reported | — | 337.5 |
+> | Median / total call latency (strict) | — | 60.37 s / 21.18 min | — | 10.66 s / 3.81 min |
 >
-> **The strict-view story:** llama3.1's ATT&CK classification collapses to 1/14 once labels are truly removed (it was copying the rule label); GPT-5.5 holds at 8/14 exact / 12/14 relaxed. GPT-5.5 clears 5/6 benign operationally but only 3/6 under the strict view (hedging the other 3, misclassifying none). A18 is the single attack false negative in both GPT-5.5 views (corpus construct-validity artifact).
+> **The strict-view story:** llama3.1's ATT&CK result collapses from 14/14 to 1/14 once labels are truly removed (it was copying the rule label); GPT-5.5 holds at 8/14 exact / 12/14 relaxed. GPT-5.5 clears 5/6 benign operationally but only 3/6 under the strict view (hedging the other 3, misclassifying none). A18 is the single attack false negative in both GPT-5.5 views (corpus construct-validity artifact).
+>
+> **Usage interpretation:** all 20 strict-view pairs have matching input and redacted-prompt hashes and use the same prompt/redaction versions. Token counts are tokenizer-specific; their similarity is not the evidence for input matching. GPT-5.5 completion tokens include its separately reported reasoning-token subset. Ollama's null reasoning field means “not separately reported,” not zero internal reasoning. The observed usage/quality association is not causal because the configurations differ in model architecture, scale, training, tokenizer, hosting and sampling. Latency is environment-specific end-to-end call time.
+>
+> **Grounding provenance:** the llama3.1 manual grounding worksheet evaluates the earlier operational sample `20260713T115729Z_ollama_operational` (legacy prompt version `88b9c3f1656b683b`), not the matched 14/14 operational run above. The GPT-5.5 worksheet uses `20260717_073045_openai_oper_baseline`. Grounding verdicts are reported as a separate operational-view sample and are not attributed to the strict runs.
 
 ---
 
@@ -229,7 +235,7 @@ Configuration (verified in both audit logs): pinned snapshot `gpt-5.5-2026-04-23
 
 | Model / view | technique exact (attacks, n=14) | technique relaxed | disposition | benign identified | attacks called benign |
 |---|---|---|---|---|---|
-| llama3.1 operational | **13/14** | 14/14 | 14/20 | **0/6** | none |
+| llama3.1 operational | **14/14** | 14/14 | 14/20 | **0/6** | none |
 | llama3.1 label-free eval | **1/14** | **1/14** | 14/20 | 0/6 | none |
 | gpt-5.5 operational | 11/14 | 14/14 | **18/20** | **5/6** | A18 |
 | gpt-5.5 label-free eval | 8/14 | **12/14** | 16/20 | 3/6 (+3 hedged) | A18 |
@@ -237,12 +243,12 @@ Configuration (verified in both audit logs): pinned snapshot `gpt-5.5-2026-04-23
 *(The strict label-reduced eval view is verified for the tested alert classes — `tests/test_views_leakage.py` asserts 0/20 alerts leak a technique code. An earlier "evaluation" view still leaked via `audit.key`/`rule_description`, which is why the llama figure was 7/14 before and 1/14 after.)*
 
 _Superseded overall (leaky eval): llama3.1 14/20 op, 10/20 eval; gpt-5.5 13/20 both._ **Authoritative strict overall: llama3.1 1/20, gpt-5.5 11/20** (see banner).
-Cost/latency (superseded operational+leaky-eval pair): median ≈291 reasoning tokens, ≈14.0 s. **Authoritative strict-run latency: llama 60.4 s, gpt-5.5 10.7 s / ≈338 reasoning tokens** (see banner). Max completion usage observed: **970 tokens** — a 4,000-token budget would have had ample headroom for these calls, though stochastic calls are not guaranteed to stay in that range.
+Cost/latency (superseded operational+leaky-eval pair): median ≈291 reasoning tokens, ≈14.0 s. An account-level **$1.11** observation belongs to that earlier 42-request pair (including two preflight calls), not to the later strict rerun; the historical tariff/invoice line is not retained, so it is not independently reconstructible from the logs. **Authoritative strict-run latency: llama 60.37 s, gpt-5.5 10.66 s / 337.5 median reasoning-token subset** (see banner). Max completion usage observed in the superseded pair: **970 tokens** — a 4,000-token budget would have had ample headroom for those calls, though stochastic calls are not guaranteed to stay in that range.
 Output validity across the matched operational+evaluation runs: **40/40 for both models** (an earlier llama run had one parse failure — 39/40 — now superseded).
 
 > **Finding 5 — the 0/6 benign result is not an inherent property of LLM triage.** GPT-5.5 cleared 5/6 false positives operationally and 3/6 under the strict label-reduced view (hedging the other 3, misclassifying none); disposition 18/20 operational, 16/20 strict. The behaviour is therefore **model- and inference-configuration-dependent**. The study does *not* isolate model capability as the sole causal variable: GPT-5.5 is one stochastic run per view, and it differs from llama3.1:8b in scale, training and reasoning configuration simultaneously.
 
-> **Finding 6 — observed sensitivity to label removal differs sharply between models.** Under the strict label-reduced view, removing the label costs llama3.1 **twelve attack alerts of exact-ID-overlap credit** (13/14 → 1/14) and thirteen relaxed (14/14 → 1/14) — its ATT&CK classification is essentially the rule's label. GPT-5.5 loses three exact (11/14 → 8/14) and two relaxed (14/14 → 12/14). Note llama3.1 scores *higher* than GPT-5.5 on the operational exact measure (13/14 vs 11/14) and *lower* on the strict evaluation measure (1/14 vs 8/14 — the 7/14 vs 9/14 figures were from the superseded leaky view). This is consistent with heavier label reliance, but with one stochastic hosted run per view it is an **observed sensitivity, not demonstrated causation**. (Exact credit is awarded on any overlap with the ground-truth code set, not full-set matching.)
+> **Finding 6 — observed sensitivity to label removal differs sharply between models.** Under the strict label-reduced view, removing the label costs llama3.1 **thirteen attack alerts of exact-ID-overlap credit** (14/14 → 1/14) and thirteen relaxed (14/14 → 1/14) — its ATT&CK result is essentially the rule's label. GPT-5.5 loses three exact (11/14 → 8/14) and two relaxed (14/14 → 12/14). Note llama3.1 scores *higher* than GPT-5.5 on the operational exact measure (14/14 vs 11/14) and *lower* on the strict evaluation measure (1/14 vs 8/14 — the 7/14 vs 9/14 figures were from the superseded leaky view). This is consistent with heavier label reliance, but with one stochastic hosted run per view it is an **observed sensitivity, not demonstrated causation**. (Exact credit is awarded on any overlap with the ground-truth code set, not full-set matching.)
 
 > **Finding 7 — A18 is a scored false negative AND a corpus construct-validity limitation.** Under the frozen ground truth, A18 is the sole attack-labelled alert classified `likely_benign` — it counts against GPT-5.5 and is reported as such. Manual adjudication, however, indicates a likely simulation artifact: the model decoded the Base64 itself (the plaintext was never in the prompt) and reported *"Encoded payload decodes to a benign-looking test string: \"AlertMind Encoded PowerShell Test\""*. Our own generated payload announces itself as a test. llama3.1 called A18 an attack, but could not decode the payload — arguably the right answer for the wrong reason. **This must not be read as evidence that GPT-5.5 would safely handle a genuinely malicious encoded-PowerShell payload**, since a real adversary would not label the payload a test. It is direct evidence for the self-generation-bias limitation declared before the run.
 
@@ -267,7 +273,7 @@ MTTD: median **2.32 s** (20 unique alerts) — a property of the detection rules
 
 > **Finding 3 — the headline.** The assistant **sped up every alert it got right and slowed down every alert it got wrong — 20/20, no exceptions.** The aggregate "−24% faster" is the average of two opposite effects and **overstates the assistant**. The slowdown lands precisely on false positives, which is the workload the project set out to reduce.
 
-> **Finding 4 — human-in-the-loop held, and we can price it.** The analyst overrode all six incorrect assistant dispositions, so accuracy did not degrade. The guardrail worked — but the override cost ≈2 min per false positive. That is the measurable price of an unreliable assistant.
+> **Finding 4 — human-in-the-loop held in this single-analyst study, and we can price the review cost.** The analyst independently reviewed and corrected all six incorrect assistant dispositions, so observed accuracy did not degrade. The review cost ≈2 min per false positive. No formal or audited override mechanism was implemented.
 
 ---
 
@@ -295,10 +301,10 @@ The review judged the architecture distinction-level and faulted **measurement v
 
 | # | Issue (paraphrased) | Status | What changed |
 |---|---|---|---|
-| 1 | **ATT&CK label leakage** — the model was shown `mitre.id`/T-codes and then "scored" on returning them: a copy test, not classification | ✅ Fixed | New `views.py` with `operational`/`evaluation` views + `--view` flag. Operational metric renamed to *metadata consistency*. **Quantified the leak: 13/20 → 7/20 (first view), then 13/14 → 1/14 attacks once strict label-reduced** (§6.3, §6.4b) |
+| 1 | **ATT&CK label leakage** — the model was shown `mitre.id`/T-codes and then "scored" on returning them: a copy test, not classification | ✅ Fixed | New `views.py` with `operational`/`evaluation` views + `--view` flag. Operational metric renamed to *metadata consistency*. The superseded first view moved 13/20 → 7/20; the matched corrected comparison is **14/14 → 1/14 attacks** once strict label-reduced (§6.3, §6.4b). |
 | 2 | Scoring conflated technique and disposition | ✅ Fixed | `scoring.py` — separated metrics |
 | 3 | A contradictory answer could score "correct" | ✅ Fixed | `response_consistent` metric; `overall_correct` requires all three |
-| 4 | Hallucination check too narrow (technique only, not the other 3 deliverables) | ✅ Done (manual) | A single-reviewer **manual grounding rubric** over all 4 deliverables was completed for both models' operational runs (§9.5 of the report; sheets in `measurement/grounding/`): gpt-5.5 20/20, llama3.1 15/20 summaries supported and 0/20 runnable queries. Automating it + a second reviewer remain future work. |
+| 4 | Hallucination check too narrow (technique only, not the other 3 deliverables) | ✅ Done (manual) | A single-reviewer **manual grounding rubric** over all 4 deliverables was completed for operational runs `20260713T115729Z_ollama_operational` and `20260717_073045_openai_oper_baseline` (§9.5 of the report; sheets in `measurement/grounding/`): gpt-5.5 20/20, llama3.1 15/20 summaries supported and 0/20 runnable queries. The llama grounding source is an earlier prompt version than the matched automated comparison. Automating it + a second reviewer remain future work. |
 | 5 | **No prompt-injection defence** — alert fields are attacker-controllable | ✅ Fixed | `<ALERT_DATA>` untrusted-data block + explicit instruction; `tests/test_injection.py`; **real-model proof: RESISTED** |
 | 6 | Redaction breadth + over-claim ("never receives secrets") | 🟡 Partial | Claim **softened to risk-reduction** in README/§3.1. Breadth expansion (Basic auth, JWT, `ghp_`/`xoxb-`, URL creds, decode-then-redact for encoded PowerShell) deferred |
 | 7 | Hash handling not context-aware | ⏸ Deferred (Tier 2) | Keep file-hash IOCs, redact NTLM/SAM/credential-context hashes |
@@ -360,6 +366,7 @@ The review judged the architecture distinction-level and faulted **measurement v
 | #6 Redaction breadth (Basic auth, JWT, `ghp_`/`xoxb-`, URL creds, decode-then-redact encoded PowerShell) | Claim already softened to match current coverage; expansion is additive |
 | #7 Context-aware hash handling | Same |
 | Automate and independently repeat output grounding | The four-deliverable manual rubric is complete for both operational runs; automation, strict-view coverage and an independent second reviewer remain future work |
+| Add a third comparison model | Use a pre-registered second 7–9B local instruct model with the same prompt, views, sampling, hardware, automated scoring and manual grounding rubric. A late ungrounded third column would not be methodologically equivalent. |
 | ~~#12 Remaining reliability (capture usage / response-id)~~ | **Done — was reclassified.** Once hosted reasoning models entered scope this stopped being cosmetic: interpretation depends on reasoning effort and token allocation. The audit log now records the effective request config (endpoint, token parameter + budget, reasoning effort, temperature) and the response metadata (`model_actual`, `response_id`, `system_fingerprint`, `finish_reason`, token usage incl. `reasoning_tokens`). |
 | One-shot JSON retry on `parse_error` | Would likely recover the ~5% parse failures, but changes the measured artifact — deliberately **not** applied after results were collected |
 
@@ -368,7 +375,7 @@ The review judged the architecture distinction-level and faulted **measurement v
 ## 9. Defense Q&A — likely questions and defensible answers
 
 **Q1. "Your assistant is 65% accurate on ATT&CK tagging. Isn't that too low to be useful?"**
-Two numbers, and the distinction matters. In the *operational* view llama3.1 scores 13/14 on attacks — but that view shows the model the rule's own ATT&CK label, so it mostly measures copying. Under the strict label-reduced view it is **1/14 exact and relaxed** (gpt-5.5 holds at 8/14 exact, 12/14 relaxed). I report the strict number as the honest one; a first evaluation view still leaked (7/14) until I made it strict label-reduced and re-ran. It's why the two views exist.
+Two numbers, and the distinction matters. In the matched *operational* view llama3.1 scores 14/14 on attacks — but that view shows the model the rule's own ATT&CK label, so it measures copying. Under the strict label-reduced view it is **1/14 exact and relaxed** (gpt-5.5 holds at 8/14 exact, 12/14 relaxed). I report the strict number as the honest one; a first evaluation view still leaked (7/14) until I made it strict label-reduced and re-ran. It's why the two views exist.
 
 **Q2. "Did the assistant improve triage time?"**
 The aggregate says −24% (10.5 → 8.0 min median), but that number is misleading and I don't lead with it. Split by whether the assistant was right: **attacks −30% (faster on 14 of 14), benign false positives +38% (slower on 6 of 6)**. It sped up everything it got right and slowed down everything it got wrong, with zero exceptions across 20 alerts.

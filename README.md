@@ -49,20 +49,27 @@ The project deliberately separates detection latency from analyst triage time:
 
 Analyst disposition accuracy stayed **20/20** in both passes because every incorrect assistant disposition was independently reviewed and corrected by the analyst. This demonstrates that human review worked in this single-analyst study, but also that review has a measurable cost. No formal or audited override mechanism was implemented.
 
-### Strict label-reduced assistant comparison
+### Model comparison: strict scoring and operational grounding
 
-The operational alert contains its rule-authored ATT&CK label. A separate evaluation view removes the tested label-bearing fields before scoring to avoid measuring label copying.
+The operational alert contains its rule-authored ATT&CK label. A separate evaluation view removes the tested label-bearing fields before scoring to avoid measuring label copying. The two free-text grounding rows below are labelled separately because that manual review used the operational outputs, not the strict-view outputs.
 
 | Measure | `llama3.1:8b` | `gpt-5.5-2026-04-23` |
 |---|---:|---:|
-| Attack technique, exact / relaxed | 1/14 · 1/14 | **8/14 · 12/14** |
+| Attack technique, operational exact / relaxed | **14/14 · 14/14** | 11/14 · 14/14 |
+| Attack technique, strict exact / relaxed | 1/14 · 1/14 | **8/14 · 12/14** |
 | Disposition, all alerts | 14/20 | **16/20** |
 | Benign false positives cleared | **0/6** | **3/6**, with 3 hedged and 0 confidently wrong |
-| Operational summaries fully supported | 15/20 | **20/20** |
-| Operational investigation queries runnable | **0/20** | **20/20** |
+| Summaries fully supported (operational grounding) | 15/20 | **20/20** |
+| Investigation queries runnable (operational grounding) | **0/20** | **20/20** |
 | Valid JSON across matched operational + evaluation runs | 40/40 | 40/40 |
+| Prompt tokens, median (strict run) | 963.5 | 970.0 |
+| Completion tokens, median (strict run) | 218.5 | 786.5 |
+| Reasoning-token subset, median (strict run) | Not separately reported | 337.5 |
+| End-to-end call latency, median / 20-call total (strict run) | 60.37 s / 21.18 min | **10.66 s / 3.81 min** |
 
-This is an exploratory system-level comparison, not a controlled model benchmark: model scale, training, hosting, reasoning and sampling differ simultaneously. GPT-5.5 is one stochastic sample per view, and the timed assisted pass was not repeated with it.
+The automated operational/strict comparison uses llama3.1 runs `20260715_060542_ollama_oper_baseline` and `20260718_180713_ollama_eval_baseline`. The llama operational grounding worksheet uses an earlier output sample, `20260713T115729Z_ollama_operational`; its free-text verdicts are not attributed to the later 14/14 operational run. All 20 strict-view pairs have matching input and redacted-prompt hashes and use the same prompt and redaction versions. That establishes matched serialized inputs; the near-identical prompt-token medians do not, because token counts are tokenizer-specific. GPT-5.5 completion tokens include the separately reported reasoning-token subset. Ollama did not report a separate reasoning count, which must not be read as proof that the model performed no internal reasoning.
+
+This is an exploratory system-level comparison, not a controlled model benchmark: model scale, training, hosting, tokenizer, reasoning configuration and sampling differ simultaneously. The extra GPT-5.5 reasoning tokens are an observed usage difference, not evidence that reasoning tokens caused the quality difference. Latency is the observed end-to-end call time on the measured laptop CPU and hosted service, not an intrinsic speed ranking. GPT-5.5 is one stochastic sample per view, and the timed assisted pass was not repeated with it.
 
 The corpus is frozen at `measurement/alert-corpus.json`:
 
@@ -211,10 +218,12 @@ The current suite contains **58 tests** covering provider request construction, 
 
 Reproduce the analysis by running [`measurement/analysis.ipynb`](measurement/analysis.ipynb) top to bottom; it derives MTTD directly from the frozen-corpus timestamps, so the reported 2.32 s is re-derivable without any model access. The timing protocol and its limitations are in [`measurement/assisted-timing-protocol.md`](measurement/assisted-timing-protocol.md). Grounding worksheets and reviewer notes are under [`measurement/grounding/`](measurement/grounding/). The main result-bearing run directories are:
 
+- `assistant/outputs/runs/20260715_060542_ollama_oper_baseline/` — matched llama3.1 operational baseline
 - `assistant/outputs/runs/20260718_180713_ollama_eval_baseline/`
+- `assistant/outputs/runs/20260713T115729Z_ollama_operational/` — earlier llama3.1 operational sample used for manual grounding
 - `assistant/outputs/runs/20260718_183704_openai_eval_baseline/`
 - `assistant/outputs/runs/20260717_073045_openai_oper_baseline/`
-- `assistant/outputs/runs/20260717_074112_openai_eval_baseline/`
+- `assistant/outputs/runs/20260717_074112_openai_eval_baseline/` — superseded, still-leaky evaluation view retained as history
 
 ## Detection and response content
 
@@ -233,6 +242,7 @@ Reproduce the analysis by running [`measurement/analysis.ipynb`](measurement/ana
 
 - The 20-alert, single-analyst lab study is directional rather than statistically powered; the assisted pass also followed the unassisted pass after a washout.
 - Local and hosted model results are not a controlled capability comparison, and hosted results are single stochastic samples.
+- The next informative model experiment is a pre-registered second 7–9B local instruct model under the same prompt, views, sampling and hardware, with the full manual grounding rubric; an ungrounded third column was not added late.
 - One synthetic attack payload identifies itself as an AlertMind test after decoding, creating a documented construct-validity limitation.
 - Redaction does not guarantee removal of unknown or encoded secrets.
 - Prompt-injection markers provide detection and visibility; only reserved-boundary attempts are deterministically blocked. Semantic model influence remains possible.
