@@ -1,5 +1,9 @@
 # Grounding review worksheet — gpt-5.5 · operational view
 
+**Source run:** `assistant/outputs/runs/20260717_073045_openai_oper_baseline/`
+
+**Prompt version:** `23185744b88f77b7` · **Redaction version:** `3a527e33fa159616`
+
 For each alert: read the **alert evidence**, then judge each assistant deliverable against it. Fill the six columns in the CSV. AUTO flags are hints to verify, not verdicts.
 
 **Scoring key** — `summary_supported`: every line traceable to the alert (Y), some lines unsupported (partial), or key claims invented (N). `unsupported_statement_count`: number of assertions not backed by the alert. `queries_valid`: runnable/wellformed. `queries_relevant`: would actually advance this triage. `draft_appropriate`: accurate, no overclaim, safe to send after review. `confidence_calibrated`: stated confidence matches the evidence strength.

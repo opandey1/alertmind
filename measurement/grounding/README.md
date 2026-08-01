@@ -26,6 +26,13 @@ Two files per run:
 
 Runs provided: **llama3.1 operational** and **gpt-5.5 operational** — the two the analyst actually sees (operational view). Ground the strict-view runs too if you want, but operational is what the timing pass and the deployment question rest on.
 
+| Worksheet | Source run | Prompt version | Redaction version |
+|---|---|---|---|
+| llama3.1 operational | `assistant/outputs/runs/20260713T115729Z_ollama_operational/` | `88b9c3f1656b683b` | `3a527e33fa159616` |
+| GPT-5.5 operational | `assistant/outputs/runs/20260717_073045_openai_oper_baseline/` | `23185744b88f77b7` | `3a527e33fa159616` |
+
+The llama3.1 worksheet predates the later matched automated-comparison run `20260715_060542_ollama_oper_baseline` (14/14 operational exact-ID overlap). Its manual free-text verdicts apply only to the source run listed above and must not be attributed to that later output sample.
+
 ## What the AUTO flags mean (and don't)
 
 The `auto_*` columns are **hints to verify, never verdicts**:
