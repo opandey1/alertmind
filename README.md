@@ -69,6 +69,8 @@ The operational alert contains its rule-authored ATT&CK label. A separate evalua
 
 The automated operational/strict comparison uses llama3.1 runs `20260715_060542_ollama_oper_baseline` and `20260718_180713_ollama_eval_baseline`. The llama operational grounding worksheet uses an earlier output sample, `20260713T115729Z_ollama_operational`; its free-text verdicts are not attributed to the later 14/14 operational run. All 20 strict-view pairs have matching input and redacted-prompt hashes and use the same prompt and redaction versions. That establishes matched serialized inputs; the near-identical prompt-token medians do not, because token counts are tokenizer-specific. GPT-5.5 completion tokens include the separately reported reasoning-token subset. Ollama did not report a separate reasoning count, which must not be read as proof that the model performed no internal reasoning.
 
+The earlier llama run's committed scoring CSV is preserved as an **as-run historical artifact** from the then-current single-ID validator: A13 and A19 were parsed correctly but marked `schema_invalid` because their slash-joined ATT&CK IDs were rejected. A retrospective re-score of the unchanged audit log with the current multi-ID validator yields **13/14 exact, 14/14 relaxed, 14/20 disposition, 20/20 consistent and 14/20 overall**; A10 is the sole exact-ID miss. Those derived figures describe the earlier grounding-source run and do not replace the matched `20260715_060542` automated result of 14/14 exact.
+
 This is an exploratory system-level comparison, not a controlled model benchmark: model scale, training, hosting, tokenizer, reasoning configuration and sampling differ simultaneously. The extra GPT-5.5 reasoning tokens are an observed usage difference, not evidence that reasoning tokens caused the quality difference. Latency is the observed end-to-end call time on the measured laptop CPU and hosted service, not an intrinsic speed ranking. GPT-5.5 is one stochastic sample per view, and the timed assisted pass was not repeated with it.
 
 The corpus is frozen at `measurement/alert-corpus.json`:
@@ -212,7 +214,16 @@ cd assistant
 python -m unittest discover -s tests -p "test_*.py"
 ```
 
-The current suite contains **58 tests** covering provider request construction, schema/error metadata, redaction, strict-view label leakage, injection markers, boundary blocking, consent, ad hoc audit semantics and Streamlit state handling.
+The current suite contains **67 tests** covering provider request construction, schema/error metadata, runtime/formal-schema alignment, non-destructive audit reconstruction, redaction, strict-view label leakage, injection markers, boundary blocking, consent, ad hoc audit semantics and Streamlit state handling.
+
+Re-score a retained audit log without changing committed evidence:
+
+```powershell
+cd assistant
+python rebuild_from_audit.py outputs/runs/<run_id>/audit-log.jsonl --score-only
+```
+
+Omitting `--score-only` writes derived files under `assistant/outputs/rebuilt/<run_id>/`, not beside the source audit log. Existing derived files require an explicit `--overwrite`, and the timing-log default is resolved from the repository rather than the caller's working directory.
 
 **Rebuilding the lab from a clean clone:** follow [`docs/rebuild-guide.md`](docs/rebuild-guide.md). Recovery and credential-reset procedures are in [`docs/runbooks/`](docs/runbooks/), and [`docs/artifacts.md`](docs/artifacts.md) indexes the produced artifacts.
 

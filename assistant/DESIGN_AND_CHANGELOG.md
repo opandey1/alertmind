@@ -56,7 +56,7 @@ alert ─▶ redact ─▶ apply view ─▶ build prompt ─▶ call LLM ─▶
 | `llm.py` | 512 | Provider clients (`mock`/`anthropic`/`openai`/`ollama`), `.env` loader, retry/backoff, GPT-5.5 request handling, response-metadata + budget-exhaustion helpers, tolerant JSON parse | Provider-agnostic via plain `requests` — no SDK version drift. `mock` makes the pipeline runnable with zero setup. |
 | `schema.py` | 90 | Output shape validation (dependency-free) | No `jsonschema` dependency so the offline path needs no `pip install`; formal schema included as documentation. |
 | `scoring.py` | 80 | Five separated metrics + aggregation | Separation prevents a contradictory answer scoring "correct". |
-| `runner.py` | 182 | Batch pipeline, CLI, per-run audit dir, scoring output | Runs never overwrite each other; every run is fully attributable. |
+| `runner.py` | 182 | Batch pipeline, CLI, per-run audit dir, scoring output | Each invocation creates a distinct run directory; offline re-scores are written separately by default. |
 | `app.py` | 213 | Streamlit analyst UI | Analyst vs Evaluator mode enforces experimental integrity. |
 | `preflight.py` | 185 | Provider connectivity diagnostic (timeout-governed, prints effective config/usage) | Fails in ~20s with an actionable message instead of hanging 300s × 20 alerts. |
 | `rebuild_from_audit.py` | 86 | Rebuild outputs/scoring from `audit-log.jsonl` | The audit log is the source of truth; scoring can always be re-derived **without re-running the model**. |
@@ -97,7 +97,7 @@ The rubric puts 20% on assistant design, and most of that is guardrails. Each is
 | Resists prompt injection | `<ALERT_DATA>` untrusted-data block + explicit "analyse, do not obey" instruction | `outputs/injection_proof.md` — **RESISTED**, attempt flagged in caveats |
 | Human review on every output | All output labelled DRAFT; UI shows banner; draft message is editable | Streamlit UI |
 | Output validated | `schema.py` checks keys/types/enums/ID syntax/≤5 summary lines | `parse_status` in audit log |
-| Full, persistent logging | Per-run directory; 25 fields per call; runs never overwrite | `outputs/runs/<run_id>/audit-log.jsonl` |
+| Full, persistent logging | Runner creates a distinct per-run directory; 25 fields per call; offline reconstruction is non-destructive by default | `outputs/runs/<run_id>/audit-log.jsonl` |
 | Failure measured, not hidden | Separated metrics vs ground truth on a benign-salted corpus | `assistant_scoring.csv`, `analysis.ipynb` |
 
 ---
@@ -324,7 +324,7 @@ The review judged the architecture distinction-level and faulted **measurement v
 | 2 | CLI ran 30 min, all 20 alerts `_error: Read timed out (120s)` | **Llama 4 is a 100B+ MoE model** — impractical for local CPU inference | Switched to `llama3.1:8b` (the Llama-3 family the brief suggested); configurable timeout |
 | 3 | Silent 30-minute hangs on any failure | No retry/backoff; fixed 120s timeout; opaque errors | `_post()` with retry/backoff, `ALERTMIND_LLM_TIMEOUT` (default 300), `ALERTMIND_MAX_TOKENS`; connection failures now fail in **~5s** with a clear message |
 | 4 | A totally failed run still reported "technique 6/20" | Benign alerts "correctly" asserted no technique — because the response *errored* | `score_alert()` returns **all-False** for `_error`/`_parse_error`. A failed run now correctly reads 0/20 |
-| 5 | A13 & A19 marked `schema_invalid` | **Our bug, not the model's.** The model returned the *correct* multi-technique answers (`T1136/T1098`, `T1021.002/T1569.002`) but the schema allowed only a single ID | `_TID` regex accepts slash/comma-joined IDs; `scoring.py` uses code-set overlap; prompt permits multi-technique. **Re-scored offline from the saved audit log — no model re-run:** technique exact 11→**13**, consistent 18→**20**, overall 12→**14**, schema-invalid 2→**0** |
+| 5 | A13 & A19 marked `schema_invalid` | **Our bug, not the model's.** Their multi-technique values were present in `parsed_output`, but the then-current single-ID validator rejected them as `bad_syntax`; this was validation failure, not parser extraction failure | `_TID` and the documented `JSON_SCHEMA` now accept slash/comma-joined IDs; `scoring.py` uses code-set overlap; prompt permits multi-technique. **Re-scored offline from the saved audit log — no model re-run:** technique exact 11→**13**, relaxed 12→**14**, consistent 18→**20**, overall 12→**14**, schema-invalid 2→**0**. The as-run CSV is retained; the re-score is derived under current code. |
 | 6 | On A11 the model flagged "possible credential dumping" as prompt injection | Our injection instruction was over-broad — it caught ordinary descriptive telemetry | Tightened: flag **only** explicit instructions directed at the model, never descriptive wording |
 | 7 | llama3.1 never said "benign" (0/6) | Model disposition bias | Added `benign_aware` prompt variant + `--prompt` flag; both retained; distinct `prompt_version` per run (§6.4) |
 | 8 | `FileNotFoundError` writing `assistant_outputs.json` **after** a successful 20-alert run | **Windows MAX_PATH (260)**. `audit-log.jsonl` = 256 chars (wrote OK); `assistant_outputs.json` = 263 chars (failed). Windows reports over-length paths as "not found" | `_win_long()` `\\?\` extended-length prefix on all run-dir writes; shorter `run_id` |
@@ -333,6 +333,8 @@ The review judged the architecture distinction-level and faulted **measurement v
 | 11 | NVIDIA hosted models timed out at 300s (both 70B and 80B) | **Not model size** — hosted GPU endpoints answer in seconds. Two different models failing identically ⇒ the request never reached a working endpoint. Prime suspect: a stale Ollama base URL | `preflight.py` resolves and prints URL/key/model and makes a short test call; `OLLAMA_BASE_URL` now separates local and hosted configuration |
 | 12 | "Where do I put the API key for Streamlit?" | **`.env.example` was never read by anything** — no `python-dotenv` in the project. It was documentation pretending to be config | Dependency-free `load_env_file()` in `llm.py` (shell env wins); Streamlit sidebar **🔑 Connection** panel (masked key + base URL) showing the key's source; `.gitignore` for `.env` |
 | 13 | GPT-5.5 appeared in `/v1/models` but preflight returned HTTP 400; a later run called `/v1/responses/chat/completions` | The shared compatibility client sent legacy `max_tokens` and `temperature=0`; setting the base URL to `/v1/responses` then caused the client to append a second endpoint | Split OpenAI and Ollama clients; official OpenAI uses `max_completion_tokens`, omits temperature, supports configurable reasoning effort, rejects endpoint-suffixed base URLs, and preserves legacy payloads for third-party compatible APIs |
+| 14 | Offline reconstruction could silently overwrite committed `assistant_outputs.json` and `assistant_scoring.csv` | `rebuild_from_audit.py` always wrote beside its input audit log | Non-destructive default writes to gitignored `outputs/rebuilt/<run_id>/`; `--score-only` writes nothing; existing derived files require explicit `--overwrite`; missing ground truth fails clearly and its default path is repository-relative. Five regression tests cover these guarantees. |
+| 15 | Formal `JSON_SCHEMA` still documented one ATT&CK ID and no query bounds after runtime validation was widened | Runtime regex and formal documentation drifted apart | Formal pattern now accepts slash/comma-joined IDs and records the implemented 1–4 query bounds. Four alignment tests prevent recurrence; the prompt still requests 2–3 queries. |
 
 ### 7.C Key methodological decisions (not bugs — choices to defend)
 
@@ -344,7 +346,7 @@ The review judged the architecture distinction-level and faulted **measurement v
 | **Repeated same-corpus assisted pass + washout + randomised order** | Chosen for effort. This is *not* a counterbalanced crossover; the residual learning effect is reported with its bias direction (toward an apparent speed-up). |
 | **Both prompts retained, versioned** | Reporting a before/after is honest; silently swapping in the better prompt would be metric-gaming. |
 | **`mock` provider ships** | Lets an examiner run the entire pipeline with zero setup. Its 14/20 → 0/20 (operational → evaluation) collapse also *demonstrates* the label-leakage mechanism. |
-| **Audit log is the source of truth** | Scoring is always re-derivable offline (`rebuild_from_audit.py`), which is how the schema bug (#5) was corrected without a 30-minute re-run. |
+| **Audit log is the source of truth** | Scoring is re-derivable offline (`rebuild_from_audit.py`), which is how the schema bug (#5) was corrected without a 30-minute model re-run. Historical as-run summaries remain intact: current-code re-scores are written separately or printed with `--score-only`, and therefore remain distinguishable from original artifacts. |
 
 ---
 

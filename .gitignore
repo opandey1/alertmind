@@ -8,3 +8,4 @@ wazuh-install-files.tar
 *.log
 .DS_Store
 assistant/outputs/adhoc/
+assistant/outputs/rebuilt/

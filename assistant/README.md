@@ -40,7 +40,7 @@ pasted JSON ─▶ limits ─▶ redact+trace ─▶ apply view ─▶ scan keys
 | **Egress consent** | Any non-loopback endpoint requires explicit confirmation bound to the current input, provider, model and endpoint. Mock and verified loopback endpoints proceed without external-egress consent. `tests/test_paste_pipeline.py`. |
 | **Human review** | All output is DRAFT; the UI shows a review banner and an editable draft message. |
 | **Output validated** | `schema.py` checks required keys, types, allowed dispositions/confidence, ATT&CK-ID syntax and `<=5` summary lines. The prompt requests 2–3 investigation queries; the validator accepts 1–4. Invalid output is recorded, not silently scored. |
-| **Full, persistent batch logging** | Each run writes `outputs/runs/<run_id>/audit-log.jsonl` with **25 fields** per call: timestamp, provider, model *requested* and `model_actual` served, view, prompt/redaction version hashes, git commit, input/prompt/response hashes, the redacted prompt sent, raw and parsed output, latency, parse status, schema errors, the effective `request_config`, `response_id`, `system_fingerprint`, `finish_reason` and token `usage`. Runs never overwrite each other; `rebuild_from_audit.py` regenerates outputs from the audit log and reconstructs scoring using timing-log ground truth, without another model call. |
+| **Full, persistent batch logging** | Each run writes `outputs/runs/<run_id>/audit-log.jsonl` with **25 fields** per call: timestamp, provider, model *requested* and `model_actual` served, view, prompt/redaction version hashes, git commit, input/prompt/response hashes, the redacted prompt sent, raw and parsed output, latency, parse status, schema errors, the effective `request_config`, `response_id`, `system_fingerprint`, `finish_reason` and token `usage`. The runner creates a new directory per run. `rebuild_from_audit.py` reconstructs scoring using repository-relative timing-log ground truth without another model call; it writes to `outputs/rebuilt/<run_id>/` by default, supports `--score-only`, and refuses to replace derived files unless `--overwrite` is explicit. |
 | **Sanitised ad hoc audit** | Paste & inspect saves one record only on explicit request, idempotent by result ID. Raw pasted input is never persisted; `schema_valid` is tri-state (`null` when a call was blocked or not evaluated) and `call_status` records why. `tests/test_adhoc_audit.py`. |
 | **Measured, not hidden** | `assistant_scoring.csv` scores technique (exact + relaxed), disposition, and consistency separately vs ground truth. |
 
@@ -51,7 +51,7 @@ assistant/
 ├── runner.py            # batch pipeline + CLI (--provider/--model/--view/--prompt/--corpus/--limit)
 ├── app.py               # Streamlit UI — Triage · Paste & inspect · Evaluator modes
 ├── preflight.py         # provider connectivity diagnostic (fails fast, prints effective config)
-├── rebuild_from_audit.py# regenerate outputs + scoring from an audit log, no model re-run
+├── rebuild_from_audit.py# safely regenerate outputs/scoring or score only; no model re-run
 │
 ├── redact.py            # secret stripping; redact_alert() and redact_alert_with_trace()
 ├── views.py             # operational vs strict label-reduced evaluation view
@@ -70,7 +70,7 @@ assistant/
 ├── requirements.txt · .env.example
 ├── README.md · DESIGN_AND_CHANGELOG.md   # design decisions, review log, Q&A
 │
-├── tests/               # 58 unittest methods across 9 files
+├── tests/               # 67 unittest methods across 11 files
 │   ├── test_redact.py            # redaction proof (plants secrets, asserts none leak)
 │   ├── test_redaction_trace.py   # trace masks values; proof and production paths cannot diverge
 │   ├── test_injection.py         # recorded injection scenario (mock + real provider)
@@ -79,7 +79,9 @@ assistant/
 │   ├── test_paste_pipeline.py    # limits, parse modes, boundary gate, consent, no raw storage
 │   ├── test_adhoc_audit.py       # one record, idempotent, sanitised, tri-state schema_valid
 │   ├── test_paste_ui.py          # Streamlit state handling (uses AppTest; no live server required)
-│   └── test_llm_providers.py     # offline endpoint/payload regression tests
+│   ├── test_llm_providers.py     # offline endpoint/payload regression tests
+│   ├── test_schema.py            # runtime/formal schema alignment and query bounds
+│   └── test_rebuild_from_audit.py# non-destructive rebuild and ground-truth path handling
 │
 └── outputs/
     ├── redaction_proof.md · injection_proof.md
@@ -93,13 +95,24 @@ assistant/
 ```bash
 cd assistant
 pip install -r requirements.txt
-python -m unittest discover -s tests -p "test_*.py"   # full suite — 58 tests
+python -m unittest discover -s tests -p "test_*.py"   # full suite — 67 tests
 python tests/test_redact.py                       # redaction proof (non-zero exit if a secret leaks)
 python tests/test_injection.py                    # recorded injection scenario (mock)
 python runner.py --provider mock --view operational
 python runner.py --provider mock --view evaluation
 streamlit run app.py                              # UI: Triage · Paste & inspect · Evaluator
 ```
+
+Re-score a retained audit log without writing files:
+
+```bash
+python rebuild_from_audit.py outputs/runs/<run_id>/audit-log.jsonl --score-only
+```
+
+Without `--score-only`, regenerated files go to `outputs/rebuilt/<run_id>/`, which is
+gitignored and separate from the committed source-run evidence. Use `--output-dir` to
+choose another destination. Existing derived files are replaced only with an explicit
+`--overwrite`; pointing `--output-dir` at the source run is therefore never implicit.
 
 Real model (this is what the measurement uses), e.g. local Ollama:
 

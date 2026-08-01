@@ -154,7 +154,7 @@ The design principle is that every guardrail is **enforced in code and proved by
 | Injection detection and containment | Tested markers surfaced from keys/values; reserved `<ALERT_DATA>` delimiter blocked pre-call; no Wazuh write/action path, no response tools and no enforcement integration | `assistant/outputs/injection_proof.md`, `assistant/outputs/paste_demo_injection_proof.md` — detection/blocking verified; one model did not comply with a planted instruction, but general prevention is not claimed |
 | Human review on every output | All output labelled DRAFT; UI banner; draft message editable | Streamlit UI |
 | Output validated | `schema.py` — keys, types, enums, ATT&CK-ID syntax, ≤5 summary lines | `parse_status` per call |
-| Full, persistent logging | Per-run directory; 25 fields per call; runs never overwrite | `outputs/runs/<run_id>/audit-log.jsonl` |
+| Full, persistent logging | Runner creates a new per-run directory; 25 fields per call; offline reconstruction writes separately by default | `outputs/runs/<run_id>/audit-log.jsonl` |
 
 Two proofs deserve emphasis.
 
@@ -169,7 +169,7 @@ Two system-prompt variants are maintained and selectable at run time (`--prompt 
 
 Every call is logged to a per-run directory (never overwritten) with the provider/model/view/prompt, **prompt- and redaction-version hashes**, git commit, input/prompt/response hashes, latency, parse status, and raw + parsed output — so any reported number is attributable to an exact prompt, redaction layer, model and commit. For hosted runs the log also carries the effective request config and the model actually served.
 
-A design consequence worth recording: **the audit log is the source of truth**, so scoring can be re-derived offline without re-invoking the model (`rebuild_from_audit.py`). This paid off twice — once when a Windows `MAX_PATH` limit crashed the summary-file writes of an otherwise-complete run, and once when a defect in our own schema validator (§8.6) required re-scoring a 30-minute run, which took seconds instead.
+A design consequence worth recording: **the audit log is the source of truth**, so scoring can be re-derived offline without re-invoking the model (`rebuild_from_audit.py`). This paid off twice — once when a Windows `MAX_PATH` limit crashed the summary-file writes of an otherwise-complete run, and once when a defect in our own schema validator (§8.6) required re-scoring a 30-minute run, which took seconds instead. Reconstruction is non-destructive by default: `--score-only` writes nothing; otherwise derived files go to `assistant/outputs/rebuilt/<run_id>/`, and replacement requires explicit `--overwrite`. The ground-truth path is resolved from the repository and a missing timing log fails clearly rather than silently producing empty labels.
 
 ### 8.5 Model and provider choice
 The client is provider-agnostic (`mock` / `ollama` / `openai` / `anthropic`) over plain `requests`, so there is no SDK version drift. The **measured artifact is `ollama/llama3.1:8b`, temperature 0, running locally** — no alert content left the lab during the measured runs.
@@ -179,7 +179,7 @@ Llama 4 was evaluated and rejected: a 100B+ mixture-of-experts model, it exceede
 ### 8.6 Output validation and reliability
 `schema.py` validates required keys, field types, permitted dispositions and confidence levels, ATT&CK-ID syntax and the ≤5-line summary bound. Invalid output is recorded as `schema_invalid` rather than silently scored.
 
-This caught a defect in our own method. Two alerts were initially marked invalid because the model returned **correct multi-technique answers** (`T1136/T1098` and `T1021.002/T1569.002`, both matching ground truth) that a single-ID schema rejected. The model was right; the validator was wrong. After the fix and an offline re-score, technique-exact rose 11→13, consistency 18→20, overall 12→14, and schema-invalid fell 2→0.
+This caught a defect in our own method. Two alerts were initially marked invalid because the model returned **correct multi-technique answers** (`T1136/T1098` and `T1021.002/T1569.002`, both matching ground truth) that a single-ID schema rejected. The JSON parser had extracted both values correctly; the then-current validator marked them `bad_syntax`, and the historical scoring export recorded empty assistant tags. The model was right; the validator was wrong. Re-scoring the unchanged `20260713T115729Z_ollama_operational` audit log with the current validator moves technique exact 11→13, relaxed 12→14, consistency 18→20, overall 12→14 and schema-invalid 2→0; disposition remains 14/20. On the 14 attack alerts this is **13/14 exact and 14/14 relaxed**, with A10 the sole exact miss. Its original CSV remains an as-run provenance artifact; the re-score is a derived interpretation under current code, and neither is substituted for the matched `20260715_060542` operational baseline used in §9.3.
 
 Reliability controls: configurable timeout, response-token cap, and retry with exponential backoff on transient errors. An earlier llama3.1 run produced one invalid-JSON response (≈5%); the current matched operational+evaluation runs are **40/40 valid for both models**. A single-shot JSON retry would likely recover such failures but was deliberately *not* applied after results were collected, because it would change the measured artifact.
 

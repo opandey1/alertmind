@@ -3,8 +3,10 @@ schema.py — validate the assistant's JSON output (feedback #11).
 
 parse_response() only confirms the model returned *some* JSON. This validates the
 SHAPE: required keys, field types, allowed dispositions/confidence, ATT&CK-ID
-syntax, and the <=5-summary-line / 2-3-query bounds. Invalid output is caught and
-recorded (parse_status='schema_invalid') rather than silently scored.
+syntax, and the <=5-summary-line / 1-4-query validator bounds. The prompt asks
+for 2-3 queries, while the validator deliberately tolerates 1-4. Invalid output
+is caught and recorded (parse_status='schema_invalid') rather than silently
+scored.
 
 Kept dependency-free so the offline/mock path needs no `pip install`. The
 equivalent formal JSON Schema is included below and can be plugged into the
@@ -23,11 +25,19 @@ JSON_SCHEMA = {
                  "confidence", "investigation_queries", "draft_user_message", "caveats"],
     "properties": {
         "summary": {"type": "array", "items": {"type": "string"}, "maxItems": 5},
-        "attack_technique_id": {"type": ["string", "null"], "pattern": r"^T\d{4}(\.\d{3})?$"},
+        "attack_technique_id": {
+            "type": ["string", "null"],
+            "pattern": r"^T\d{4}(?:\.\d{3})?(?:\s*[/,]\s*T\d{4}(?:\.\d{3})?)*$",
+        },
         "attack_technique_name": {"type": ["string", "null"]},
         "disposition_suggestion": {"enum": sorted(DISPOSITIONS)},
         "confidence": {"enum": sorted(CONFIDENCES)},
-        "investigation_queries": {"type": "array", "items": {"type": "string"}},
+        "investigation_queries": {
+            "type": "array",
+            "items": {"type": "string"},
+            "minItems": 1,
+            "maxItems": 4,
+        },
         "draft_user_message": {"type": "string"},
         "caveats": {"type": "string"},
     },
