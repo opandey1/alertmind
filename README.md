@@ -20,7 +20,7 @@ For the complete methodology, evidence index, limitations and results, see the *
 | Alert retention | `wazuh-alert-retention-policy` applied to `wazuh-alerts-4.x-*`; 90-day delete transition configured and 21 managed indices verified |
 | IR playbooks | Phishing, malware and account-compromise playbooks following the NIST SP 800-61r2 four-phase lifecycle, as specified by the capstone brief |
 | LLM assistant | Python/Streamlit assistant with local, hosted and deterministic mock providers; strict JSON output, redaction, views, audit logging and scoring |
-| Paste & inspect | Ad hoc JSON-alert triage with limits, redaction trace, injection markers, boundary gate, endpoint-aware consent and sanitized proof/audit output |
+| Paste & inspect | Ad hoc JSON or plain-text alert triage with limits, redaction trace, injection markers, boundary gate, endpoint-aware consent and sanitized proof/audit output |
 | Evaluation | Frozen 20-alert corpus: 14 controlled attacks plus 6 historical benign false positives; paired timing, automated scoring and manual grounding review |
 
 ## Architecture and trust boundary
@@ -31,7 +31,7 @@ The lab VMs share an isolated VirtualBox NAT network (`LabNet`, `10.0.2.0/24`). 
 
 **Solid** lines are implemented flows, **dashed** lines are planned target state, and **dotted** lines are simulated adversary activity. Full architecture, log sources, retention and the RBAC model: **[`architecture/soc-architecture.md`](architecture/soc-architecture.md)** · editable diagram source [`architecture/diagram.drawio`](architecture/diagram.drawio) → [`architecture/diagram.png`](architecture/diagram.png).
 
-Current assistant inputs are the frozen corpus and analyst-pasted JSON. The dashed Wazuh API path is the production target and is **not yet implemented**. Correspondingly, the target identities `socanalyst` and `assistant-svc` remain planned; the lab currently uses `admin` for setup and validation.
+Current assistant inputs are the frozen corpus and analyst-pasted JSON or plain text. The dashed Wazuh API path is the production target and is **not yet implemented**. Correspondingly, the target identities `socanalyst` and `assistant-svc` remain planned; the lab currently uses `admin` for setup and validation.
 
 Alert retention is implemented separately in the Wazuh Indexer. The 90-day policy was configured on 29 Jul 2026 and verified attached to 21 daily alert indices, including indices created after the policy update. The evidence proves policy attachment and active transition evaluation; actual age-based deletion remains unobserved because no index had yet reached 90 days. See [`architecture/soc-architecture.md` §7](architecture/soc-architecture.md#7-data-retention), the [policy screenshot](evidence/week3/wazuh-alert-retention-policy-90d.png), and the [managed-index screenshot](evidence/week3/wazuh-alert-retention-managed-indices.png).
 
@@ -89,23 +89,69 @@ The implementation is [`assistant/`](assistant/). The benchmark run logs used by
 For each alert, the assistant returns:
 
 1. A summary of at most five lines.
-2. One or more MITRE ATT&CK technique IDs, or `null`.
-3. Two or three suggested investigation queries.
-4. A draft message to the affected user or system owner.
-5. A disposition suggestion and calibrated confidence.
+2. One or more MITRE ATT&CK technique IDs, or `null`, with an optional technique name.
+3. A disposition suggestion and calibrated confidence.
+4. Two or three suggested investigation queries.
+5. A draft message to the affected user or system owner.
+6. Caveats describing uncertainty and limitations.
 
-Batch path:
+**Batch path** — the measured pipeline over the prevalidated, controlled and frozen corpus. Linear and gate-free, because admission is settled before the run:
+
+[![Batch path — redact, apply view, construct prompt, call model, parse, validate, audit, score](architecture/assistant-batch-path.png)](architecture/assistant-batch-path.png)
+
+<details>
+<summary>Text version</summary>
 
 ```text
 redact → apply view → construct prompt → call model → parse → validate → audit → score
+providers: mock · ollama · openai · anthropic
 ```
 
-Ad hoc Paste & inspect path:
+</details>
+
+**Ad hoc Paste & inspect path** — one synthetic or approved alert, supplied as JSON or plain text, behind input limits, a redaction trace, an injection-marker scan and two gates:
+
+[![Ad hoc Paste and inspect path — parse, limits, redact with trace, apply view, scan keys and values, boundary gate, egress consent, one model call, validate, draft and optional audit](architecture/assistant-adhoc-paste-inspect-path.png)](architecture/assistant-adhoc-paste-inspect-path.png)
+
+<details>
+<summary>Text version</summary>
 
 ```text
 parse → limits → redact with trace → apply view → scan keys/values
-      → boundary gate → egress consent → one model call → validate → draft/audit
+      → boundary gate → egress consent → one model call → validate → draft → optional audit
+admission: parsing and input limits can reject the request before either labelled gate
+gates: forged <ALERT_DATA> delimiters are blocked; a non-loopback endpoint needs consent
 ```
+
+</details>
+
+Both paths use the same structured triage contract, redaction implementation, model-data boundary and draft-only review posture. Paste & inspect adds admission, injection-visibility and egress controls for untrusted ad hoc input.
+
+[![Shared triage contract, what holds on both paths, and where the two paths diverge](architecture/assistant-paths-notes.png)](architecture/assistant-paths-notes.png)
+
+<details>
+<summary>Text version</summary>
+
+```text
+Shared triage contract — seven required fields, attack_technique_name optional:
+  summary · attack_technique_id · disposition_suggestion · confidence
+  investigation_queries (2–3 requested, validator accepts 1–4)
+  draft_user_message · caveats
+
+Both paths       same triage contract and validation; same redaction implementation;
+                 same model-data boundary (no Wazuh write path, no response tools,
+                 no enforcement, no autonomous action); draft-only output with
+                 mandatory analyst review.
+
+Paste & inspect  input limits; redaction trace; injection-marker scan over object keys
+only             and string values; reserved-delimiter blocking; endpoint-aware egress
+                 consent; raw input not persisted; audit record saved only when
+                 explicitly requested; excluded from the frozen benchmark.
+
+Target state     a future read-only Wazuh ingestion path feeding the shared triage core.
+```
+
+</details>
 
 Paste & inspect is an operational demonstration and was excluded from the frozen benchmark.
 
@@ -114,10 +160,10 @@ Paste & inspect is an operational demonstration and was excluded from the frozen
 - **No autonomous action:** the model has no Wazuh write/action path, no response tools and no enforcement integration; every result is a draft requiring analyst review.
 - **Redaction first:** tested credential classes and sensitive-key values are removed before prompt construction. File hashes remain available as investigation IOCs.
 - **Redaction is risk reduction:** unknown, encoded or unlabelled secrets remain residual risk.
-- **Prompt-injection handling:** tested instruction markers are surfaced from JSON keys and values, and reserved `<ALERT_DATA>` delimiter attempts are blocked before a model call.
+- **Prompt-injection handling in Paste & inspect:** tested instruction markers are surfaced from object keys and string values, including wrapped plain-text telemetry, and reserved `<ALERT_DATA>` delimiter attempts are blocked before a model call. The batch runner does not implement these runtime admission controls; it operates on the prevalidated frozen corpus.
 - **No general injection-prevention claim:** other marked text may still reach the model as evidence inside an untrusted-data block and may influence its reasoning. Schema validation checks structure, not correctness.
 - **Impact containment:** redacted input, no Wazuh write/action path, no response tools, no enforcement integration, draft-only output and mandatory review limit the consequence of a bad response.
-- **Endpoint-aware consent:** non-loopback model endpoints require explicit consent before alert data is sent externally.
+- **Endpoint-aware consent in Paste & inspect:** non-loopback model endpoints require explicit consent before alert data is sent externally. Batch hosted-provider runs are explicitly initiated from the CLI and do not use this interactive consent gate.
 - **Sanitized ad hoc evidence:** raw pasted input is not persisted; proof and audit records store sanitized data and a correlation hash. Optional trace correlation uses keyed HMAC via `ALERTMIND_TRACE_HMAC_KEY`.
 - **Auditability:** batch calls record model/configuration, prompt and redaction hashes, latency, parse status, usage and raw/parsed responses in non-overwriting run directories.
 
@@ -133,7 +179,10 @@ alertmind/
 ├── architecture/
 │   ├── soc-architecture.md            # authoritative architecture: flows, retention, RBAC, trust boundary
 │   ├── diagram.drawio                 # editable source
-│   └── diagram.png                    # rendered diagram
+│   ├── diagram.png                    # rendered diagram
+│   ├── assistant-batch-path.png       # batch pipeline figure used in README.md
+│   ├── assistant-adhoc-paste-inspect-path.png   # ad hoc pipeline figure used in README.md
+│   └── assistant-paths-notes.png      # triage contract, shared guardrails, divergence
 │
 ├── assistant/                         # assistant package, Paste & inspect UI, tests, run logs
 │                                      # (see assistant/README.md for module-level detail)
