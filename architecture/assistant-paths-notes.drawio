@@ -1,0 +1,49 @@
+<mxfile host="app.diagrams.net" agent="AlertMind" type="device">
+  <diagram id="shared-contract-and-path-notes" name="Shared contract and path notes">
+    <mxGraphModel dx="1800" dy="700" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1800" pageHeight="700" math="0" shadow="0" background="#0b1220">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        <mxCell id="h0" value="Shared triage contract" style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=top;fontSize=26;fontColor=#f1f5f9;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="48" y="44" width="538" height="36" as="geometry"/>
+        </mxCell>
+        <mxCell id="r0" style="line;strokeWidth=2;html=1;strokeColor=#38bdf8;" vertex="1" parent="1">
+          <mxGeometry x="48" y="84" width="56" height="10" as="geometry"/>
+        </mxCell>
+        <mxCell id="b0" value="&lt;font color=&quot;#38bdf8&quot;&gt;&lt;b&gt;1&lt;/b&gt;&lt;/font&gt;&amp;nbsp; summary — at most five lines&lt;br&gt;&lt;br&gt;&lt;font color=&quot;#38bdf8&quot;&gt;&lt;b&gt;2&lt;/b&gt;&lt;/font&gt;&amp;nbsp; attack_technique_id — one or more ATT&amp;amp;CK IDs, or null&lt;br&gt;&lt;br&gt;&lt;font color=&quot;#38bdf8&quot;&gt;&lt;b&gt;3&lt;/b&gt;&lt;/font&gt;&amp;nbsp; disposition_suggestion&lt;br&gt;&lt;br&gt;&lt;font color=&quot;#38bdf8&quot;&gt;&lt;b&gt;4&lt;/b&gt;&lt;/font&gt;&amp;nbsp; confidence — calibrated&lt;br&gt;&lt;br&gt;&lt;font color=&quot;#38bdf8&quot;&gt;&lt;b&gt;5&lt;/b&gt;&lt;/font&gt;&amp;nbsp; investigation_queries — 2–3 requested; validator accepts 1–4&lt;br&gt;&lt;br&gt;&lt;font color=&quot;#38bdf8&quot;&gt;&lt;b&gt;6&lt;/b&gt;&lt;/font&gt;&amp;nbsp; draft_user_message — to the affected user or owner&lt;br&gt;&lt;br&gt;&lt;font color=&quot;#38bdf8&quot;&gt;&lt;b&gt;7&lt;/b&gt;&lt;/font&gt;&amp;nbsp; caveats — uncertainty and limitations" style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=top;fontSize=15;fontColor=#c7d2e4;" vertex="1" parent="1">
+          <mxGeometry x="48" y="110" width="538" height="380" as="geometry"/>
+        </mxCell>
+        <mxCell id="fr0" style="line;strokeWidth=2;html=1;strokeColor=#33415c;" vertex="1" parent="1">
+          <mxGeometry x="48" y="500" width="538" height="10" as="geometry"/>
+        </mxCell>
+        <mxCell id="f0" value="Seven required fields, validated on both paths. attack_technique_name is optional." style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=top;fontSize=15;fontColor=#93a2bf;" vertex="1" parent="1">
+          <mxGeometry x="48" y="516" width="538" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="h1" value="What holds on both paths" style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=top;fontSize=26;fontColor=#f1f5f9;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="630" y="44" width="538" height="36" as="geometry"/>
+        </mxCell>
+        <mxCell id="r1" style="line;strokeWidth=2;html=1;strokeColor=#38bdf8;" vertex="1" parent="1">
+          <mxGeometry x="630" y="84" width="56" height="10" as="geometry"/>
+        </mxCell>
+        <mxCell id="b1" value="The same structured triage contract, validated the same way.&lt;br&gt;&lt;br&gt;The same redaction implementation, run before prompt construction — risk reduction, not a guarantee; unknown or encoded secrets remain residual risk.&lt;br&gt;&lt;br&gt;The same model-data boundary: no Wazuh write path, no response tools, no enforcement integration, no autonomous action.&lt;br&gt;&lt;br&gt;Draft-only output, and analyst review is mandatory." style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=top;fontSize=15;fontColor=#c7d2e4;" vertex="1" parent="1">
+          <mxGeometry x="630" y="110" width="538" height="380" as="geometry"/>
+        </mxCell>
+        <mxCell id="h2" value="Where they diverge" style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=top;fontSize=26;fontColor=#f1f5f9;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1212" y="44" width="538" height="36" as="geometry"/>
+        </mxCell>
+        <mxCell id="r2" style="line;strokeWidth=2;html=1;strokeColor=#38bdf8;" vertex="1" parent="1">
+          <mxGeometry x="1212" y="84" width="56" height="10" as="geometry"/>
+        </mxCell>
+        <mxCell id="b2" value="&lt;b&gt;Batch&lt;/b&gt; is linear and gate-free because admission is settled before the run — a prevalidated, controlled, frozen corpus — so it earns the audit and score behind the reported findings.&lt;br&gt;&lt;br&gt;&lt;b&gt;Paste &amp;amp; inspect&lt;/b&gt; alone adds admission and egress controls for untrusted ad hoc input: input limits, a redaction trace, an injection-marker scan, reserved-delimiter blocking and endpoint-aware egress consent.&lt;br&gt;&lt;br&gt;The marker scan is visibility; the boundary gate is enforcement. Both inspect the model-bound object independently, so a scanner miss cannot permit a literal reserved-delimiter breakout.&lt;br&gt;&lt;br&gt;Other instruction-shaped markers may still reach the model; only literal reserved-delimiter attempts are deterministically blocked.&lt;br&gt;&lt;br&gt;Paste &amp;amp; inspect does not persist raw input and saves an audit record only when explicitly requested; it is excluded from the frozen benchmark." style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=top;fontSize=15;fontColor=#c7d2e4;" vertex="1" parent="1">
+          <mxGeometry x="1212" y="110" width="538" height="380" as="geometry"/>
+        </mxCell>
+        <mxCell id="fr2" style="line;strokeWidth=2;html=1;strokeColor=#93a2bf;dashed=1;dashPattern=6 6;" vertex="1" parent="1">
+          <mxGeometry x="1212" y="556" width="538" height="10" as="geometry"/>
+        </mxCell>
+        <mxCell id="f2" value="Target state, not implemented: a future read-only Wazuh ingestion path feeding the shared triage core." style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=top;fontSize=15;fontColor=#93a2bf;" vertex="1" parent="1">
+          <mxGeometry x="1212" y="572" width="538" height="60" as="geometry"/>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
