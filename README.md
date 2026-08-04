@@ -117,10 +117,14 @@ providers: mock · ollama · openai · anthropic
 <summary>Text version</summary>
 
 ```text
-parse → limits → redact with trace → apply view → scan keys/values
-      → boundary gate → egress consent → one model call → validate → draft → optional audit
+parse → limits → redact with trace → apply view → final model_bound object
+        ├─ marker scan (side branch) → markers shown to analyst; visibility only, never gates
+        └─ boundary gate → egress consent → one model call → validate → draft → optional audit
 admission: parsing and input limits can reject the request before either labelled gate
-gates: forged <ALERT_DATA> delimiters are blocked; a non-loopback endpoint needs consent
+gates: literal <ALERT_DATA> / </ALERT_DATA> delimiters are blocked; a non-loopback endpoint
+       needs consent
+independence: the boundary gate re-serialises model_bound and substring-tests it; it does not
+       consume the marker-scan result, so a scanner miss cannot open the gate
 ```
 
 </details>
@@ -147,6 +151,12 @@ Paste & inspect  input limits; redaction trace; injection-marker scan over objec
 only             and string values; reserved-delimiter blocking; endpoint-aware egress
                  consent; raw input not persisted; audit record saved only when
                  explicitly requested; excluded from the frozen benchmark.
+
+Scan vs gate     the marker scan is visibility; the boundary gate is enforcement. Both
+                 inspect the model-bound object independently, so a scanner miss cannot
+                 permit a literal reserved-delimiter breakout. Other instruction-shaped
+                 markers may still reach the model; only literal reserved-delimiter
+                 attempts are deterministically blocked.
 
 Target state     a future read-only Wazuh ingestion path feeding the shared triage core.
 ```
