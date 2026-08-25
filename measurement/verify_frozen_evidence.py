@@ -12,7 +12,9 @@ detection-rule counts are evidenced elsewhere and are NOT asserted here.
 
 Three groups of assertions:
 
-1. Frozen-file integrity   — SHA-256 of the corpus and the timing log.
+1. Frozen-file integrity   — SHA-256 of the corpus and the timing log, plus
+                             newline-normalized content hashes for all six
+                             retained audit logs.
 2. Canonical scoring       — every reported run re-scored from its audit log.
 3. Strict-view efficiency  — the §9.8 usage, latency, version and paired-hash
                              findings, asserted against raw stored values.
@@ -46,6 +48,37 @@ EXPECTED_HASHES = {
         "4e842637f3cbcbb6e0704320824b64bdeb63c7d7ee7e22db0278e4d96c58b929",
     "measurement/timing-log.csv":
         "9ceba8e2468f44e879fa7929e528cfeaaef034ae363ffb66e98f57a21761cb9a",
+}
+
+
+# ------------------------------------------------------- 1b. audit-log content
+#
+# Newline-normalized content hashes for all six retained run logs, including
+# the superseded 20260717_074112 evaluation run.
+#
+# These are NOT raw-file hashes. Every committed log is stored CRLF, so a raw
+# hash would pass in CI and fail on any checkout that rewrites line endings.
+# Normalization maps CRLF -> LF and lone CR -> LF and preserves every other
+# byte, including whitespace and the trailing newline. The hash therefore
+# survives Git EOL settings while still detecting a single changed character.
+#
+# This covers what the scoring assertions cannot see: grounding worksheet
+# source text, raw model responses, and unscored response metadata such as
+# response_id, system_fingerprint and finish_reason.
+
+EXPECTED_LOG_CONTENT_HASHES = {
+    "20260713T115729Z_ollama_operational":
+        "6d1650e6e96557cae1b580456915d1ff7b3e7be0a068e02a078d21a69876dffc",
+    "20260715_060542_ollama_oper_baseline":
+        "f8b7701c7de7d557d5f9f0bbc19c0f2a442bf40fef5bb2eda4629ad80511966d",
+    "20260717_073045_openai_oper_baseline":
+        "a3ff0dd86bb69316fd551b572d7f6a7f7d72895bae8546c8f6ff4653a13d02fe",
+    "20260717_074112_openai_eval_baseline":
+        "3590dc7d0e038d5759f05bd6bb605ff499895a03b42cd478b9fb0c02bcd077e5",
+    "20260718_180713_ollama_eval_baseline":
+        "05f2fa9793b61ad11e6c6f054f67c9a1706c943255bda740c4508e5a2670b999",
+    "20260718_183704_openai_eval_baseline":
+        "0d246c2670b5c23962fbc4730ace5ae3f9db90a27c4cbc09c70009d9172eedd0",
 }
 
 
@@ -161,6 +194,25 @@ def verify_hashes() -> None:
         if actual != expected:
             fail(f"{relative_path}: expected SHA-256 {expected}, got {actual}")
         print(f"  PASS  {relative_path} = {actual}")
+
+
+def normalize_newlines(data: bytes) -> bytes:
+    """CRLF -> LF and lone CR -> LF. All other bytes are preserved."""
+    return data.replace(b"\r\n", b"\n").replace(b"\r", b"\n")
+
+
+def verify_log_content_hashes() -> None:
+    """Pin the byte content of every retained audit log, EOL-independently."""
+    print("\naudit-log content integrity (newline-normalized)")
+    for run_id, expected in EXPECTED_LOG_CONTENT_HASHES.items():
+        path = RUN_ROOT / run_id / "audit-log.jsonl"
+        if not path.exists():
+            fail(f"{run_id}: audit-log.jsonl is missing")
+        actual = hashlib.sha256(normalize_newlines(path.read_bytes())).hexdigest()
+        if actual != expected:
+            fail(f"{run_id}: normalized content hash changed; "
+                 f"expected {expected}, got {actual}")
+        print(f"  PASS  {run_id} = {actual}")
 
 
 def verify_runs() -> None:
@@ -279,6 +331,7 @@ def verify_strict_efficiency() -> None:
 
 def main() -> int:
     verify_hashes()
+    verify_log_content_hashes()
     verify_runs()
     verify_strict_efficiency()
     print("\nPASS: frozen evidence, canonical scoring and §9.8 efficiency "
