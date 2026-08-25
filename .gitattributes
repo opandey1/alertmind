@@ -1,0 +1,9 @@
+# Only the two hash-pinned measurement artifacts are normalised, so their
+# documented SHA-256 survives a checkout with core.autocrlf=true.
+#
+# Deliberately not normalised: audit logs are frozen evidence, and applying
+# an EOL policy now could alter their committed byte representation.
+# Integrity for those is enforced by newline-normalized content hashes in
+# measurement/verify_frozen_evidence.py instead.
+measurement/alert-corpus.json text eol=lf
+measurement/timing-log.csv    text eol=lf
