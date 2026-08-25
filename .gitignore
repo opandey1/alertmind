@@ -9,3 +9,6 @@ wazuh-install-files.tar
 .DS_Store
 assistant/outputs/adhoc/
 assistant/outputs/rebuilt/
+# python bytecode
+__pycache__/
+*.py[cod]

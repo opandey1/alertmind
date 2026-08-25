@@ -2,6 +2,8 @@
 
 > An end-to-end mini Security Operations Centre built around Wazuh: Windows and Linux telemetry, ATT&CK-mapped detections, SOC dashboards, incident-response playbooks, and a guardrailed LLM tier-1 assistant evaluated on a frozen benign-salted alert corpus.
 
+[![Offline CI](https://github.com/opandey1/alertmind/actions/workflows/offline-ci.yml/badge.svg?branch=main)](https://github.com/opandey1/alertmind/actions/workflows/offline-ci.yml)
+
 **Capstone:** PG Certificate in AI/GenAI Powered Cybersecurity — IIT Roorkee × Futurense, Cohort 1 · EC-Council SOC Essentials track · Project `CAP-SCE-3W` · Solo mode
 
 **Current status:** Complete and submitted. The SOC build, detections, dashboards, playbooks, 90-day Wazuh alert-retention policy, assistant, Paste & inspect, frozen-corpus evaluation, grounding review, technical report and defense presentation are all delivered. Live Wazuh-to-assistant integration and production RBAC remain documented target-state work, not completed features.
@@ -286,6 +288,8 @@ python rebuild_from_audit.py outputs/runs/<run_id>/audit-log.jsonl --score-only
 ```
 
 Omitting `--score-only` writes derived files under `assistant/outputs/rebuilt/<run_id>/`, not beside the source audit log. Existing derived files require an explicit `--overwrite`, and the timing-log default is resolved from the repository rather than the caller's working directory.
+
+**Offline CI.** Every push to `main` and pull request targeting it runs the 67-test regression suite and re-derives the CI-protected assistant-evaluation findings from committed artifacts: frozen-corpus and timing-log SHA-256, canonical scoring for five retained runs, and the §9.8 token, latency, prompt/redaction-version and paired-hash results. No live SIEM, model provider, credentials or repository secrets are required. The badge therefore shows that these specific committed measurements still reproduce without another model call — it does not cover MTTD, the assisted-timing study, grounding verdicts, dashboards or detection counts, which are evidenced elsewhere in this repository. Workflow: [`.github/workflows/offline-ci.yml`](.github/workflows/offline-ci.yml); assertions: [`measurement/verify_frozen_evidence.py`](measurement/verify_frozen_evidence.py).
 
 **Rebuilding the lab from a clean clone:** follow [`docs/rebuild-guide.md`](docs/rebuild-guide.md). Recovery and credential-reset procedures are in [`docs/runbooks/`](docs/runbooks/), and [`docs/artifacts.md`](docs/artifacts.md) indexes the produced artifacts.
 
