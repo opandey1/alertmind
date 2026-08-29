@@ -53,7 +53,7 @@ REQUIRED = JSON_SCHEMA["required"]
 def ollama_json_schema():
     """Return the provider-side schema accepted by Ollama's grammar parser.
 
-    Ollama 0.33.0 rejects the full schema at realistic prediction budgets when
+    Ollama 0.33.x rejects the full schema at realistic prediction budgets when
     the ATT&CK-ID ``pattern`` is present (``failed to parse grammar``).  Keep
     every structural constraint but omit that provider-side regex; the same
     expression remains enforced by :func:`validate_output` after generation.

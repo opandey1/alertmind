@@ -39,7 +39,7 @@ pasted JSON ─▶ limits ─▶ redact+trace ─▶ apply view ─▶ scan keys
 | **Reserved-delimiter boundary gate** | A literal `<ALERT_DATA>`/`</ALERT_DATA>` in any model-bound **key or value** blocks the call before the provider path. The gate independently serialises the complete object, so it does not depend on the marker scan being complete. `tests/test_injection_markers.py`. |
 | **Egress consent** | Any non-loopback endpoint requires explicit confirmation bound to the current input, provider, model and endpoint. Mock and verified loopback endpoints proceed without external-egress consent. `tests/test_paste_pipeline.py`. |
 | **Human review** | All output is DRAFT; the UI shows a review banner and an editable draft message. |
-| **Output validated** | `schema.py` checks required keys, types, allowed dispositions/confidence, ATT&CK-ID syntax and `<=5` summary lines. The prompt requests 2–3 investigation queries; the validator accepts 1–4. Invalid output is recorded, not silently scored. |
+| **Output validated** | `schema.py` checks required keys, undeclared fields, types, allowed dispositions/confidence, ATT&CK-ID syntax and `<=5` summary lines. The prompt requests 2–3 investigation queries; the validator accepts 1–4. Invalid output is recorded; the CLI reports schema-valid coverage, and `valid_overall_correct` prevents schema-invalid output from receiving validity-gated overall credit while preserving the original metrics. |
 | **Full, persistent batch logging** | Each run writes `outputs/runs/<run_id>/audit-log.jsonl` with **25 fields** per call: timestamp, provider, model *requested* and `model_actual` served, view, prompt/redaction version hashes, git commit, input/prompt/response hashes, the redacted prompt sent, raw and parsed output, latency, parse status, schema errors, the effective `request_config`, `response_id`, `system_fingerprint`, `finish_reason` and token `usage`. The runner creates a new directory per run. `rebuild_from_audit.py` reconstructs scoring using repository-relative timing-log ground truth without another model call; it writes to `outputs/rebuilt/<run_id>/` by default, supports `--score-only`, and refuses to replace derived files unless `--overwrite` is explicit. |
 | **Sanitised ad hoc audit** | Paste & inspect saves one record only on explicit request, idempotent by result ID. Raw pasted input is never persisted; `schema_valid` is tri-state (`null` when a call was blocked or not evaluated) and `call_status` records why. `tests/test_adhoc_audit.py`. |
 | **Measured, not hidden** | `assistant_scoring.csv` scores technique (exact + relaxed), disposition, and consistency separately vs ground truth. |
@@ -48,7 +48,7 @@ pasted JSON ─▶ limits ─▶ redact+trace ─▶ apply view ─▶ scan keys
 
 ```
 assistant/
-├── runner.py            # batch pipeline + CLI (--provider/--model/--view/--prompt/--corpus/--limit)
+├── runner.py            # batch CLI; full corpus, --limit, or explicit --alert-ids subset
 ├── app.py               # Streamlit UI — Triage · Paste & inspect · Evaluator modes
 ├── preflight.py         # provider connectivity diagnostic (fails fast, prints effective config)
 ├── rebuild_from_audit.py# safely regenerate outputs/scoring or score only; no model re-run
@@ -70,7 +70,7 @@ assistant/
 ├── requirements.txt · .env.example
 ├── README.md · DESIGN_AND_CHANGELOG.md   # design decisions, review log, Q&A
 │
-├── tests/               # 67 unittest methods across 11 files
+├── tests/               # 78 unittest methods across 12 files
 │   ├── test_redact.py            # redaction proof (plants secrets, asserts none leak)
 │   ├── test_redaction_trace.py   # trace masks values; proof and production paths cannot diverge
 │   ├── test_injection.py         # recorded injection scenario (mock + real provider)
@@ -81,7 +81,8 @@ assistant/
 │   ├── test_paste_ui.py          # Streamlit state handling (uses AppTest; no live server required)
 │   ├── test_llm_providers.py     # offline endpoint/payload regression tests
 │   ├── test_schema.py            # runtime/formal schema alignment and query bounds
-│   └── test_rebuild_from_audit.py# non-destructive rebuild and ground-truth path handling
+│   ├── test_rebuild_from_audit.py# non-destructive rebuild and ground-truth path handling
+│   └── test_runner_selection.py   # explicit subset selection; unknown IDs fail closed
 │
 └── outputs/
     ├── redaction_proof.md · injection_proof.md
@@ -95,7 +96,7 @@ assistant/
 ```bash
 cd assistant
 pip install -r requirements.txt
-python -m unittest discover -s tests -p "test_*.py"   # full suite — 67 tests
+python -m unittest discover -s tests -p "test_*.py"   # full suite — 78 tests
 python tests/test_redact.py                       # redaction proof (non-zero exit if a secret leaks)
 python tests/test_injection.py                    # recorded injection scenario (mock)
 python runner.py --provider mock --view operational
@@ -122,6 +123,46 @@ python runner.py --provider ollama --model llama3.1:8b --view operational
 python runner.py --provider ollama --model llama3.1:8b --view evaluation
 python tests/test_injection.py ollama llama3.1:8b   # the REAL injection proof
 ```
+
+Selected Qwen3:8b provenance-rerun configuration (PowerShell):
+
+```powershell
+$env:OLLAMA_BASE_URL="http://localhost:11434/v1"
+$env:ALERTMIND_OLLAMA_TEMPERATURE="0.6"
+$env:ALERTMIND_OLLAMA_TOP_P="0.95"
+$env:ALERTMIND_OLLAMA_SEED="42"
+$env:ALERTMIND_OLLAMA_STRUCTURED_OUTPUTS="1"
+$env:ALERTMIND_MAX_TOKENS="4096"
+$env:ALERTMIND_LLM_TIMEOUT="900"
+
+# Optional diagnostic subset; the frozen corpus file is not modified.
+python runner.py --provider ollama --model qwen3:8b --view evaluation `
+  --alert-ids A04,A06,A10,A12,A16,A18
+
+# Result-bearing runs must use committed code and process all 20 alerts.
+python runner.py --provider ollama --model qwen3:8b --view operational
+python runner.py --provider ollama --model qwen3:8b --view evaluation
+```
+
+`--alert-ids` and `--limit` are mutually exclusive, and subset run IDs end in
+`_subset<N>_<8-hex-ID-hash>` so equal-sized diagnostics remain distinguishable
+and cannot be mistaken for a full benchmark. Qwen3's
+`top_k=20` and `repeat_penalty=1` remain verified model defaults because Ollama's
+OpenAI-compatible endpoint does not expose them as request fields. Keep
+`ollama show qwen3:8b` with the run evidence. The fixed seed improves repeatability
+but is not described as a determinism guarantee. For Ollama 0.33.x compatibility,
+the provider-side grammar omits only the ATT&CK-ID regex and makes the optional
+technique-name field required-but-nullable for strict-schema compatibility;
+`schema.py` applies the canonical ATT&CK regex after generation and records a
+schema-invalid result if it fails. If the subset still records
+`finish_reason=length`, increase only `ALERTMIND_MAX_TOKENS` to `8192`, rerun the
+entire subset, freeze the resulting configuration, and then run both full views.
+
+The retained `20260827_180830`/`20260827_192445` pair is explicitly a
+**pre-commit candidate**, not final evidence: its audit logs embed a commit that
+predates the executing changes. External disclosures and normalized hashes are
+under `measurement/run-manifests/`. Publish the three-model comparison only
+after a fresh matched pair records the actual committed rerun source.
 
 Hosted OpenAI GPT-5.5:
 
