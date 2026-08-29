@@ -47,6 +47,18 @@ class SchemaAlignmentTests(unittest.TestCase):
             "pattern", JSON_SCHEMA["properties"]["attack_technique_id"]
         )
 
+    def test_strict_provider_schema_requires_nullable_optional_name(self):
+        provider_schema = ollama_json_schema()
+        self.assertNotIn("attack_technique_name", JSON_SCHEMA["required"])
+        self.assertIn("attack_technique_name", provider_schema["required"])
+        self.assertEqual(
+            provider_schema["properties"]["attack_technique_name"]["type"],
+            ["string", "null"],
+        )
+
+    def test_provider_schema_copy_is_cached(self):
+        self.assertIs(ollama_json_schema(), ollama_json_schema())
+
     def test_runtime_validator_accepts_multi_technique_ids(self):
         ok, errors, _ = validate_output(valid_output())
         self.assertTrue(ok, errors)

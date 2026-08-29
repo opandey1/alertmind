@@ -14,6 +14,7 @@ equivalent formal JSON Schema is included below and can be plugged into the
 """
 import copy
 import re
+from functools import lru_cache
 
 DISPOSITIONS = {"likely_true_positive", "likely_benign", "needs_investigation"}
 CONFIDENCES = {"high", "medium", "low"}
@@ -48,6 +49,7 @@ JSON_SCHEMA = {
 REQUIRED = JSON_SCHEMA["required"]
 
 
+@lru_cache(maxsize=1)
 def ollama_json_schema():
     """Return the provider-side schema accepted by Ollama's grammar parser.
 
@@ -55,11 +57,16 @@ def ollama_json_schema():
     the ATT&CK-ID ``pattern`` is present (``failed to parse grammar``).  Keep
     every structural constraint but omit that provider-side regex; the same
     expression remains enforced by :func:`validate_output` after generation.
-    A deep copy prevents provider compatibility from weakening the canonical
-    documented/runtime contract.
+    A one-time deep copy prevents provider compatibility from weakening the
+    canonical documented/runtime contract. Callers must treat the cached
+    provider schema as read-only.
     """
     schema = copy.deepcopy(JSON_SCHEMA)
     schema["properties"]["attack_technique_id"].pop("pattern", None)
+    # Strict provider schemas require every declared property to appear in
+    # `required`. Keep the canonical/runtime field optional, but require its
+    # nullable representation in this provider-only copy.
+    schema["required"] = [*schema["required"], "attack_technique_name"]
     return schema
 
 

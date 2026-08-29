@@ -9,7 +9,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from runner import select_alerts  # noqa: E402
+from runner import select_alerts, subset_run_suffix  # noqa: E402
 
 
 ALERTS = [
@@ -33,6 +33,14 @@ class RunnerSelectionTests(unittest.TestCase):
     def test_alert_ids_and_limit_are_mutually_exclusive(self):
         with self.assertRaisesRegex(ValueError, "cannot be combined"):
             select_alerts(ALERTS, "A01", limit=1)
+
+    def test_subset_suffix_encodes_identity_not_only_count(self):
+        first = subset_run_suffix(select_alerts(ALERTS, "A01,A02"))
+        second = subset_run_suffix(select_alerts(ALERTS, "A03,A04"))
+        reordered = subset_run_suffix(select_alerts(ALERTS, "A02,A01"))
+        self.assertRegex(first, r"^_subset2_[0-9a-f]{8}$")
+        self.assertNotEqual(first, second)
+        self.assertEqual(first, reordered)
 
 
 if __name__ == "__main__":

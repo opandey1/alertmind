@@ -94,6 +94,13 @@ def select_alerts(alerts, alert_ids="", limit=0):
     return [a for a in alerts if a.get("alert_id") in requested]
 
 
+def subset_run_suffix(alerts):
+    """Encode both diagnostic subset size and identity in a run suffix."""
+    alert_ids = sorted(str(alert.get("alert_id", "")) for alert in alerts)
+    identity = hashlib.sha256(",".join(alert_ids).encode("utf-8")).hexdigest()[:8]
+    return f"_subset{len(alert_ids)}_{identity}"
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--provider", default="mock", choices=["mock", "anthropic", "openai", "ollama"])
@@ -124,7 +131,7 @@ def main():
     prompt_version = _sha(system)
     redaction_version = _sha(open(os.path.join(os.path.dirname(__file__), "redact.py")).read())
     git_commit = _git_commit()
-    scope_suffix = f"_subset{len(alerts)}" if args.alert_ids else ""
+    scope_suffix = subset_run_suffix(alerts) if args.alert_ids else ""
     run_id = (f"{datetime.now(timezone.utc):%Y%m%d_%H%M%S}_"
               f"{args.provider}_{args.view[:4]}_{args.prompt}{scope_suffix}")
     run_dir = os.path.join(args.outdir, "runs", run_id)
