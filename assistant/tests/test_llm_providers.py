@@ -15,6 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 import llm  # noqa: E402
+from schema import JSON_SCHEMA  # noqa: E402
 
 
 def completion_response(content: str = "pong") -> Mock:
@@ -56,6 +57,7 @@ class ProviderPayloadTests(unittest.TestCase):
         self.assertEqual(payload["max_completion_tokens"], llm._MAX_TOKENS)
         self.assertNotIn("max_tokens", payload)
         self.assertNotIn("temperature", payload)
+        self.assertNotIn("response_format", payload)
         # Unset by default -> the model's vendor default effort applies.
         self.assertNotIn("reasoning_effort", payload)
 
@@ -91,10 +93,14 @@ class ProviderPayloadTests(unittest.TestCase):
             {
                 "OPENAI_BASE_URL": "https://api.openai.com/v1",
                 "OLLAMA_BASE_URL": "http://localhost:11434/v1",
+                "ALERTMIND_OLLAMA_TEMPERATURE": "0",
+                "ALERTMIND_OLLAMA_TOP_P": "",
+                "ALERTMIND_OLLAMA_SEED": "",
+                "ALERTMIND_OLLAMA_STRUCTURED_OUTPUTS": "0",
             },
             clear=False,
         ):
-            llm._ollama("system", "user", "llama3.1:8b")
+            _, meta = llm._ollama("system", "user", "llama3.1:8b")
 
         url, _, payload = post.call_args.args
         self.assertEqual(
@@ -102,6 +108,106 @@ class ProviderPayloadTests(unittest.TestCase):
         )
         self.assertEqual(payload["max_tokens"], llm._MAX_TOKENS)
         self.assertEqual(payload["temperature"], 0)
+        self.assertNotIn("top_p", payload)
+        self.assertNotIn("seed", payload)
+        self.assertNotIn("response_format", payload)
+        self.assertFalse(meta["request_config"]["structured_outputs"])
+
+    @patch.object(llm, "_post")
+    def test_ollama_qwen_final_configuration_is_explicit_and_audited(
+        self, post: Mock
+    ) -> None:
+        post.return_value = completion_response()
+        with patch.dict(
+            os.environ,
+            {
+                "OLLAMA_BASE_URL": "http://localhost:11434/v1",
+                "ALERTMIND_MAX_TOKENS": "4096",
+                "ALERTMIND_OLLAMA_TEMPERATURE": "0.6",
+                "ALERTMIND_OLLAMA_TOP_P": "0.95",
+                "ALERTMIND_OLLAMA_SEED": "42",
+                "ALERTMIND_OLLAMA_STRUCTURED_OUTPUTS": "1",
+            },
+            clear=False,
+        ):
+            _, meta = llm._ollama("system", "user", "qwen3:8b")
+
+        _, _, payload = post.call_args.args
+        self.assertEqual(payload["temperature"], 0.6)
+        self.assertEqual(payload["top_p"], 0.95)
+        self.assertEqual(payload["seed"], 42)
+        self.assertEqual(payload["max_tokens"], 4096)
+        self.assertNotIn("reasoning_effort", payload)
+        response_format = payload["response_format"]
+        self.assertEqual(response_format["type"], "json_schema")
+        self.assertTrue(response_format["json_schema"]["strict"])
+        provider_schema = response_format["json_schema"]["schema"]
+        self.assertNotIn(
+            "pattern", provider_schema["properties"]["attack_technique_id"]
+        )
+        self.assertIn(
+            "pattern", JSON_SCHEMA["properties"]["attack_technique_id"]
+        )
+        self.assertIn("attack_technique_name", provider_schema["required"])
+        self.assertNotIn("attack_technique_name", JSON_SCHEMA["required"])
+
+        cfg = meta["request_config"]
+        self.assertEqual(cfg["temperature"], 0.6)
+        self.assertEqual(cfg["top_p"], 0.95)
+        self.assertEqual(cfg["seed"], 42)
+        self.assertEqual(cfg["token_budget"], 4096)
+        self.assertTrue(cfg["structured_outputs"])
+        self.assertEqual(
+            cfg["response_format"], "json_schema_ollama_compatible"
+        )
+        self.assertEqual(
+            cfg["provider_schema_omissions"],
+            ["attack_technique_id.pattern"],
+        )
+        self.assertTrue(cfg["runtime_attack_id_validation"])
+        self.assertIn("model default", cfg["top_k"])
+        self.assertIn("model default", cfg["repeat_penalty"])
+
+    def test_invalid_ollama_environment_values_name_the_setting(self) -> None:
+        cases = [
+            ("ALERTMIND_OLLAMA_TEMPERATURE", "hot"),
+            ("ALERTMIND_OLLAMA_TEMPERATURE", "2.1"),
+            ("ALERTMIND_OLLAMA_TOP_P", "0"),
+            ("ALERTMIND_OLLAMA_TOP_P", "1.1"),
+            ("ALERTMIND_OLLAMA_SEED", "-1"),
+            ("ALERTMIND_OLLAMA_STRUCTURED_OUTPUTS", "sometimes"),
+        ]
+        for name, value in cases:
+            with self.subTest(name=name, value=value), patch.dict(
+                os.environ,
+                {
+                    "OLLAMA_BASE_URL": "http://localhost:11434/v1",
+                    "ALERTMIND_OLLAMA_TEMPERATURE": "0",
+                    "ALERTMIND_OLLAMA_TOP_P": "",
+                    "ALERTMIND_OLLAMA_SEED": "",
+                    "ALERTMIND_OLLAMA_STRUCTURED_OUTPUTS": "0",
+                    name: value,
+                },
+                clear=False,
+            ):
+                with self.assertRaisesRegex(ValueError, name):
+                    llm._ollama("system", "user", "qwen3:8b")
+
+    @patch.object(llm, "_post")
+    def test_token_budget_is_read_for_each_call(self, post: Mock) -> None:
+        post.return_value = completion_response()
+        with patch.dict(
+            os.environ,
+            {
+                "OLLAMA_BASE_URL": "http://localhost:11434/v1",
+                "ALERTMIND_MAX_TOKENS": "2048",
+                "ALERTMIND_OLLAMA_STRUCTURED_OUTPUTS": "0",
+            },
+            clear=False,
+        ):
+            _, meta = llm._ollama("system", "user", "qwen3:8b")
+        self.assertEqual(post.call_args.args[2]["max_tokens"], 2048)
+        self.assertEqual(meta["request_config"]["token_budget"], 2048)
 
     def test_endpoint_suffix_in_base_url_fails_before_request(self) -> None:
         with patch.dict(
@@ -243,6 +349,27 @@ class TimeoutOverrideTests(unittest.TestCase):
             with llm.timeout_override(5):
                 raise ValueError("boom")
         self.assertEqual(llm._TIMEOUT, original)
+
+    def test_timeout_environment_is_read_for_each_call(self) -> None:
+        captured = []
+
+        def fake_post(url, headers=None, json=None, timeout=None):
+            captured.append(timeout)
+            return completion_response()
+
+        fake_requests = SimpleNamespace(
+            post=fake_post,
+            exceptions=SimpleNamespace(
+                Timeout=TimeoutError, ConnectionError=ConnectionError
+            ),
+        )
+        with patch.object(llm, "requests", fake_requests), patch.dict(
+            os.environ, {"ALERTMIND_LLM_TIMEOUT": "11"}, clear=False
+        ):
+            llm._post("https://example.test/v1/chat/completions", {}, {"model": "m"})
+            os.environ["ALERTMIND_LLM_TIMEOUT"] = "12"
+            llm._post("https://example.test/v1/chat/completions", {}, {"model": "m"})
+        self.assertEqual(captured, [11, 12])
 
 
 class ResponseMetadataTests(unittest.TestCase):

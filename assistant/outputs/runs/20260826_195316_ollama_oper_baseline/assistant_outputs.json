@@ -1,0 +1,441 @@
+{
+  "A01": {
+    "summary": [
+      "Auditd detected modification to /etc/cron.d/amtest",
+      "Process ran as UID 0 (root) with AUID 1000",
+      "Tee command used to write to cron configuration file",
+      "Alert triggered by rule detecting Cron persistence"
+    ],
+    "attack_technique_id": "T1053.003",
+    "attack_technique_name": "Cron",
+    "disposition_suggestion": "likely_true_positive",
+    "confidence": "high",
+    "investigation_queries": [
+      "SELECT * FROM logs WHERE file_path = '/etc/cron.d/amtest' AND user = 'notroot' ORDER BY timestamp DESC",
+      "SELECT * FROM process_data WHERE pid = 48762 AND ppid = 48761 AND command LIKE '%tee%'",
+      "SELECT * FROM file_integrity WHERE file_path = '/etc/cron.d/amtest' AND last_modified > NOW() - INTERVAL '1day'"
+    ],
+    "draft_user_message": "We've detected potential unauthorized modification to a cron job configuration file. Our systems are currently investigating this activity.",
+    "caveats": "False positive risk if the cron job was legitimately added by user 'notroot'. Verify process parent and file contents.",
+    "_alert_id": "A01",
+    "analyst_review_required": true
+  },
+  "A02": {
+    "summary": [
+      "Registry Run key modified for MicrosoftEdgeAutoLaunch",
+      "TargetObject: HKU\\S-1-5-21-2783956757-1425684079-3775447278-1000\\Software\\Microsoft\\Windows\\CurrentVersion\\Run",
+      "Image: C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
+      "Alert type: Persistence via Registry Run Keys",
+      "MITRE T1547.001 detected"
+    ],
+    "attack_technique_id": "T1547.001",
+    "attack_technique_name": "Registry Run Keys / Startup Folder",
+    "disposition_suggestion": "likely_true_positive",
+    "confidence": "medium",
+    "investigation_queries": [
+      "SELECT * FROM win_event WHERE event_id=100205 AND targetObject LIKE '%Run%'",
+      "SELECT * FROM process_creation WHERE image='C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe'",
+      "SELECT * FROM registry_modification WHERE key_path LIKE '%Run%'"
+    ],
+    "draft_user_message": "We detected an unusual registry modification related to Microsoft Edge persistence. Please review system activity for unexpected behavior.",
+    "caveats": "False positive risk exists if Edge is legitimately configured for auto-launch, but registry Run key modification is a common persistence technique.",
+    "_alert_id": "A02",
+    "analyst_review_required": true
+  },
+  "A03": {
+    "summary": [
+      "mshta.exe executed with obfuscated command line",
+      "URL-encoded PowerShell execution detected",
+      "VBScript payload attempts to run PowerShell",
+      "System Binary Proxy Execution technique observed",
+      "29-second detection latency noted"
+    ],
+    "attack_technique_id": "T1218",
+    "attack_technique_name": "System Binary Proxy Execution",
+    "disposition_suggestion": "likely_true_positive",
+    "confidence": "high",
+    "investigation_queries": [
+      "SELECT * FROM win_event WHERE event_id=1 AND process_name='mshta.exe' AND command_line LIKE '%powershell%'",
+      "SELECT * FROM win_process WHERE process_name='mshta.exe' AND parent_process_name='explorer.exe'",
+      "SELECT * FROM win_event WHERE event_id=1 AND command_line LIKE '%URLDecode%'"
+    ],
+    "draft_user_message": "We've detected unusual activity involving mshta.exe. Our systems are monitoring this for potential security incidents.",
+    "caveats": "False positive risk low, but command line obfuscation is common in malicious activity. No direct instruction detected in alert data.",
+    "_alert_id": "A03",
+    "analyst_review_required": true
+  },
+  "A04": {
+    "summary": [
+      "Auditd detected modification of init script in /etc/init.d/",
+      "Process ran as root (uid/euid 0) with non-root auid 1000",
+      "File named with timestamp suggests recent creation",
+      "T1037 technique detected: Boot/Logon Initialization Scripts",
+      "Persistence/Privilege Escalation tactics observed"
+    ],
+    "attack_technique_id": "T1037",
+    "attack_technique_name": "Boot or Logon Initialization Scripts",
+    "disposition_suggestion": "likely_true_positive",
+    "confidence": "high",
+    "investigation_queries": [
+      "find /etc/init.d/ -name 'amtest_t1037_*' -mtime -1",
+      "auditd -l | grep -E 'open|tee' | grep -v 'auditd'",
+      "ps -p 57504 -o args,uid,euid"
+    ],
+    "draft_user_message": "We've detected potential unauthorized modification of system initialization scripts. Please review the file /etc/init.d/amtest_t1037_AM-LIN-T1037-20260708194238 for suspicious activity.",
+    "caveats": "False positive risk if legitimate system maintenance occurred; verify file contents and modification context",
+    "_alert_id": "A04",
+    "analyst_review_required": true
+  },
+  "A05": {
+    "summary": [
+      "Registry Run key modified under HKU\\S-1-5-21-2783956757-1425684079-3775447278-1000",
+      "Target key: Software\\Microsoft\\Windows\\CurrentVersion\\Run\\AMTest",
+      "Process: C:\\WINDOWS\\system32\\reg.exe",
+      "Timestamp: 2026-07-05 16:05:21.898 UTC",
+      "MITRE T1547.001 (Registry Run Keys / Startup Folder)"
+    ],
+    "attack_technique_id": "T1547.001",
+    "attack_technique_name": "Registry Run Keys / Startup Folder",
+    "disposition_suggestion": "likely_true_positive",
+    "confidence": "high",
+    "investigation_queries": [
+      "SELECT * FROM win_event WHERE event_id=100205 AND source='windows_sysmon_cli' AND targetObject LIKE '%Run%'",
+      "SELECT * FROM win_process WHERE image='reg.exe' AND timestamp BETWEEN '2026-07-05 16:05:21' AND '2026-07-05 16:05:26'",
+      "SELECT * FROM win_registry WHERE key_path LIKE '%Run%' AND modification_time > '2026-07-05 16:05:21'"
+    ],
+    "draft_user_message": "We detected a potential persistence mechanism via registry Run key modification. The change was made by reg.exe at 2026-07-05 16:05:21 UTC. Please verify if this is a legitimate configuration.",
+    "caveats": "The registry key name 'AMTest' is benign but the action (modifying Run key) is suspicious. False positive risk low if this is a known legitimate configuration.",
+    "_alert_id": "A05",
+    "analyst_review_required": true
+  },
+  "A06": {
+    "summary": [
+      "Auditd detected access to /root/.ssh/authorized_keys",
+      "Process ran as UID 0 (root) with AUID 1000",
+      "SSH authorized keys file modified successfully",
+      "T1098.004 persistence technique detected",
+      "Audit syscall 257 (open) succeeded"
+    ],
+    "attack_technique_id": "T1098.004",
+    "attack_technique_name": "SSH Authorized Keys",
+    "disposition_suggestion": "likely_true_positive",
+    "confidence": "high",
+    "investigation_queries": [
+      "SELECT * FROM auditd WHERE file_path = '/root/.ssh/authorized_keys' AND uid = 0 AND success = 'yes' ORDER BY timestamp DESC;",
+      "SELECT * FROM process WHERE pid = 43536 AND user = 'notroot' AND command LIKE '%bash%' ORDER BY timestamp DESC;",
+      "SELECT * FROM file_modification WHERE file_path = '/root/.ssh/authorized_keys' AND user = 'notroot' ORDER BY timestamp DESC;"
+    ],
+    "draft_user_message": "We detected unusual access to the SSH authorized keys file. Please verify if this activity aligns with your organization's security practices.",
+    "caveats": "False positive risk if legitimate SSH key management occurred. Verify if the 'notroot' user has authorized access to modify root SSH keys.",
+    "_alert_id": "A06",
+    "analyst_review_required": true
+  },
+  "A07": {
+    "summary": [
+      "Auditd detected setuid/setgid bit change on dconf-service file",
+      "Process: dconf-service (uid 1000) modified /home/notroot/.config/dconf/user",
+      "Successful syscall (exit 0) with audit serial 76247",
+      "Alert latency 0.669s, rule T1548.001 (Privilege Escalation)",
+      "File path: /home/notroot/.config/dconf/user"
+    ],
+    "attack_technique_id": "T1548.001",
+    "attack_technique_name": "Setuid and Setgid",
+    "disposition_suggestion": "likely_true_positive",
+    "confidence": "medium",
+    "investigation_queries": [
+      "SELECT * FROM auditd WHERE audit.file LIKE '/home/%/.config/dconf/user' AND audit.syscall='90' AND audit.success='yes';",
+      "SELECT * FROM processes WHERE pid=3627 OR ppid=2936 ORDER BY timestamp DESC;",
+      "SELECT * FROM file_integrity WHERE path='/home/notroot/.config/dconf/user' AND last_modified > NOW() - INTERVAL '1 hour';"
+    ],
+    "draft_user_message": "We detected potential privilege escalation activity related to dconf-service configuration file. Please verify if this file was modified unexpectedly.",
+    "caveats": "False positive risk if the file is a legitimate user configuration file. Verify if the modification aligns with normal system operations.",
+    "_alert_id": "A07",
+    "analyst_review_required": true
+  },
+  "A08": {
+    "summary": [
+      "Windows Defender Platform process (MsMpEng.exe) accessed LSASS memory with elevated privileges",
+      "Alert triggered by Sysmon rule 100203 detecting potential credential access",
+      "Access granted 0x3600 (decimal 13824) suggests debug privilege or similar elevation",
+      "MITRE ATT&CK T1003.001 technique detected for LSASS memory access",
+      "No clear evidence of malicious payload execution yet"
+    ],
+    "attack_technique_id": "T1003.001",
+    "attack_technique_name": "LSASS Memory",
+    "disposition_suggestion": "needs_investigation",
+    "confidence": "medium",
+    "investigation_queries": [
+      "SELECT * FROM win_event WHERE event_id=4672 AND source_image='C:\\ProgramData\\Microsoft\\Windows Defender\\Platform\\4.18.26050.15-0\\MsMpEng.exe'",
+      "SELECT * FROM win_process WHERE process_name='MsMpEng.exe' AND access_mask='0x3600'",
+      "SELECT * FROM file_integrity WHERE file_path='C:\\ProgramData\\Microsoft\\Windows Defender\\Platform\\4.18.26050.15-0\\MsMpEng.exe'"
+    ],
+    "draft_user_message": "We've detected unusual LSASS memory access by Windows Defender process. Our team is investigating to ensure system integrity.",
+    "caveats": "False positive risk exists as MsMpEng.exe is legitimate, but access level 0x3600 warrants scrutiny. Timing data may be incomplete.",
+    "_alert_id": "A08",
+    "analyst_review_required": true
+  },
+  "A09": {
+    "summary": [
+      "Auditd detected sudoers file modification via 'tee' command",
+      "Process ran with euid=0 (root) and auid=1000",
+      "File targeted: /etc/sudoers.d/amtest",
+      "Alert triggered by rule: sudoers modified - privilege-escalation persistence",
+      "Modification successful (audit.success=yes)"
+    ],
+    "attack_technique_id": "T1548.003",
+    "attack_technique_name": "Sudo and Sudo Caching",
+    "disposition_suggestion": "likely_true_positive",
+    "confidence": "high",
+    "investigation_queries": [
+      "SELECT * FROM logs WHERE file_path LIKE '/etc/sudoers.d/%' AND user_id = 1000 AND process_name = 'tee' ORDER BY timestamp DESC;",
+      "SELECT * FROM process_data WHERE euid = 0 AND file_path LIKE '/etc/sudoers.d/%' AND command_line LIKE '%tee%' ORDER BY timestamp DESC;",
+      "SELECT * FROM auditd_logs WHERE audit_file = '/etc/sudoers.d/amtest' AND audit_uid = 1000 AND audit_euid = 0 ORDER BY audit_epoch DESC;"
+    ],
+    "draft_user_message": "We detected potential privilege escalation activity involving sudoers file modification. Please review system access and verify if this change was authorized.",
+    "caveats": "False positive risk if legitimate sudoers file maintenance occurred. Verify if the file modification aligns with known authorized changes.",
+    "_alert_id": "A09",
+    "analyst_review_required": true
+  },
+  "A10": {
+    "summary": [
+      "Office app (winword.exe) spawned cmd.exe in Temp directory",
+      "Command line: cmd.exe /c whoami",
+      "Alerted via Sysmon rule 100200 (Office macro detection)",
+      "MITRE T1566 (Phishing) and T1059 (Command Interpreter) techniques",
+      "Timestamps show near-immediate detection"
+    ],
+    "attack_technique_id": "T1566/T1059",
+    "attack_technique_name": "Phishing/Command and Scripting Interpreter",
+    "disposition_suggestion": "needs_investigation",
+    "confidence": "medium",
+    "investigation_queries": [
+      "SELECT * FROM win_event WHERE event_id=1 AND process_path='C:\\Windows\\System32\\cmd.exe' AND parent_process_path LIKE '%winword.exe%'",
+      "SELECT * FROM win_process WHERE process_name='cmd.exe' AND command_line LIKE '%whoami%' AND parent_process_name LIKE '%word.exe%'",
+      "SELECT * FROM win_file WHERE path='C:\\Users\\user1\\AppData\\Local\\Temp\\winword.exe' AND modification_time > NOW() - INTERVAL '1 day'"
+    ],
+    "draft_user_message": "We've detected unusual command execution activity related to your Office application. Please verify if any suspicious macros or scripts were recently run.",
+    "caveats": "False positive risk exists if legitimate macro usage occurred; command line appears simple but context (Office app in Temp) raises concerns",
+    "_alert_id": "A10",
+    "analyst_review_required": true
+  },
+  "A11": {
+    "summary": [
+      "LSASS memory access detected by wazuh-agent.exe",
+      "Granted access 0x1fffff (high privileges)",
+      "Alert triggered by Sysmon rule 100203",
+      "MITRE T1003.001 (Credential Access - LSASS Memory)",
+      "No timing data available for attack window"
+    ],
+    "attack_technique_id": "T1003.001",
+    "attack_technique_name": "LSASS Memory",
+    "disposition_suggestion": "needs_investigation",
+    "confidence": "medium",
+    "investigation_queries": [
+      "SELECT * FROM win_event WHERE event_id=4688 AND process_path='C:\\Program Files (x86)\\ossec-agent\\wazuh-agent.exe'",
+      "SELECT * FROM win_process WHERE process_name='wazuh-agent.exe' AND parent_process_name='services.exe'",
+      "SELECT * FROM win_event WHERE event_id=1003 AND process_path='C:\\Program Files (x86)\\ossec-agent\\wazuh-agent.exe'"
+    ],
+    "draft_user_message": "We've detected potential LSASS memory access activity involving the Wazuh agent. Our systems are monitoring this for further analysis.",
+    "caveats": "The process is a legitimate security tool but exhibits suspicious access patterns. False positive risk exists due to security software's normal operations.",
+    "_alert_id": "A11",
+    "analyst_review_required": true
+  },
+  "A12": {
+    "summary": [
+      "Systemd service unit modified via snapd with root privileges",
+      "File path contains obfuscated filename pattern",
+      "Auditd detected modification to /etc/systemd/system/",
+      "Process ID 767 (parent 1) executed as UID 0",
+      "Matches MITRE T1543.002 persistence technique"
+    ],
+    "attack_technique_id": "T1543.002",
+    "attack_technique_name": "Systemd Service",
+    "disposition_suggestion": "needs_investigation",
+    "confidence": "medium",
+    "investigation_queries": [
+      "SELECT * FROM logs WHERE file_path LIKE '/etc/systemd/system/%' AND user_id = 0 AND process_name = 'snapd'",
+      "SELECT * FROM system_events WHERE event_type = 'systemd_unit_change' AND timestamp BETWEEN '2026-07-08 11:41:50' AND '2026-07-08 11:42:00'",
+      "SELECT * FROM process_data WHERE pid = 767 AND parent_pid = 1 AND command_line LIKE '%snapd%'"
+    ],
+    "draft_user_message": "We've detected potential system modification activity related to systemd services. Please verify if snapd operations are expected.",
+    "caveats": "False positive risk exists as snapd is a legitimate service; however, the obfuscated filename pattern raises suspicion requiring further analysis.",
+    "_alert_id": "A12",
+    "analyst_review_required": true
+  },
+  "A13": {
+    "summary": [
+      "Auditd detected modification of /etc/passwd via useradd command",
+      "Process ran with elevated privileges (uid=0/euid=0)",
+      "User 'notroot' executed command from /home/notroot",
+      "Audit event linked to MITRE T1136/T1098 techniques",
+      "System call 257 (likely useradd) modified critical account file"
+    ],
+    "attack_technique_id": "T1136/T1098",
+    "attack_technique_name": "Create Account / Account Manipulation",
+    "disposition_suggestion": "likely_true_positive",
+    "confidence": "high",
+    "investigation_queries": [
+      "SELECT * FROM logs WHERE command LIKE '%useradd%' AND file = '/etc/passwd' AND uid = 0 ORDER BY timestamp DESC;",
+      "SELECT * FROM process_data WHERE pid = 45112 AND ppid = 45111 AND cwd = '/home/notroot';",
+      "SELECT * FROM file_modifications WHERE file = '/etc/passwd' AND timestamp BETWEEN '2026-07-08 11:19:30' AND '2026-07-08 11:19:40';"
+    ],
+    "draft_user_message": "We've detected an unusual user account modification attempt. Please verify if a new user was intentionally added or if this represents unauthorized activity.",
+    "caveats": "False positive risk exists if this is a legitimate user provisioning activity. Verify command context and user intent.",
+    "_alert_id": "A13",
+    "analyst_review_required": true
+  },
+  "A14": {
+    "summary": [
+      "Rundll32.exe accessed LSASS memory with high privileges",
+      "Alert triggered by LSASS memory access (T1003.001)",
+      "Timestamp: 2026-07-05 19:33:38 UTC",
+      "Detection latency: 2.129 seconds",
+      "Possible credential dumping attempt"
+    ],
+    "attack_technique_id": "T1003.001",
+    "attack_technique_name": "LSASS Memory",
+    "disposition_suggestion": "likely_true_positive",
+    "confidence": "medium",
+    "investigation_queries": [
+      "SELECT * FROM win_event WHERE event_id=100203 AND source_image='C:\\WINDOWS\\system32\\rundll32.exe'",
+      "SELECT * FROM win_process WHERE process_name='rundll32.exe' AND access_mask='0x1fffff'",
+      "SELECT * FROM win_event WHERE event_id=1 AND source_image='C:\\WINDOWS\\system32\\rundll32.exe'"
+    ],
+    "draft_user_message": "We've detected unusual LSASS memory access by rundll32.exe. Please review system activity for potential credential access attempts.",
+    "caveats": "Rundll32.exe is a legitimate system process but accessing LSASS with high privileges is suspicious. False positives possible if process is used for legitimate system maintenance.",
+    "_alert_id": "A14",
+    "analyst_review_required": true
+  },
+  "A15": {
+    "summary": [
+      "DNS query with long label detected (45 characters)",
+      "PowerShell.exe initiated query to suspicious domain",
+      "Alert matches MITRE T1048/T1071.004 techniques",
+      "Query name contains timestamp and 'alertmind-lab' subdomain",
+      "Exfiltration over alternative protocol suspected"
+    ],
+    "attack_technique_id": "T1048/T1071.004",
+    "attack_technique_name": "Exfiltration Over Alternative Protocol / DNS",
+    "disposition_suggestion": "likely_true_positive",
+    "confidence": "high",
+    "investigation_queries": [
+      "SELECT * FROM win_event WHERE event_id=4103 AND query_name LIKE '%alertmind-lab%'",
+      "SELECT * FROM win_process WHERE image='pwsh.exe' AND parent_image='explorer.exe'",
+      "SELECT * FROM win_dns WHERE query_name_length > 40 ORDER BY timestamp DESC"
+    ],
+    "draft_user_message": "We've detected a DNS query with an unusually long label. This could indicate potential exfiltration activity. Please review the associated logs for further analysis.",
+    "caveats": "False positive risk exists if the domain is legitimately long, but MITRE techniques T1048/T1071.004 strongly indicate DNS tunneling.",
+    "_alert_id": "A15",
+    "analyst_review_required": true
+  },
+  "A16": {
+    "summary": [
+      "Auditd detected modification of /var/log/btmp (failed login log) with elevated privileges",
+      "Process ran as UID 0 (root) but with AUID 1000 (non-root user)",
+      "Syscall 257 (likely file write) succeeded in modifying system log",
+      "Alert triggered by T1070 Indicator Removal technique",
+      "Detection latency 2.59 seconds"
+    ],
+    "attack_technique_id": "T1070",
+    "attack_technique_name": "Indicator Removal",
+    "disposition_suggestion": "likely_true_positive",
+    "confidence": "high",
+    "investigation_queries": [
+      "SELECT * FROM auditd WHERE file=\"/var/log/btmp\" AND uid=0 AND timestamp > NOW() - INTERVAL '5 minutes'",
+      "SELECT * FROM processes WHERE pid=53346 AND cwd=\"/home/notroot\" AND uid=0",
+      "SELECT * FROM file_modifications WHERE file=\"/var/log/btmp\" AND user_agent=\"bash\" AND timestamp > NOW() - INTERVAL '1 hour'"
+    ],
+    "draft_user_message": "We've detected potential log tampering activity on your system. Our analysis suggests this may be an attempt to remove evidence of unauthorized access. Please review the security logs for further details.",
+    "caveats": "False positive risk if the user is a legitimate admin performing maintenance, but elevated privileges with non-root AUID is suspicious",
+    "_alert_id": "A16",
+    "analyst_review_required": true
+  },
+  "A17": {
+    "summary": [
+      "Linux auditd detected modprobe syscall with elevated privileges",
+      "Process ran as UID 0 (root) with auid 1000",
+      "Kernel module load/unload activity observed",
+      "Potential LKM rootkit indicators (T1547.006/T1014)",
+      "Auditd event with 2.35s detection latency"
+    ],
+    "attack_technique_id": "T1547.006/T1014",
+    "attack_technique_name": "Kernel Modules and Extensions / Rootkit",
+    "disposition_suggestion": "needs_investigation",
+    "confidence": "medium",
+    "investigation_queries": [
+      "SELECT * FROM logs WHERE source='linux_auditd_cli' AND audit.command='modprobe' AND audit.uid='0' AND audit.auid!='0' LIMIT 10",
+      "SELECT audit.module, COUNT(*) FROM logs WHERE audit.type='SYSCALL' AND audit.syscall='313' AND audit.exit='0' GROUP BY audit.module",
+      "SELECT * FROM files WHERE path='/usr/bin/kmod' AND hash IN (SELECT hash FROM known_bad_hashes WHERE category='rootkit')"
+    ],
+    "draft_user_message": "We've detected potential kernel module activity on your system. Our analysis suggests this might be a legitimate system update, but we recommend verifying the source and purpose of the module load.",
+    "caveats": "False positive risk exists if this is a legitimate module update. The auditd event shows elevated privileges but no direct malicious payload detection.",
+    "_alert_id": "A17",
+    "analyst_review_required": true
+  },
+  "A18": {
+    "summary": [
+      "PowerShell.exe executed with encoded command line",
+      "EncodedCommand parameter suggests obfuscated payload",
+      "Alert triggered by suspicious PowerShell activity",
+      "No additional context in telemetry",
+      "Rule matches MITRE T1059.001 technique"
+    ],
+    "attack_technique_id": "T1059.001",
+    "attack_technique_name": "PowerShell",
+    "disposition_suggestion": "likely_true_positive",
+    "confidence": "medium",
+    "investigation_queries": [
+      "SELECT * FROM win_event WHERE event_id=4104 AND process_name='powershell.exe' AND command_line LIKE '%EncodedCommand%'",
+      "SELECT * FROM win_process WHERE parent_process_name='powershell.exe' AND process_name NOT IN ('cmd.exe','powershell.exe')",
+      "SELECT * FROM win_registry WHERE key_path LIKE '%Microsoft%PowerShell%' AND value_data LIKE '%EncodedCommand%'"
+    ],
+    "draft_user_message": "We've detected unusual PowerShell activity on your system. Our analysis suggests this may be an obfuscated payload execution. Please review the security logs for more details.",
+    "caveats": "Encoded command may be legitimate obfuscation or malicious payload. False positive risk exists if legitimate PowerShell usage is present.",
+    "_alert_id": "A18",
+    "analyst_review_required": true
+  },
+  "A19": {
+    "summary": [
+      "PsExec service binary executed via Windows Sysmon alert",
+      "Alert triggered by T1021.002/T1569.002 MITRE techniques",
+      "Command line shows C:\\WINDOWS\\PSEXESVC.exe execution",
+      "Detection latency 2.28 seconds",
+      "Evidence includes screenshot of event"
+    ],
+    "attack_technique_id": "T1021.002/T1569.002",
+    "attack_technique_name": "Remote Service Execution / SMB/Windows Admin Shares",
+    "disposition_suggestion": "likely_true_positive",
+    "confidence": "high",
+    "investigation_queries": [
+      "SELECT * FROM win_event WHERE event_id=4688 AND image='C:\\Windows\\PSEXESVC.exe'",
+      "SELECT * FROM win_smb WHERE source_ip='win-victim' AND protocol='SMB1'",
+      "SELECT * FROM win_service WHERE name='PSEXESVC' AND status='running'"
+    ],
+    "draft_user_message": "We've detected potential lateral movement activity involving PsExec service execution. Please review system logs and network connections for further investigation.",
+    "caveats": "PsExec.exe is a known legitimate tool but often abused for remote execution. Command line lacks parameters, which may indicate benign usage or obfuscation.",
+    "_alert_id": "A19",
+    "analyst_review_required": true
+  },
+  "A20": {
+    "summary": [
+      "Auditd detected successful read of /etc/shadow by root user",
+      "Cron process (PID 43800) accessed sensitive credential file",
+      "Audit event shows elevated privileges (euid=0)",
+      "Alert triggered by T1003.008 MITRE technique",
+      "Latency between attack and alert: 2.428 seconds"
+    ],
+    "attack_technique_id": "T1003.008",
+    "attack_technique_name": "Credential Access via /etc/passwd and /etc/shadow",
+    "disposition_suggestion": "likely_true_positive",
+    "confidence": "high",
+    "investigation_queries": [
+      "SELECT * FROM auditd WHERE file='/etc/shadow' AND uid=0 ORDER BY timestamp DESC;",
+      "SELECT * FROM processes WHERE pid=43800 AND command LIKE '%cron%';",
+      "SELECT * FROM cron_jobs WHERE user='root' AND last_modified > NOW() - INTERVAL '1 day';"
+    ],
+    "draft_user_message": "System monitoring detected potential credential access activity. Please review audit logs for root access to /etc/shadow.",
+    "caveats": "False positive risk if system regularly accesses shadow files for legitimate monitoring, but elevated privileges and sensitive file access suggest potential credential access.",
+    "_alert_id": "A20",
+    "analyst_review_required": true
+  }
+}

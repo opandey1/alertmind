@@ -146,7 +146,9 @@ def main():
         if cfg:
             print(f"      -> effective: {cfg.get('token_parameter')}={cfg.get('token_budget')}"
                   f" · reasoning_effort={cfg.get('reasoning_effort')}"
-                  f" · temperature={cfg.get('temperature')}")
+                  f" · temperature={cfg.get('temperature')}"
+                  f" · top_p={cfg.get('top_p')} · seed={cfg.get('seed')}"
+                  f" · response_format={cfg.get('response_format')}")
         if meta.get("model_actual"):
             print(f"      -> served by model: {meta['model_actual']}"
                   f"  (pin this snapshot for the measured run)")
@@ -166,7 +168,9 @@ def main():
         if cfg:
             print(f"      -> effective request: {cfg.get('token_parameter')}="
                   f"{cfg.get('token_budget')} · reasoning_effort="
-                  f"{cfg.get('reasoning_effort')} · temperature={cfg.get('temperature')}")
+                  f"{cfg.get('reasoning_effort')} · temperature={cfg.get('temperature')}"
+                  f" · top_p={cfg.get('top_p')} · seed={cfg.get('seed')}"
+                  f" · response_format={cfg.get('response_format')}")
         if meta.get("usage"):
             print(f"      -> usage: {meta['usage']}  finish_reason={meta.get('finish_reason')}")
             # Only diagnose exhaustion when the budget was genuinely hit —

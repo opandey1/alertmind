@@ -278,7 +278,7 @@ cd assistant
 python -m unittest discover -s tests -p "test_*.py"
 ```
 
-The current suite contains **67 tests** covering provider request construction, schema/error metadata, runtime/formal-schema alignment, non-destructive audit reconstruction, redaction, strict-view label leakage, injection markers, boundary blocking, consent, ad hoc audit semantics and Streamlit state handling.
+The current suite contains **78 tests** covering provider request construction, schema/error metadata, runtime/formal-schema alignment, non-destructive audit reconstruction, explicit corpus-subset selection, redaction, strict-view label leakage, injection markers, boundary blocking, consent, ad hoc audit semantics and Streamlit state handling.
 
 Re-score a retained audit log without changing committed evidence:
 
@@ -289,7 +289,7 @@ python rebuild_from_audit.py outputs/runs/<run_id>/audit-log.jsonl --score-only
 
 Omitting `--score-only` writes derived files under `assistant/outputs/rebuilt/<run_id>/`, not beside the source audit log. Existing derived files require an explicit `--overwrite`, and the timing-log default is resolved from the repository rather than the caller's working directory.
 
-**Offline CI.** Every push to `main` and pull request targeting it runs the 67-test regression suite and re-derives the CI-protected assistant-evaluation findings from committed artifacts: frozen-corpus and timing-log SHA-256, canonical scoring for five retained runs, and the §9.8 token, latency, prompt/redaction-version and paired-hash results. No live SIEM, model provider, credentials or repository secrets are required. The badge therefore shows that these specific committed measurements still reproduce without another model call — it does not cover MTTD, the assisted-timing study, grounding verdicts, dashboards or detection counts, which are evidenced elsewhere in this repository. Workflow: [`.github/workflows/offline-ci.yml`](.github/workflows/offline-ci.yml); assertions: [`measurement/verify_frozen_evidence.py`](measurement/verify_frozen_evidence.py).
+**Offline CI.** Every push to `main` and pull request targeting it runs the 78-test regression suite and re-derives the CI-protected assistant-evaluation findings from committed artifacts: frozen-corpus and timing-log SHA-256, canonical scoring for five retained runs, and the §9.8 token, latency, prompt/redaction-version and paired-hash results. No live SIEM, model provider, credentials or repository secrets are required. The badge therefore shows that these specific committed measurements still reproduce without another model call — it does not yet protect the Qwen candidate runs and does not cover MTTD, the assisted-timing study, grounding verdicts, dashboards or detection counts, which are evidenced elsewhere in this repository. Workflow: [`.github/workflows/offline-ci.yml`](.github/workflows/offline-ci.yml); assertions: [`measurement/verify_frozen_evidence.py`](measurement/verify_frozen_evidence.py).
 
 **Rebuilding the lab from a clean clone:** follow [`docs/rebuild-guide.md`](docs/rebuild-guide.md). Recovery and credential-reset procedures are in [`docs/runbooks/`](docs/runbooks/), and [`docs/artifacts.md`](docs/artifacts.md) indexes the produced artifacts.
 
@@ -301,6 +301,11 @@ Reproduce the analysis by running [`measurement/analysis.ipynb`](measurement/ana
 - `assistant/outputs/runs/20260718_183704_openai_eval_baseline/`
 - `assistant/outputs/runs/20260717_073045_openai_oper_baseline/`
 - `assistant/outputs/runs/20260717_074112_openai_eval_baseline/` — superseded, still-leaky evaluation view retained as history
+
+The retained Qwen pilots and pre-commit candidate pair are also committed for
+transparency, but are not yet part of the published comparison. Their provenance
+disclosures and newline-normalized audit hashes are in
+[`measurement/run-manifests/`](measurement/run-manifests/).
 
 ## Detection and response content
 

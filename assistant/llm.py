@@ -15,6 +15,14 @@ Env knobs:
   ALERTMIND_LLM_TIMEOUT   per-call timeout seconds (default 300)
   ALERTMIND_MAX_TOKENS    max response tokens      (default 1024)
   ALERTMIND_LLM_RETRIES   retries on transient err (default 2)
+  ALERTMIND_OLLAMA_TEMPERATURE
+                          Ollama request temperature (default 0, preserving the
+                          submitted llama3.1 configuration)
+  ALERTMIND_OLLAMA_TOP_P  optional Ollama nucleus-sampling value
+  ALERTMIND_OLLAMA_SEED   optional Ollama seed (improves repeatability but does
+                          not guarantee byte-identical output)
+  ALERTMIND_OLLAMA_STRUCTURED_OUTPUTS
+                          1/true/yes/on enables provider-side JSON Schema output
   ALERTMIND_OPENAI_REASONING_EFFORT
                           GPT-5/o-series reasoning effort. UNSET by default, so the
                           model's own vendor default applies (gpt-5.5 defaults to
@@ -26,10 +34,13 @@ Env knobs:
 """
 import os
 import json
+import math
 import re
 import time
 from contextlib import contextmanager
 from urllib.parse import urlparse
+
+from schema import ollama_json_schema
 
 try:
     import requests
@@ -65,15 +76,83 @@ def load_env_file(path=None):
 
 load_env_file()
 
-_TIMEOUT = int(os.environ.get("ALERTMIND_LLM_TIMEOUT", "300"))
-_MAX_TOKENS = int(os.environ.get("ALERTMIND_MAX_TOKENS", "1024"))
-_RETRIES = int(os.environ.get("ALERTMIND_LLM_RETRIES", "2"))
+_TIMEOUT = 300
+_MAX_TOKENS = 1024
+_RETRIES = 2
+_TIMEOUT_OVERRIDE = None
 # Unset by default: send no reasoning_effort so the model's vendor default applies.
 # Overriding it silently would change measured accuracy without disclosure.
 _OPENAI_REASONING_EFFORT = os.environ.get(
     "ALERTMIND_OPENAI_REASONING_EFFORT", ""
 ).strip()
 _RETRYABLE = {429, 500, 502, 503, 504}
+
+
+def _number_env(
+    name,
+    cast,
+    *,
+    default=None,
+    minimum=None,
+    maximum=None,
+    minimum_exclusive=False,
+):
+    """Read a numeric environment setting with actionable validation."""
+    raw = os.environ.get(name, "").strip()
+    if not raw:
+        return default
+    kind = "an integer" if cast is int else "a number"
+    try:
+        value = cast(raw)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{name} must be {kind}; got {raw!r}") from exc
+    if isinstance(value, float) and not math.isfinite(value):
+        raise ValueError(f"{name} must be finite; got {raw!r}")
+    if minimum is not None:
+        below = value <= minimum if minimum_exclusive else value < minimum
+        if below:
+            comparator = ">" if minimum_exclusive else ">="
+            raise ValueError(
+                f"{name} must be {comparator} {minimum}; got {raw!r}"
+            )
+    if maximum is not None and value > maximum:
+        raise ValueError(f"{name} must be <= {maximum}; got {raw!r}")
+    return value
+
+
+def _timeout_seconds():
+    if _TIMEOUT_OVERRIDE is not None:
+        return _TIMEOUT_OVERRIDE
+    return _number_env(
+        "ALERTMIND_LLM_TIMEOUT", int, default=_TIMEOUT, minimum=1
+    )
+
+
+def _max_tokens():
+    return _number_env(
+        "ALERTMIND_MAX_TOKENS", int, default=_MAX_TOKENS, minimum=1
+    )
+
+
+def _retries():
+    return _number_env(
+        "ALERTMIND_LLM_RETRIES", int, default=_RETRIES, minimum=0
+    )
+
+
+def _env_flag(name, default=False):
+    """Parse an explicit boolean environment flag or fail on a typo."""
+    raw = os.environ.get(name)
+    if raw is None or not raw.strip():
+        return default
+    normalized = raw.strip().lower()
+    if normalized in {"1", "true", "yes", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "off"}:
+        return False
+    raise ValueError(
+        f"{name} must be one of 1/0, true/false, yes/no, or on/off; got {raw!r}"
+    )
 
 
 class ProviderError(RuntimeError):
@@ -99,14 +178,24 @@ def timeout_override(seconds):
     --timeout applies to the completion request too, not just GET /models).
     Restores the previous value on exit, including on exception.
     """
-    global _TIMEOUT
-    previous = _TIMEOUT
-    if seconds:
-        _TIMEOUT = int(seconds)
+    global _TIMEOUT_OVERRIDE
+    previous = _TIMEOUT_OVERRIDE
+    if seconds is not None:
+        try:
+            candidate = int(seconds)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                f"timeout override must be a positive integer; got {seconds!r}"
+            ) from exc
+        if candidate < 1:
+            raise ValueError(
+                f"timeout override must be a positive integer; got {seconds!r}"
+            )
+        _TIMEOUT_OVERRIDE = candidate
     try:
-        yield _TIMEOUT
+        yield _timeout_seconds()
     finally:
-        _TIMEOUT = previous
+        _TIMEOUT_OVERRIDE = previous
 
 
 def _server_error(response) -> str:
@@ -133,19 +222,21 @@ def _server_error(response) -> str:
 def _post(url, headers, payload):
     """POST with retry/backoff and actionable errors. Returns the response object."""
     delay = 1.0
-    for attempt in range(_RETRIES + 1):
+    retries = _retries()
+    timeout = _timeout_seconds()
+    for attempt in range(retries + 1):
         try:
-            r = requests.post(url, headers=headers, json=payload, timeout=_TIMEOUT)
+            r = requests.post(url, headers=headers, json=payload, timeout=timeout)
         except requests.exceptions.Timeout:
             raise RuntimeError(
-                f"LLM call timed out after {_TIMEOUT}s. The model is likely too large/slow "
+                f"LLM call timed out after {timeout}s. The model is likely too large/slow "
                 f"for local inference. Use a smaller model (e.g. 'llama3.1:8b') or raise "
                 f"ALERTMIND_LLM_TIMEOUT.")
         except requests.exceptions.ConnectionError as e:
-            if attempt < _RETRIES:
+            if attempt < retries:
                 time.sleep(delay); delay *= 2; continue
             raise RuntimeError(f"Could not connect to {url} ({e}). Is the server running?")
-        if r.status_code in _RETRYABLE and attempt < _RETRIES:
+        if r.status_code in _RETRYABLE and attempt < retries:
             time.sleep(delay); delay *= 2; continue
         if not r.ok:
             model = payload.get("model", "(unknown)")
@@ -191,7 +282,6 @@ def _mock(system: str, user: str, model: str) -> tuple[str, dict]:
         "draft_user_message": "Draft: we observed activity on your host that our "
                               "monitoring flagged for review; please confirm if this was you.",
         "caveats": "Mock output; not a real model inference.",
-        "_model": "mock",
     }), {"model_actual": "mock", "request_config": {"provider": "mock"}}
 
 
@@ -199,11 +289,12 @@ def _anthropic(system: str, user: str, model: str) -> tuple[str, dict]:
     key = os.environ.get("ANTHROPIC_API_KEY")
     if not key:
         raise RuntimeError("ANTHROPIC_API_KEY not set")
-    payload = {"model": model, "max_tokens": _MAX_TOKENS, "temperature": 0, "system": system,
+    max_tokens = _max_tokens()
+    payload = {"model": model, "max_tokens": max_tokens, "temperature": 0, "system": system,
                "messages": [{"role": "user", "content": user}]}
     request_config = {"provider": "anthropic", "model_requested": model,
                       "endpoint": "https://api.anthropic.com/v1/messages",
-                      "token_parameter": "max_tokens", "token_budget": _MAX_TOKENS,
+                      "token_parameter": "max_tokens", "token_budget": max_tokens,
                       "temperature": 0}
     try:
         r = _post("https://api.anthropic.com/v1/messages",
@@ -369,6 +460,10 @@ def _openai(system: str, user: str, model: str) -> tuple[str, dict]:
     if not key:
         raise RuntimeError("OPENAI_API_KEY not set")
 
+    max_tokens = _max_tokens()
+    reasoning_effort = os.environ.get(
+        "ALERTMIND_OPENAI_REASONING_EFFORT", _OPENAI_REASONING_EFFORT
+    ).strip()
     payload = {
         "model": model,
         "messages": [
@@ -379,18 +474,18 @@ def _openai(system: str, user: str, model: str) -> tuple[str, dict]:
     reasoning_model = info["official_openai"] and _uses_reasoning_effort(model)
     if info["official_openai"]:
         # Official OpenAI rejects legacy max_tokens.
-        payload["max_completion_tokens"] = _MAX_TOKENS
+        payload["max_completion_tokens"] = max_tokens
         if reasoning_model:
             # Reasoning models reject temperature; leave it unset (stochastic).
-            if _OPENAI_REASONING_EFFORT:
-                payload["reasoning_effort"] = _OPENAI_REASONING_EFFORT
+            if reasoning_effort:
+                payload["reasoning_effort"] = reasoning_effort
         else:
             # Non-reasoning official models (e.g. gpt-4o) DO support temperature —
             # pin it to 0 to align the sampling configuration with the Ollama path.
             payload["temperature"] = 0
     else:
         # Preserve compatibility with NVIDIA and other Chat Completions APIs.
-        payload.update({"temperature": 0, "max_tokens": _MAX_TOKENS})
+        payload.update({"temperature": 0, "max_tokens": max_tokens})
 
     # Built BEFORE the request so it survives a timeout, a connection failure, or
     # an empty-content response.
@@ -401,7 +496,7 @@ def _openai(system: str, user: str, model: str) -> tuple[str, dict]:
         "official_openai": info["official_openai"],
         "reasoning_model": reasoning_model,
         "token_parameter": info["token_parameter"],
-        "token_budget": _MAX_TOKENS,
+        "token_budget": max_tokens,
         "reasoning_effort": (
             payload.get("reasoning_effort", "unset (vendor default)")
             if reasoning_model
@@ -436,22 +531,72 @@ def _openai(system: str, user: str, model: str) -> tuple[str, dict]:
 def _ollama(system: str, user: str, model: str) -> tuple[str, dict]:
     info = provider_request_info("ollama", model)
     key = os.environ.get("OLLAMA_API_KEY", "ollama")  # Ollama ignores it.
+    # Keep the historical local default at temperature=0 unless a run opts in
+    # to another disclosed configuration (for example Qwen3 thinking at 0.6).
+    max_tokens = _max_tokens()
+    temperature = _number_env(
+        "ALERTMIND_OLLAMA_TEMPERATURE",
+        float,
+        default=0.0,
+        minimum=0.0,
+        maximum=2.0,
+    )
+    top_p = _number_env(
+        "ALERTMIND_OLLAMA_TOP_P",
+        float,
+        minimum=0.0,
+        maximum=1.0,
+        minimum_exclusive=True,
+    )
+    seed = _number_env("ALERTMIND_OLLAMA_SEED", int, minimum=0)
+    structured_outputs = _env_flag("ALERTMIND_OLLAMA_STRUCTURED_OUTPUTS")
+
     payload = {
         "model": model,
-        "temperature": 0,
-        "max_tokens": _MAX_TOKENS,
+        "temperature": temperature,
+        "max_tokens": max_tokens,
         "messages": [
             {"role": "system", "content": system},
             {"role": "user", "content": user},
         ],
     }
+    if top_p is not None:
+        payload["top_p"] = top_p
+    if seed is not None:
+        payload["seed"] = seed
+    if structured_outputs:
+        payload["response_format"] = {
+            "type": "json_schema",
+            "json_schema": {
+                "name": "alertmind_triage",
+                "strict": True,
+                "schema": ollama_json_schema(),
+            },
+        }
+
     request_config = {
         "provider": "ollama",
         "model_requested": model,
         "endpoint": info["url"],
         "token_parameter": info["token_parameter"],
-        "token_budget": _MAX_TOKENS,
-        "temperature": 0,
+        "token_budget": max_tokens,
+        "temperature": temperature,
+        "top_p": top_p if top_p is not None else "omitted (model default)",
+        "seed": seed if seed is not None else "omitted",
+        # The OpenAI-compatible Ollama endpoint does not expose top_k or
+        # repeat_penalty as request fields. Preserve and evidence those as
+        # model defaults (`ollama show <tag>`) instead of claiming they were sent.
+        "top_k": "not sent (model default)",
+        "repeat_penalty": "not sent (model default)",
+        "reasoning_control": "omitted (model default)",
+        "structured_outputs": structured_outputs,
+        "response_format": (
+            "json_schema_ollama_compatible" if structured_outputs else "none"
+        ),
+        "provider_schema_omissions": (
+            ["attack_technique_id.pattern"] if structured_outputs else []
+        ),
+        "runtime_attack_id_validation": True,
     }
     try:
         response = _post(
