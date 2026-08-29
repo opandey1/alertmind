@@ -87,6 +87,8 @@ def rebuild(audit_log, timing_log):
             parsed["analyst_review_required"] = True
             gt = ground.get(aid, "")
             sc = score_alert(gt, parsed)
+            sc["schema_valid"] = ok
+            sc["valid_overall_correct"] = ok and sc["overall_correct"]
             outputs[aid] = parsed
             score_rows.append({"alert_id": aid, "ground_truth": gt,
                                "confidence": parsed.get("confidence"), **sc})
@@ -114,7 +116,8 @@ def write_outputs(output_dir, outputs, score_rows, overwrite=False):
     with open(_win_long(csv_path), "w", newline="", encoding="utf-8") as f:
         cols = ["alert_id", "ground_truth", "assistant_tag", "assistant_disposition", "confidence",
                 "technique_exact_correct", "technique_relaxed_correct", "disposition_correct",
-                "response_consistent", "overall_correct"]
+                "response_consistent", "overall_correct", "schema_valid",
+                "valid_overall_correct"]
         w = csv.DictWriter(f, fieldnames=cols, extrasaction="ignore")
         w.writeheader()
         w.writerows(score_rows)
@@ -151,6 +154,10 @@ def main(argv=None):
     print(f"  technique exact {agg['technique_exact_correct']}/{n} · relaxed "
           f"{agg['technique_relaxed_correct']}/{n} · disposition {agg['disposition_correct']}/{n} "
           f"· consistent {agg['response_consistent']}/{n} · OVERALL {agg['overall_correct']}/{n}")
+    schema_valid = sum(1 for row in score_rows if row["schema_valid"])
+    valid_overall = sum(1 for row in score_rows if row["valid_overall_correct"])
+    print(f"  schema valid {schema_valid}/{n}")
+    print(f"  VALID overall {valid_overall}/{n} (schema-valid responses only)")
     print(f"  timing ground truth: {os.path.abspath(args.timing_log)}")
 
     if args.score_only:

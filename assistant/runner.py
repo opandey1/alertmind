@@ -19,7 +19,9 @@ Outputs go to a fresh, non-overwriting run directory: outputs/runs/<run_id>/
 
 Usage:
   python runner.py --provider mock
-  python runner.py --provider ollama --model llama3.1 --view evaluation
+  python runner.py --provider ollama --model llama3.1:8b --view evaluation
+  python runner.py --provider ollama --model qwen3:8b --view evaluation \
+      --alert-ids A04,A06,A10,A12,A16,A18
 """
 import argparse
 import csv
@@ -69,6 +71,29 @@ def load_ground_truth(path):
     return gt
 
 
+def select_alerts(alerts, alert_ids="", limit=0):
+    """Select a diagnostic subset without modifying the frozen corpus.
+
+    Explicit IDs retain corpus order. `--alert-ids` and `--limit` are mutually
+    exclusive so a run cannot silently select a different set than intended.
+    """
+    if limit < 0:
+        raise ValueError("--limit must be zero or a positive integer")
+    if alert_ids and limit:
+        raise ValueError("--alert-ids cannot be combined with --limit")
+    if not alert_ids:
+        return list(alerts[:limit]) if limit else list(alerts)
+
+    requested = {item.strip() for item in alert_ids.split(",") if item.strip()}
+    if not requested:
+        raise ValueError("--alert-ids must contain at least one alert ID")
+    available = {a.get("alert_id") for a in alerts}
+    unknown = sorted(requested - available)
+    if unknown:
+        raise ValueError(f"unknown alert ID(s): {', '.join(unknown)}")
+    return [a for a in alerts if a.get("alert_id") in requested]
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--provider", default="mock", choices=["mock", "anthropic", "openai", "ollama"])
@@ -79,19 +104,29 @@ def main():
     ap.add_argument("--timing-log", default="../measurement/timing-log.csv")
     ap.add_argument("--outdir", default="outputs")
     ap.add_argument("--limit", type=int, default=0)
+    ap.add_argument(
+        "--alert-ids",
+        default="",
+        metavar="A04,A06",
+        help="diagnostic subset of comma-separated corpus alert IDs; cannot be combined with --limit",
+    )
     args = ap.parse_args()
 
     corpus = json.load(open(args.corpus, encoding="utf-8"))
     alerts = corpus["alerts"] if isinstance(corpus, dict) else corpus
-    if args.limit:
-        alerts = alerts[: args.limit]
+    try:
+        alerts = select_alerts(alerts, args.alert_ids, args.limit)
+    except ValueError as exc:
+        ap.error(str(exc))
     ground = load_ground_truth(args.timing_log)
 
     system = get_system_prompt(args.prompt)
     prompt_version = _sha(system)
     redaction_version = _sha(open(os.path.join(os.path.dirname(__file__), "redact.py")).read())
     git_commit = _git_commit()
-    run_id = f"{datetime.now(timezone.utc):%Y%m%d_%H%M%S}_{args.provider}_{args.view[:4]}_{args.prompt}"
+    scope_suffix = f"_subset{len(alerts)}" if args.alert_ids else ""
+    run_id = (f"{datetime.now(timezone.utc):%Y%m%d_%H%M%S}_"
+              f"{args.provider}_{args.view[:4]}_{args.prompt}{scope_suffix}")
     run_dir = os.path.join(args.outdir, "runs", run_id)
     os.makedirs(_win_long(run_dir), exist_ok=True)
 
@@ -126,6 +161,13 @@ def main():
 
             gt = ground.get(aid, "")
             sc = score_alert(gt, parsed)
+            # Preserve every pre-registered metric, but add a validity-gated
+            # result so schema-invalid output cannot receive apparent overall
+            # credit (for example a recognizable but malformed ATT&CK ID).
+            sc["schema_valid"] = parse_status == "valid"
+            sc["valid_overall_correct"] = (
+                sc["schema_valid"] and sc["overall_correct"]
+            )
             outputs[aid] = parsed
             score_rows.append({"alert_id": aid, "ground_truth": gt,
                                "confidence": parsed.get("confidence"), **sc})
@@ -158,7 +200,8 @@ def main():
     with open(_win_long(os.path.join(run_dir, "assistant_scoring.csv")), "w", newline="", encoding="utf-8") as f:
         cols = ["alert_id", "ground_truth", "assistant_tag", "assistant_disposition", "confidence",
                 "technique_exact_correct", "technique_relaxed_correct", "disposition_correct",
-                "response_consistent", "overall_correct"]
+                "response_consistent", "overall_correct", "schema_valid",
+                "valid_overall_correct"]
         w = csv.DictWriter(f, fieldnames=cols, extrasaction="ignore")
         w.writeheader()
         w.writerows(score_rows)
@@ -175,6 +218,10 @@ def main():
     print(f"  disposition:       {agg['disposition_correct']}/{n}")
     print(f"  consistent:        {agg['response_consistent']}/{n}")
     print(f"  OVERALL correct:   {agg['overall_correct']}/{n}")
+    schema_valid = sum(1 for row in score_rows if row["schema_valid"])
+    valid_overall = sum(1 for row in score_rows if row["valid_overall_correct"])
+    print(f"  schema valid:      {schema_valid}/{n}")
+    print(f"  VALID overall:     {valid_overall}/{n} (schema-valid responses only)")
     print(f"outputs: {run_dir}/")
 
 
