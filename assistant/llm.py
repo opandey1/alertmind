@@ -15,6 +15,14 @@ Env knobs:
   ALERTMIND_LLM_TIMEOUT   per-call timeout seconds (default 300)
   ALERTMIND_MAX_TOKENS    max response tokens      (default 1024)
   ALERTMIND_LLM_RETRIES   retries on transient err (default 2)
+  ALERTMIND_OLLAMA_TEMPERATURE
+                          Ollama request temperature (default 0, preserving the
+                          submitted llama3.1 configuration)
+  ALERTMIND_OLLAMA_TOP_P  optional Ollama nucleus-sampling value
+  ALERTMIND_OLLAMA_SEED   optional Ollama seed (improves repeatability but does
+                          not guarantee byte-identical output)
+  ALERTMIND_OLLAMA_STRUCTURED_OUTPUTS
+                          1/true/yes/on enables provider-side JSON Schema output
   ALERTMIND_OPENAI_REASONING_EFFORT
                           GPT-5/o-series reasoning effort. UNSET by default, so the
                           model's own vendor default applies (gpt-5.5 defaults to
@@ -30,6 +38,8 @@ import re
 import time
 from contextlib import contextmanager
 from urllib.parse import urlparse
+
+from schema import JSON_SCHEMA, ollama_json_schema
 
 try:
     import requests
@@ -74,6 +84,20 @@ _OPENAI_REASONING_EFFORT = os.environ.get(
     "ALERTMIND_OPENAI_REASONING_EFFORT", ""
 ).strip()
 _RETRYABLE = {429, 500, 502, 503, 504}
+
+
+def _optional_env(name, cast):
+    """Return a typed optional environment value, or None when it is unset."""
+    raw = os.environ.get(name, "").strip()
+    return None if not raw else cast(raw)
+
+
+def _env_flag(name, default=False):
+    """Parse a conservative boolean environment flag."""
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
 
 
 class ProviderError(RuntimeError):
@@ -191,7 +215,6 @@ def _mock(system: str, user: str, model: str) -> tuple[str, dict]:
         "draft_user_message": "Draft: we observed activity on your host that our "
                               "monitoring flagged for review; please confirm if this was you.",
         "caveats": "Mock output; not a real model inference.",
-        "_model": "mock",
     }), {"model_actual": "mock", "request_config": {"provider": "mock"}}
 
 
@@ -436,22 +459,59 @@ def _openai(system: str, user: str, model: str) -> tuple[str, dict]:
 def _ollama(system: str, user: str, model: str) -> tuple[str, dict]:
     info = provider_request_info("ollama", model)
     key = os.environ.get("OLLAMA_API_KEY", "ollama")  # Ollama ignores it.
+    # Keep the historical local default at temperature=0 unless a run opts in
+    # to another disclosed configuration (for example Qwen3 thinking at 0.6).
+    temperature = float(os.environ.get("ALERTMIND_OLLAMA_TEMPERATURE", "0"))
+    top_p = _optional_env("ALERTMIND_OLLAMA_TOP_P", float)
+    seed = _optional_env("ALERTMIND_OLLAMA_SEED", int)
+    structured_outputs = _env_flag("ALERTMIND_OLLAMA_STRUCTURED_OUTPUTS")
+
     payload = {
         "model": model,
-        "temperature": 0,
+        "temperature": temperature,
         "max_tokens": _MAX_TOKENS,
         "messages": [
             {"role": "system", "content": system},
             {"role": "user", "content": user},
         ],
     }
+    if top_p is not None:
+        payload["top_p"] = top_p
+    if seed is not None:
+        payload["seed"] = seed
+    if structured_outputs:
+        payload["response_format"] = {
+            "type": "json_schema",
+            "json_schema": {
+                "name": "alertmind_triage",
+                "strict": True,
+                "schema": ollama_json_schema(),
+            },
+        }
+
     request_config = {
         "provider": "ollama",
         "model_requested": model,
         "endpoint": info["url"],
         "token_parameter": info["token_parameter"],
         "token_budget": _MAX_TOKENS,
-        "temperature": 0,
+        "temperature": temperature,
+        "top_p": top_p if top_p is not None else "omitted (model default)",
+        "seed": seed if seed is not None else "omitted",
+        # The OpenAI-compatible Ollama endpoint does not expose top_k or
+        # repeat_penalty as request fields. Preserve and evidence those as
+        # model defaults (`ollama show <tag>`) instead of claiming they were sent.
+        "top_k": "not sent (model default)",
+        "repeat_penalty": "not sent (model default)",
+        "reasoning_control": "omitted (model default)",
+        "structured_outputs": structured_outputs,
+        "response_format": (
+            "json_schema_ollama_compatible" if structured_outputs else "none"
+        ),
+        "provider_schema_omissions": (
+            ["attack_technique_id.pattern"] if structured_outputs else []
+        ),
+        "runtime_attack_id_validation": True,
     }
     try:
         response = _post(

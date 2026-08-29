@@ -12,6 +12,7 @@ Kept dependency-free so the offline/mock path needs no `pip install`. The
 equivalent formal JSON Schema is included below and can be plugged into the
 `jsonschema` package instead if preferred.
 """
+import copy
 import re
 
 DISPOSITIONS = {"likely_true_positive", "likely_benign", "needs_investigation"}
@@ -21,6 +22,7 @@ _TID = re.compile(r"^T\d{4}(?:\.\d{3})?(?:\s*[/,]\s*T\d{4}(?:\.\d{3})?)*$")  # s
 # Formal schema (documentation / optional jsonschema use).
 JSON_SCHEMA = {
     "type": "object",
+    "additionalProperties": False,
     "required": ["summary", "attack_technique_id", "disposition_suggestion",
                  "confidence", "investigation_queries", "draft_user_message", "caveats"],
     "properties": {
@@ -46,6 +48,21 @@ JSON_SCHEMA = {
 REQUIRED = JSON_SCHEMA["required"]
 
 
+def ollama_json_schema():
+    """Return the provider-side schema accepted by Ollama's grammar parser.
+
+    Ollama 0.33.0 rejects the full schema at realistic prediction budgets when
+    the ATT&CK-ID ``pattern`` is present (``failed to parse grammar``).  Keep
+    every structural constraint but omit that provider-side regex; the same
+    expression remains enforced by :func:`validate_output` after generation.
+    A deep copy prevents provider compatibility from weakening the canonical
+    documented/runtime contract.
+    """
+    schema = copy.deepcopy(JSON_SCHEMA)
+    schema["properties"]["attack_technique_id"].pop("pattern", None)
+    return schema
+
+
 def validate_output(parsed: dict):
     """
     Returns (ok, errors, normalized). Coerces a few safe cases (a string summary
@@ -56,6 +73,14 @@ def validate_output(parsed: dict):
     if not isinstance(parsed, dict) or parsed.get("_parse_error"):
         return False, ["not a JSON object"], parsed
     p = dict(parsed)
+
+    # Keep the dependency-free runtime validator aligned with the formal
+    # provider-side schema.  Extra fields are often a sign that a model added
+    # prose or invented a second output contract, so record them as invalid
+    # instead of silently accepting a shape the prompt did not request.
+    allowed = set(JSON_SCHEMA["properties"])
+    for key in sorted(set(p) - allowed):
+        errors.append(f"additional_property:{key}")
 
     for k in REQUIRED:
         if k not in p:
