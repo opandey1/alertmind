@@ -91,10 +91,14 @@ class ProviderPayloadTests(unittest.TestCase):
             {
                 "OPENAI_BASE_URL": "https://api.openai.com/v1",
                 "OLLAMA_BASE_URL": "http://localhost:11434/v1",
+                "ALERTMIND_OLLAMA_TEMPERATURE": "0",
+                "ALERTMIND_OLLAMA_TOP_P": "",
+                "ALERTMIND_OLLAMA_SEED": "",
+                "ALERTMIND_OLLAMA_STRUCTURED_OUTPUTS": "0",
             },
             clear=False,
         ):
-            llm._ollama("system", "user", "llama3.1:8b")
+            _, meta = llm._ollama("system", "user", "llama3.1:8b")
 
         url, _, payload = post.call_args.args
         self.assertEqual(
@@ -102,6 +106,62 @@ class ProviderPayloadTests(unittest.TestCase):
         )
         self.assertEqual(payload["max_tokens"], llm._MAX_TOKENS)
         self.assertEqual(payload["temperature"], 0)
+        self.assertNotIn("top_p", payload)
+        self.assertNotIn("seed", payload)
+        self.assertNotIn("response_format", payload)
+        self.assertFalse(meta["request_config"]["structured_outputs"])
+
+    @patch.object(llm, "_post")
+    def test_ollama_qwen_final_configuration_is_explicit_and_audited(
+        self, post: Mock
+    ) -> None:
+        post.return_value = completion_response()
+        with patch.object(llm, "_MAX_TOKENS", 4096), patch.dict(
+            os.environ,
+            {
+                "OLLAMA_BASE_URL": "http://localhost:11434/v1",
+                "ALERTMIND_OLLAMA_TEMPERATURE": "0.6",
+                "ALERTMIND_OLLAMA_TOP_P": "0.95",
+                "ALERTMIND_OLLAMA_SEED": "42",
+                "ALERTMIND_OLLAMA_STRUCTURED_OUTPUTS": "1",
+            },
+            clear=False,
+        ):
+            _, meta = llm._ollama("system", "user", "qwen3:8b")
+
+        _, _, payload = post.call_args.args
+        self.assertEqual(payload["temperature"], 0.6)
+        self.assertEqual(payload["top_p"], 0.95)
+        self.assertEqual(payload["seed"], 42)
+        self.assertEqual(payload["max_tokens"], 4096)
+        self.assertNotIn("reasoning_effort", payload)
+        response_format = payload["response_format"]
+        self.assertEqual(response_format["type"], "json_schema")
+        self.assertTrue(response_format["json_schema"]["strict"])
+        provider_schema = response_format["json_schema"]["schema"]
+        self.assertNotIn(
+            "pattern", provider_schema["properties"]["attack_technique_id"]
+        )
+        self.assertIn(
+            "pattern", llm.JSON_SCHEMA["properties"]["attack_technique_id"]
+        )
+
+        cfg = meta["request_config"]
+        self.assertEqual(cfg["temperature"], 0.6)
+        self.assertEqual(cfg["top_p"], 0.95)
+        self.assertEqual(cfg["seed"], 42)
+        self.assertEqual(cfg["token_budget"], 4096)
+        self.assertTrue(cfg["structured_outputs"])
+        self.assertEqual(
+            cfg["response_format"], "json_schema_ollama_compatible"
+        )
+        self.assertEqual(
+            cfg["provider_schema_omissions"],
+            ["attack_technique_id.pattern"],
+        )
+        self.assertTrue(cfg["runtime_attack_id_validation"])
+        self.assertIn("model default", cfg["top_k"])
+        self.assertIn("model default", cfg["repeat_penalty"])
 
     def test_endpoint_suffix_in_base_url_fails_before_request(self) -> None:
         with patch.dict(

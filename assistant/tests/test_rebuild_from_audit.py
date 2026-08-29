@@ -66,6 +66,8 @@ class RebuildSafetyTests(unittest.TestCase):
             self.assertFalse((run_dir / "assistant_outputs.json").exists())
             self.assertFalse((run_dir / "assistant_scoring.csv").exists())
             self.assertIn("score-only: no files written", stream.getvalue())
+            self.assertIn("schema valid 1/1", stream.getvalue())
+            self.assertIn("VALID overall 1/1", stream.getvalue())
 
     def test_default_main_destination_is_separate_from_source_run(self):
         with tempfile.TemporaryDirectory() as td:
@@ -80,6 +82,12 @@ class RebuildSafetyTests(unittest.TestCase):
             self.assertTrue((destination / "assistant_scoring.csv").exists())
             self.assertFalse((run_dir / "assistant_outputs.json").exists())
             self.assertFalse((run_dir / "assistant_scoring.csv").exists())
+            with (destination / "assistant_scoring.csv").open(
+                newline="", encoding="utf-8"
+            ) as f:
+                row = next(csv.DictReader(f))
+            self.assertEqual(row["schema_valid"], "True")
+            self.assertEqual(row["valid_overall_correct"], "True")
 
     def test_existing_rebuilt_files_require_explicit_overwrite(self):
         with tempfile.TemporaryDirectory() as td:

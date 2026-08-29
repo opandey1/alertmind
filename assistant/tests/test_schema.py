@@ -10,7 +10,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from schema import JSON_SCHEMA, validate_output  # noqa: E402
+from schema import JSON_SCHEMA, ollama_json_schema, validate_output  # noqa: E402
 
 
 def valid_output(query_count=2):
@@ -27,10 +27,25 @@ def valid_output(query_count=2):
 
 
 class SchemaAlignmentTests(unittest.TestCase):
+    def test_formal_schema_rejects_undeclared_fields(self):
+        self.assertFalse(JSON_SCHEMA["additionalProperties"])
+        output = valid_output()
+        output["invented_field"] = "not part of the contract"
+        ok, errors, _ = validate_output(output)
+        self.assertFalse(ok)
+        self.assertIn("additional_property:invented_field", errors)
+
     def test_documented_pattern_accepts_multi_technique_ids(self):
         pattern = JSON_SCHEMA["properties"]["attack_technique_id"]["pattern"]
         self.assertIsNotNone(re.fullmatch(pattern, "T1136/T1098"))
         self.assertIsNotNone(re.fullmatch(pattern, "T1021.002, T1569.002"))
+        provider_schema = ollama_json_schema()
+        self.assertNotIn(
+            "pattern", provider_schema["properties"]["attack_technique_id"]
+        )
+        self.assertIn(
+            "pattern", JSON_SCHEMA["properties"]["attack_technique_id"]
+        )
 
     def test_runtime_validator_accepts_multi_technique_ids(self):
         ok, errors, _ = validate_output(valid_output())
