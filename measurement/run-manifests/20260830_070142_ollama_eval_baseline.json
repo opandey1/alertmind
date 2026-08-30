@@ -1,0 +1,78 @@
+{
+  "manifest_schema_version": 1,
+  "status": "final",
+  "accepted_as_final": true,
+  "run_id": "20260830_070142_ollama_eval_baseline",
+  "view": "evaluation",
+  "evidence_directory": "assistant/outputs/runs/20260830_070142_ollama_eval_baseline",
+  "supersedes_candidate_run_id": "20260827_192445_ollama_eval_baseline",
+  "provenance": {
+    "execution_on_committed_code": true,
+    "embedded_git_commit_short": "7ca2543",
+    "embedded_git_commit_full": "7ca2543e620151b77d2d032e728090ae587aeaf8",
+    "verification": "All 20 audit rows embed the reviewed PR #2 merge commit."
+  },
+  "integrity": {
+    "algorithm": "sha256",
+    "normalization": "UTF-8; CRLF and CR converted to LF; UTF-8 encoded without BOM",
+    "audit_log_normalized_sha256": "3731f0ac7f822b5069a53cfbff4c958c65c15eb1596c898c444710faec4b9e6d"
+  },
+  "model": {
+    "tag": "qwen3:8b",
+    "manifest_digest": "sha256:500a1f067a9f782620b40bee6f7b0c89e17ae61f686b92c24933e4ca4b2b8b41",
+    "model_blob_digest": "sha256:a3de86cd1c132c822487ededd47a324c50491393e6565cd14bafa40d0b8e686f",
+    "quantization": "Q4_K_M",
+    "ollama_show_capture": "measurement/run-manifests/qwen3-8b-ollama-show-final-20260830.txt",
+    "ollama_version_observed_after_run": "0.33.2",
+    "observation_note": "Digest and configuration were re-read after both runs; audit rows expose the served tag, not an execution-time digest."
+  },
+  "effective_request_config": {
+    "provider": "ollama",
+    "model_requested": "qwen3:8b",
+    "endpoint": "http://localhost:11434/v1/chat/completions",
+    "token_parameter": "max_tokens",
+    "token_budget": 4096,
+    "temperature": 0.6,
+    "top_p": 0.95,
+    "seed": 42,
+    "top_k": "not sent (model default)",
+    "repeat_penalty": "not sent (model default)",
+    "reasoning_control": "omitted (model default)",
+    "structured_outputs": true,
+    "response_format": "json_schema_ollama_compatible",
+    "provider_schema_omissions": ["attack_technique_id.pattern"],
+    "runtime_attack_id_validation": true
+  },
+  "run_checks": {
+    "audit_rows": 20,
+    "consistent_request_config_rows": 20,
+    "finish_reason_stop": 20,
+    "schema_valid": 20,
+    "all_alert_metrics": {
+      "technique_exact": 3,
+      "technique_relaxed": 6,
+      "disposition": 14,
+      "response_consistent": 18,
+      "overall": 4,
+      "valid_overall": 4
+    },
+    "attack_only_metrics": {
+      "n": 14,
+      "technique_exact": 2,
+      "technique_relaxed": 5,
+      "disposition": 13,
+      "response_consistent": 13,
+      "overall": 4
+    },
+    "benign_disposition_correct": "1/6"
+  },
+  "performance": {
+    "prompt_tokens_median": 1522,
+    "completion_tokens_median": 306,
+    "reasoning_tokens_median": null,
+    "visible_completion_median": 306,
+    "total_tokens_median": 1811,
+    "latency_ms_median": 168209.5,
+    "latency_ms_sum": 3589865
+  }
+}
