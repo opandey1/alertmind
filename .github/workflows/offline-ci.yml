@@ -7,7 +7,9 @@ name: Offline CI
 # The job runs the assistant regression suite and then re-derives the
 # CI-protected assistant-evaluation figures from committed artifacts, so
 # changes affecting the protected results fail the build instead of silently
-# moving a number in the report.
+# moving a number in the report. This includes the accepted Qwen pair's
+# normalized audit hashes, execution provenance, request configuration,
+# scoring and raw token/latency figures.
 #
 # Not covered here: MTTD, the assisted-timing study, manual grounding verdicts,
 # dashboards and detection-rule counts. Those are evidenced elsewhere in the
