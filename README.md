@@ -23,7 +23,7 @@ For the complete methodology, evidence index, limitations and results, see the *
 | IR playbooks | Phishing, malware and account-compromise playbooks following the NIST SP 800-61r2 four-phase lifecycle, as specified by the capstone brief |
 | LLM assistant | Python/Streamlit assistant with local, hosted and deterministic mock providers; strict JSON output, redaction, views, audit logging and scoring |
 | Paste & inspect | Ad hoc JSON or plain-text alert triage with limits, redaction trace, injection markers, boundary gate, endpoint-aware consent and sanitized proof/audit output |
-| Evaluation | Frozen 20-alert corpus: 14 controlled attacks plus 6 historical benign false positives; paired timing, automated scoring and manual grounding review |
+| Evaluation | Frozen 20-alert corpus: 14 controlled attacks plus 6 historical benign false positives; paired timing, automated scoring and provenance-recorded grounding review |
 
 ## Architecture and trust boundary
 
@@ -56,7 +56,7 @@ Analyst disposition accuracy stayed **20/20** in both passes because every incor
 
 ### Model comparison: strict scoring and operational grounding
 
-The operational alert contains its rule-authored ATT&CK label. A separate evaluation view removes the tested label-bearing fields before scoring to avoid measuring label copying. The two free-text grounding rows below are labelled separately because that manual review used the operational outputs, not the strict-view outputs.
+The operational alert contains its rule-authored ATT&CK label. A separate evaluation view removes the tested label-bearing fields before scoring to avoid measuring label copying. The two free-text grounding rows below are labelled separately because that review used the operational outputs, not the strict-view outputs. Grounding began as a human-authored first pass and then received an evidence-led Codex second pass against each complete operational prompt. The per-alert worksheets record every changed dimension; this agent pass is an audit aid, not an independent second human reviewer.
 
 | Measure | `llama3.1:8b` | `gpt-5.5-2026-04-23` |
 |---|---:|---:|
@@ -64,8 +64,8 @@ The operational alert contains its rule-authored ATT&CK label. A separate evalua
 | Attack technique, strict exact / relaxed | 1/14 · 1/14 | **8/14 · 12/14** |
 | Disposition, all alerts | 14/20 | **16/20** |
 | Benign false positives cleared | **0/6** | **3/6**, with 3 hedged and 0 confidently wrong |
-| Summaries fully supported (operational grounding) | 15/20 | **20/20** |
-| Investigation queries runnable (operational grounding) | **0/20** | **20/20** |
+| Summaries fully supported (operational grounding) | 12/20 (8 partial) | **20/20** |
+| Investigation queries runnable (operational grounding) | **0/20** | **15/20** |
 | Valid JSON across matched operational + evaluation runs | 40/40 | 40/40 |
 | Prompt tokens, median (strict run) | 963.5 | 970.0 |
 | Completion tokens, median (strict run) | 218.5 | 786.5 |
@@ -73,6 +73,8 @@ The operational alert contains its rule-authored ATT&CK label. A separate evalua
 | End-to-end call latency, median / 20-call total (strict run) | 60.37 s / 21.18 min | **10.66 s / 3.81 min** |
 
 The automated operational/strict comparison uses llama3.1 runs `20260715_060542_ollama_oper_baseline` and `20260718_180713_ollama_eval_baseline`. The llama operational grounding worksheet uses an earlier output sample, `20260713T115729Z_ollama_operational`; its free-text verdicts are not attributed to the later 14/14 operational run. All 20 strict-view pairs have matching input and redacted-prompt hashes and use the same prompt and redaction versions. That establishes matched serialized inputs; the near-identical prompt-token medians do not, because token counts are tokenizer-specific. GPT-5.5 completion tokens include the separately reported reasoning-token subset. Ollama did not report a separate reasoning count, which must not be read as proof that the model performed no internal reasoning.
+
+The corrected llama3.1 and GPT-5.5 grounding tallies above are the current agent-assisted second-pass results. Four llama rows (A07, A08, A16 and A20) and five GPT rows (A01, A04, A08, A16 and A17) changed and await explicit human adjudication. Qwen's corresponding corrected verdicts were already human-approved. Provenance and exact per-alert changes are committed with the worksheets in `measurement/grounding/`.
 
 The earlier llama run's committed scoring CSV is preserved as an **as-run historical artifact** from the then-current single-ID validator: A13 and A19 were parsed correctly but marked `schema_invalid` because their slash-joined ATT&CK IDs were rejected. A retrospective re-score of the unchanged audit log with the current multi-ID validator yields **13/14 exact, 14/14 relaxed, 14/20 disposition, 20/20 consistent and 14/20 overall**; A10 is the sole exact-ID miss. Those derived figures describe the earlier grounding-source run and do not replace the matched `20260715_060542` automated result of 14/14 exact.
 

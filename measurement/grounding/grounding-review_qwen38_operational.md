@@ -4,7 +4,9 @@
 
 **Prompt version:** `23185744b88f77b7` · **Redaction version:** `cf0549f832d13b7f`
 
-For each alert: read the **alert evidence**, then judge each assistant deliverable against it. Fill the six columns in the CSV. AUTO flags are hints to verify, not verdicts.
+**Review provenance:** Initial verdicts human-authored; Codex performed an evidence-led second-pass check; the corrected verdicts were explicitly approved by the human reviewer on 2026-08-31.
+
+For each alert: read the **alert evidence**, then judge each assistant deliverable against it. The six verdicts and reviewer notes are mirrored in the CSV. AUTO flags are hints to verify, not verdicts; the provenance fields record the second-pass changes.
 
 > **Note on AUTO flags in this worksheet.** The generator used for the llama3.1 and gpt-5.5 kits is not committed, so `auto_summary_lines`, `auto_queries_count`, `auto_draft_present` and `auto_tid_in_summary` were re-derived and reproduce those kits exactly, while `auto_queries_syntactic` and `auto_unknown_entities` use a re-derived heuristic that differs in sensitivity. Per the kit README these columns are hints to verify, never verdicts, so the difference does not affect the six human judgements — but do not compare raw flag counts across worksheets.
 
@@ -59,6 +61,8 @@ _Draft message:_ We've detected a recent modification to the cron.d configuratio
 | draft_appropriate(Y/N) | Y |
 | confidence_calibrated(Y/N) | Y |
 | reviewer_notes | Summary fully supported. The generic SQL uses undefined tables/fields rather than concrete Wazuh/Discover syntax, so the set is not runnable in this environment; the intended file, process and modification checks are relevant. Draft and medium confidence are appropriate. |
+| review_provenance | Initial verdicts human-authored; Codex performed an evidence-led second-pass check; the corrected verdicts were explicitly approved by the human reviewer on 2026-08-31. |
+| agent_second_pass_changes | Verdicts changed: queries_valid, queries_relevant; reviewer note rewritten. |
 
 
 
@@ -98,6 +102,8 @@ _Draft message:_ We've detected an unusual modification to a registry Run key as
 | draft_appropriate(Y/N) | Y |
 | confidence_calibrated(Y/N) | Y |
 | reviewer_notes | Summary fully supported by the rule and Edge Run-key fields. The generic SQL is not runnable Wazuh/Discover syntax, but the registry and process checks are relevant. The cautious needs_investigation/medium pairing, draft and confidence are appropriate for a likely benign Edge auto-launch event. |
+| review_provenance | Initial verdicts human-authored; Codex performed an evidence-led second-pass check; the corrected verdicts were explicitly approved by the human reviewer on 2026-08-31. |
+| agent_second_pass_changes | Verdicts changed: queries_valid, queries_relevant, confidence_calibrated; reviewer note rewritten. |
 
 ## A03
 **Alert evidence (key fields):**
@@ -136,6 +142,8 @@ _Draft message:_ We've detected unusual activity involving mshta.exe executing P
 | draft_appropriate(Y/N) | Y |
 | confidence_calibrated(Y/N) | Y |
 | reviewer_notes | Summary fully supported. The SQL-like set is not runnable Wazuh/Discover syntax and one timestamp contains a comma in 15,45:00, but the mshta/PowerShell/time-window checks are relevant. Draft and high confidence are appropriate. |
+| review_provenance | Initial verdicts human-authored; Codex performed an evidence-led second-pass check; the corrected verdicts were explicitly approved by the human reviewer on 2026-08-31. |
+| agent_second_pass_changes | Verdict changed: queries_relevant; reviewer note rewritten. |
 
 ## A04
 **Alert evidence (key fields):**
@@ -187,6 +195,8 @@ _Draft message:_ We've detected potential modification of system initialization 
 | draft_appropriate(Y/N) | Y |
 | confidence_calibrated(Y/N) | Y |
 | reviewer_notes | Summary fully supported. The generic logs/processes/auditd SQL is not runnable Wazuh/Discover syntax, but the file and process checks are relevant. Draft and medium confidence are appropriate. |
+| review_provenance | Initial verdicts human-authored; Codex performed an evidence-led second-pass check; the corrected verdicts were explicitly approved by the human reviewer on 2026-08-31. |
+| agent_second_pass_changes | Verdicts changed: queries_valid, queries_relevant; reviewer note rewritten. |
 
 ## A05
 **Alert evidence (key fields):**
@@ -226,6 +236,8 @@ _Draft message:_ We've detected an unusual registry modification to the Run key 
 | draft_appropriate(Y/N) | Y |
 | confidence_calibrated(Y/N) | Y |
 | reviewer_notes | Summary fully supported. The generic win_event/win_registry/win_process SQL is not runnable Wazuh/Discover syntax, but the Run-key and reg.exe checks are relevant. Draft and high confidence are appropriate. |
+| review_provenance | Initial verdicts human-authored; Codex performed an evidence-led second-pass check; the corrected verdicts were explicitly approved by the human reviewer on 2026-08-31. |
+| agent_second_pass_changes | Verdicts changed: queries_valid, queries_relevant; reviewer note rewritten. |
 
 ## A06
 **Alert evidence (key fields):**
@@ -276,6 +288,8 @@ _Draft message:_ We've detected unusual access to root's SSH authorized keys fil
 | draft_appropriate(Y/N) | Y |
 | confidence_calibrated(Y/N) | Y |
 | reviewer_notes | One unsupported attribution: auid=1000 and cwd=/home/notroot do not prove that the username was 'notroot'. The generic auditd/processes/files SQL is not runnable Wazuh/Discover syntax, but its checks are relevant. Draft and medium confidence are appropriate. |
+| review_provenance | Initial verdicts human-authored; Codex performed an evidence-led second-pass check; the corrected verdicts were explicitly approved by the human reviewer on 2026-08-31. |
+| agent_second_pass_changes | Verdicts changed: summary_supported, unsupported_statement_count, queries_valid, queries_relevant; reviewer note rewritten. |
 
 ## A07
 **Alert evidence (key fields):**
@@ -327,6 +341,8 @@ _Draft message:_ We detected unusual file permission changes related to your con
 | draft_appropriate(Y/N) | Y |
 | confidence_calibrated(Y/N) | Y |
 | reviewer_notes | One factual error: on x86-64 syscall 90 is chmod, not chown. The command set is not a complete Wazuh/Discover query set (audit2why has no input), but the audit/process/file checks are relevant. Draft and needs_investigation/medium confidence are appropriate for benign dconf activity. |
+| review_provenance | Initial verdicts human-authored; Codex performed an evidence-led second-pass check; the corrected verdicts were explicitly approved by the human reviewer on 2026-08-31. |
+| agent_second_pass_changes | Verdicts changed: queries_valid, queries_relevant, confidence_calibrated; reviewer note rewritten. |
 
 ## A08
 **Alert evidence (key fields):**
@@ -364,6 +380,8 @@ _Draft message:_ We've detected unusual LSASS memory access by Windows Defender 
 | draft_appropriate(Y/N) | Y |
 | confidence_calibrated(Y/N) | Y |
 | reviewer_notes | One unsupported access-mask decode: 0x3600 does not represent READ_CONTROL, SYNCHRONIZE and STANDARD_RIGHTS_READ. The generic Windows SQL is not runnable Wazuh/Discover syntax, but process-lineage and event checks are relevant. Draft and needs_investigation/medium confidence are appropriately cautious for Defender activity. |
+| review_provenance | Initial verdicts human-authored; Codex performed an evidence-led second-pass check; the corrected verdicts were explicitly approved by the human reviewer on 2026-08-31. |
+| agent_second_pass_changes | Verdicts changed: summary_supported, unsupported_statement_count, queries_valid, queries_relevant, confidence_calibrated; reviewer note rewritten. |
 
 ## A09
 **Alert evidence (key fields):**
@@ -415,6 +433,8 @@ _Draft message:_ The system detected an attempted modification of sudoers config
 | draft_appropriate(Y/N) | Y |
 | confidence_calibrated(Y/N) | Y |
 | reviewer_notes | One factual error: x86-64 syscall 257 is openat, not the write performed by tee. The set is not runnable Wazuh/Discover syntax (CHECKSUM(...) is not a standalone query), but the sudoers, integrity and process checks are relevant. Draft and high confidence are appropriate. |
+| review_provenance | Initial verdicts human-authored; Codex performed an evidence-led second-pass check; the corrected verdicts were explicitly approved by the human reviewer on 2026-08-31. |
+| agent_second_pass_changes | Verdicts changed: summary_supported, unsupported_statement_count, queries_relevant; reviewer note rewritten. |
 
 ## A10
 **Alert evidence (key fields):**
@@ -454,6 +474,8 @@ _Draft message:_ We detected an unusual command execution from Office applicatio
 | draft_appropriate(Y/N) | Y |
 | confidence_calibrated(Y/N) | Y |
 | reviewer_notes | The complete operational prompt—not only the key_fields excerpt—states that winword.exe spawned cmd.exe and includes the rule ID, evidence file and immediate-latency note, so the summary is fully supported. The generic SQL is not runnable Wazuh/Discover syntax, but the parent/child and whoami checks are relevant. Draft and medium confidence are appropriate. |
+| review_provenance | Initial verdicts human-authored; Codex performed an evidence-led second-pass check; the corrected verdicts were explicitly approved by the human reviewer on 2026-08-31. |
+| agent_second_pass_changes | Verdicts changed: summary_supported, unsupported_statement_count, queries_valid, queries_relevant; reviewer note rewritten. |
 
 ## A11
 **Alert evidence (key fields):**
@@ -489,6 +511,8 @@ _Draft message:_ We've detected potential LSASS memory access by the Wazuh agent
 | draft_appropriate(Y/N) | Y |
 | confidence_calibrated(Y/N) | Y |
 | reviewer_notes | One unsupported equivalence: 0x1fffff is a process access mask, not SeDebugPrivilege itself. The generic SQL uses undefined tables and mismatched event identifiers rather than runnable Wazuh/Discover syntax, but validating Wazuh-agent process activity is relevant. Draft and needs_investigation/medium confidence are appropriate. |
+| review_provenance | Initial verdicts human-authored; Codex performed an evidence-led second-pass check; the corrected verdicts were explicitly approved by the human reviewer on 2026-08-31. |
+| agent_second_pass_changes | Verdicts changed: summary_supported, unsupported_statement_count, queries_valid, queries_relevant, confidence_calibrated; reviewer note rewritten. |
 
 ## A12
 **Alert evidence (key fields):**
@@ -539,6 +563,8 @@ _Draft message:_ We detected potential persistence activity via systemd service 
 | draft_appropriate(Y/N) | Y |
 | confidence_calibrated(Y/N) | N |
 | reviewer_notes | One unsupported statement: uid/euid=0 identify the snapd process context, not the created file's owner. The shell-like set is not a complete Wazuh/Discover query set and its first pipeline is not runnable as written, but unit-file and snapd checks are relevant. Draft is appropriately cautious; high-confidence likely_true_positive is not calibrated for benign snapd activity. |
+| review_provenance | Initial verdicts human-authored; Codex performed an evidence-led second-pass check; the corrected verdicts were explicitly approved by the human reviewer on 2026-08-31. |
+| agent_second_pass_changes | Verdicts changed: queries_valid, queries_relevant; reviewer note rewritten. |
 
 ## A13
 **Alert evidence (key fields):**
@@ -589,6 +615,8 @@ _Draft message:_ We've detected potential account creation activity on your syst
 | draft_appropriate(Y/N) | Y |
 | confidence_calibrated(Y/N) | Y |
 | reviewer_notes | Summary fully supported. The investigation items are prose rather than runnable Wazuh/Discover queries, but passwd, sudo and integrity checks are relevant. Draft and medium confidence are appropriate. |
+| review_provenance | Initial verdicts human-authored; Codex performed an evidence-led second-pass check; the corrected verdicts were explicitly approved by the human reviewer on 2026-08-31. |
+| agent_second_pass_changes | Verdict changed: queries_relevant; reviewer note rewritten. |
 
 ## A14
 **Alert evidence (key fields):**
@@ -628,6 +656,8 @@ _Draft message:_ We've detected potential credential access activity involving r
 | draft_appropriate(Y/N) | Y |
 | confidence_calibrated(Y/N) | Y |
 | reviewer_notes | Summary fully supported. The generic syslog/process_creation/network_connection SQL is not runnable Wazuh/Discover syntax, but rundll32 process and network checks are relevant. Draft and high confidence are appropriate. |
+| review_provenance | Initial verdicts human-authored; Codex performed an evidence-led second-pass check; the corrected verdicts were explicitly approved by the human reviewer on 2026-08-31. |
+| agent_second_pass_changes | Verdict changed: queries_relevant; reviewer note rewritten. |
 
 ## A15
 **Alert evidence (key fields):**
@@ -667,6 +697,8 @@ _Draft message:_ We've detected an unusual DNS query originating from PowerShell
 | draft_appropriate(Y/N) | Y |
 | confidence_calibrated(Y/N) | Y |
 | reviewer_notes | Summary fully supported. The generic win_dns/win_process/win_event SQL is not runnable Wazuh/Discover syntax, but DNS and PowerShell checks are relevant. Draft and high confidence are appropriate. |
+| review_provenance | Initial verdicts human-authored; Codex performed an evidence-led second-pass check; the corrected verdicts were explicitly approved by the human reviewer on 2026-08-31. |
+| agent_second_pass_changes | Verdicts changed: queries_valid, queries_relevant; reviewer note rewritten. |
 
 ## A16
 **Alert evidence (key fields):**
@@ -718,6 +750,8 @@ _Draft message:_ We've detected potential log file modification activity on your
 | draft_appropriate(Y/N) | N |
 | confidence_calibrated(Y/N) | Y |
 | reviewer_notes | One factual error: x86-64 syscall 257 is openat, not write. The investigation items are prose rather than runnable Wazuh/Discover queries, but the btmp/process-tree/log checks are relevant. The draft is inappropriate because 'No action is required' conflicts with a high-confidence log-tampering alert; high confidence itself is supported. |
+| review_provenance | Initial verdicts human-authored; Codex performed an evidence-led second-pass check; the corrected verdicts were explicitly approved by the human reviewer on 2026-08-31. |
+| agent_second_pass_changes | Verdicts changed: summary_supported, unsupported_statement_count, queries_relevant, draft_appropriate; reviewer note rewritten. |
 
 ## A17
 **Alert evidence (key fields):**
@@ -767,6 +801,8 @@ _Draft message:_ We've detected unusual kernel module activity that may require 
 | draft_appropriate(Y/N) | Y |
 | confidence_calibrated(Y/N) | Y |
 | reviewer_notes | One factual error: x86-64 syscall 313 is finit_module, not sys_modprobe. The generic logs/files SQL is not runnable Wazuh/Discover syntax, but module-load and process checks are relevant. Draft and medium confidence are appropriate. |
+| review_provenance | Initial verdicts human-authored; Codex performed an evidence-led second-pass check; the corrected verdicts were explicitly approved by the human reviewer on 2026-08-31. |
+| agent_second_pass_changes | Verdicts changed: summary_supported, unsupported_statement_count, queries_valid, queries_relevant; reviewer note rewritten. |
 
 ## A18
 **Alert evidence (key fields):**
@@ -806,6 +842,8 @@ _Draft message:_ We've detected a PowerShell process with encoded command line a
 | draft_appropriate(Y/N) | Y |
 | confidence_calibrated(Y/N) | Y |
 | reviewer_notes | Summary fully supported. The generic win_event/win_process/win_network SQL is not runnable Wazuh/Discover syntax, but PowerShell script, parent and network checks are relevant. Draft and high confidence are appropriate. |
+| review_provenance | Initial verdicts human-authored; Codex performed an evidence-led second-pass check; the corrected verdicts were explicitly approved by the human reviewer on 2026-08-31. |
+| agent_second_pass_changes | Verdict changed: queries_relevant; reviewer note rewritten. |
 
 ## A19
 **Alert evidence (key fields):**
@@ -845,6 +883,8 @@ _Draft message:_ We've detected a PsExec service binary execution on your system
 | draft_appropriate(Y/N) | N |
 | confidence_calibrated(Y/N) | Y |
 | reviewer_notes | Summary fully supported. The generic win_event/win_service/win_file SQL is not runnable Wazuh/Discover syntax, but service, process and file-hash checks are relevant. The draft is inappropriate because it suggests host isolation before authorization or maliciousness is confirmed; high confidence is supported by the observed PSEXESVC execution. |
+| review_provenance | Initial verdicts human-authored; Codex performed an evidence-led second-pass check; the corrected verdicts were explicitly approved by the human reviewer on 2026-08-31. |
+| agent_second_pass_changes | Verdicts changed: queries_relevant, draft_appropriate; reviewer note rewritten. |
 
 ## A20
 **Alert evidence (key fields):**
@@ -896,3 +936,5 @@ _Draft message:_ We've detected unusual access to the /etc/shadow file by the cr
 | draft_appropriate(Y/N) | Y |
 | confidence_calibrated(Y/N) | N |
 | reviewer_notes | Summary fully supported. The generic auditd/cron_jobs/file_access SQL is not runnable Wazuh/Discover syntax, but shadow-access and cron checks are relevant. Draft is appropriately cautious; medium-confidence likely_true_positive is not calibrated for the benign cron context. |
+| review_provenance | Initial verdicts human-authored; Codex performed an evidence-led second-pass check; the corrected verdicts were explicitly approved by the human reviewer on 2026-08-31. |
+| agent_second_pass_changes | Verdicts changed: queries_valid, queries_relevant; reviewer note rewritten. |

@@ -89,7 +89,7 @@ Dashboards (daily SOC briefing + ATT&CK heatmap) · three NIST 800-61 IR playboo
 - **Redaction before/after proof** produced as the instructor required (original secret → redacted prompt), plus an injection-resistance record.
 - **Two methodological moves that make the evaluation honest:** a benign-salted corpus (14 attacks + 6 real false positives) and a strict **label-reduced view** that strips the rule's own ATT&CK label. A regression test proves 0/20 alerts leak a technique code.
 - **Impact measured vs. the Week-2 unassisted baseline** (pre-generated outputs, washout, randomised order): **MTTD 2.32 s** (detection property, unchanged by the assistant); triage time −30% on attacks, +1.68 min paired on false positives; analyst accuracy 20/20 in both conditions.
-- **Two-model comparison** (`llama3.1:8b` local vs `gpt-5.5-2026-04-23` hosted) on the frozen corpus, both views. Headline findings: label removal collapses llama's matched attack-technique score 14/14 → **1/14** (gpt 11/14 → 8/14); benign disposition **0/6** (llama) vs 5/6 operational / 3/6 strict (gpt); and a manual **grounding review** (gpt 20/20 all dimensions; llama 0/20 runnable queries, incl. a factual error). The llama grounding worksheet uses the separately retained earlier operational sample `20260713T115729Z_ollama_operational`, not the matched 14/14 run `20260715_060542_ollama_oper_baseline`. The matched strict logs add an efficiency view: median prompt tokens 963.5 vs 970.0, median completion tokens 218.5 vs 786.5 (GPT reasoning-token subset 337.5), and median call latency 60.37 s vs 10.66 s. All 20 input and redacted-prompt hashes match. The **$1.11** account observation applies only to the earlier 42-request operational + superseded-evaluation pair, not the later strict rerun.
+- **Two-model comparison** (`llama3.1:8b` local vs `gpt-5.5-2026-04-23` hosted) on the frozen corpus, both views. Headline findings: label removal collapses llama's matched attack-technique score 14/14 → **1/14** (gpt 11/14 → 8/14); benign disposition **0/6** (llama) vs 5/6 operational / 3/6 strict (gpt). The operational grounding worksheets received a human first pass plus a provenance-recorded Codex second pass: current tallies are llama 12/20 fully supported summaries and 0/20 runnable queries, GPT 20/20 supported summaries and 15/20 runnable queries, and qwen3:8b 12/20 supported summaries and 0/20 runnable queries. Qwen corrections are human-approved; four changed llama rows and five changed GPT rows await explicit human adjudication. The llama grounding worksheet uses the separately retained earlier operational sample `20260713T115729Z_ollama_operational`, not the matched 14/14 run `20260715_060542_ollama_oper_baseline`. The matched strict logs add an efficiency view: median prompt tokens 963.5 vs 970.0, median completion tokens 218.5 vs 786.5 (GPT reasoning-token subset 337.5), and median call latency 60.37 s vs 10.66 s. All 20 input and redacted-prompt hashes match. The **$1.11** account observation applies only to the earlier 42-request operational + superseded-evaluation pair, not the later strict rerun.
 - **15-page technical report** drafted and reviewed; `DESIGN_AND_CHANGELOG.md` reference doc written.
 
 ### Blocked → resolved
@@ -101,7 +101,7 @@ Dashboards (daily SOC briefing + ATT&CK heatmap) · three NIST 800-61 IR playboo
 | Windows MAX_PATH crash + a schema-validator defect | Long run-dir paths; validator edge case | `\\?\` long-path handling; validator fix; both regression-tested |
 
 ### Known items carried forward
-- Manual grounding review is single-reviewer, operational-view only (automation + 2nd reviewer deferred).
+- Grounding is operational-view only. A human-authored first pass now has a recorded agent-assisted evidence check, but the agent is not an independent human reviewer; automation, strict-view coverage and a second human reviewer remain deferred. Changed llama/GPT verdicts await explicit human adjudication.
 - Hosted runs are single stochastic samples (temperature unsupported) — comparison labelled exploratory; no assisted-timing run for GPT-5.5.
 - A18 is a scored false negative *and* a corpus construct-validity artifact (payload self-identifies as a test).
 
@@ -130,7 +130,7 @@ Dashboards (daily SOC briefing + ATT&CK heatmap) · three NIST 800-61 IR playboo
 
 ### Known items carried forward (documented, deferred)
 - **RBAC** (`admin` / `socanalyst` / `assistant-svc`) and **live read-only Wazuh API ingestion** remain designed-and-documented target state, not implemented. Paste & inspect is localhost-only, single-user until then.
-- Automate the (currently single-reviewer, operational-view) grounding rubric; add a second independent reviewer and strict-view coverage.
+- Automate the currently operational-view grounding rubric; add strict-view coverage and a second independent human reviewer. The recorded agent-assisted second pass improves traceability but does not establish inter-rater reliability.
 - Migrate the three IR playbooks from NIST 800-61 **r2** (four-phase lifecycle) to **r3** (CSF 2.0 functions), which superseded r2 in Apr 2025 — production follow-on.
 
 ### Submission-extension hardening — 29 Jul 2026

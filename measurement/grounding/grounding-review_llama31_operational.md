@@ -4,9 +4,11 @@
 
 **Prompt version:** `88b9c3f1656b683b` · **Redaction version:** `3a527e33fa159616`
 
+**Review provenance:** Initial verdicts human-authored; Codex performed an evidence-led second-pass check on 2026-08-31; changed verdicts await explicit human adjudication.
+
 This is an earlier operational output sample than the matched automated-comparison run `20260715_060542_ollama_oper_baseline`; the verdicts in this worksheet apply only to the source run above.
 
-For each alert: read the **alert evidence**, then judge each assistant deliverable against it. Fill the six columns in the CSV. AUTO flags are hints to verify, not verdicts.
+For each alert: read the **alert evidence**, then judge each assistant deliverable against it. The six verdicts and reviewer notes are mirrored in the CSV. AUTO flags are hints to verify, not verdicts; the provenance fields record the second-pass changes.
 
 **Scoring key** — `summary_supported`: every line traceable to the alert (Y), some lines unsupported (partial), or key claims invented (N). `unsupported_statement_count`: number of assertions not backed by the alert. `queries_valid`: runnable/wellformed. `queries_relevant`: would actually advance this triage. `draft_appropriate`: accurate, no overclaim, safe to send after review. `confidence_calibrated`: stated confidence matches the evidence strength.
 
@@ -56,6 +58,9 @@ _Draft message:_ We detected a potential security issue with your system's cron 
 | queries_relevant(Y/N) | Y |
 | draft_appropriate(Y/N) | Y |
 | confidence_calibrated(Y/N) | Y |
+| reviewer_notes | Queries are plain‑English instructions, not runnable query syntax. |
+| review_provenance | Initial verdicts human-authored; Codex performed an evidence-led second-pass check on 2026-08-31; changed verdicts await explicit human adjudication. |
+| agent_second_pass_changes | No verdict change in the agent-assisted second pass. |
 
 ---
 
@@ -89,6 +94,9 @@ _Draft message:_ Our security system detected a potential issue with your Window
 | queries_relevant(Y/N) | Y |
 | draft_appropriate(Y/N) | Y |
 | confidence_calibrated(Y/N) | N |
+| reviewer_notes | Summary facts are supported, but high confidence is mis-calibrated for this benign Edge auto-launch event. The query set is invalid: Get-ItemProperty uses HKU\... without an HKU: PSDrive or a Registry::HKEY_USERS path. Under the all-or-nothing query-set rule, queries_valid=N. |
+| review_provenance | Initial verdicts human-authored; Codex performed an evidence-led second-pass check on 2026-08-31; changed verdicts await explicit human adjudication. |
+| agent_second_pass_changes | No verdict change in the agent-assisted second pass. |
 
 ---
 
@@ -125,6 +133,9 @@ _Draft message:_ We detected a potential security issue with your system. Our te
 | queries_relevant(Y/N) | Y |
 | draft_appropriate(Y/N) | Y |
 | confidence_calibrated(Y/N) | Y |
+| reviewer_notes | Natural‑language, no query syntax. |
+| review_provenance | Initial verdicts human-authored; Codex performed an evidence-led second-pass check on 2026-08-31; changed verdicts await explicit human adjudication. |
+| agent_second_pass_changes | No verdict change in the agent-assisted second pass. |
 
 ---
 
@@ -174,6 +185,9 @@ _Draft message:_ A security alert was triggered on your system. Our team is inve
 | queries_relevant(Y/N) | Y |
 | draft_appropriate(Y/N) | Y |
 | confidence_calibrated(Y/N) | Y |
+| reviewer_notes | All are instructional prose, not queries. |
+| review_provenance | Initial verdicts human-authored; Codex performed an evidence-led second-pass check on 2026-08-31; changed verdicts await explicit human adjudication. |
+| agent_second_pass_changes | No verdict change in the agent-assisted second pass. |
 
 ---
 
@@ -209,6 +223,9 @@ _Draft message:_ Our system detected a potential security issue with the registr
 | queries_relevant(Y/N) | Y |
 | draft_appropriate(Y/N) | Y |
 | confidence_calibrated(Y/N) | Y |
+| reviewer_notes | Summary and draft are supported, and high confidence is appropriate for the observed AMTest Run-key change. The query set is invalid: the osquery registry query uses a non-standard value column, and the processes query uses image instead of documented columns such as name/path/cmdline. Under the all-or-nothing rule, queries_valid=N. |
+| review_provenance | Initial verdicts human-authored; Codex performed an evidence-led second-pass check on 2026-08-31; changed verdicts await explicit human adjudication. |
+| agent_second_pass_changes | No verdict change in the agent-assisted second pass. |
 
 ---
 
@@ -258,6 +275,9 @@ _Draft message:_ Alert: Possible unauthorized access to your system's SSH keys. 
 | queries_relevant(Y/N) | Y |
 | draft_appropriate(Y/N) | Y |
 | confidence_calibrated(Y/N) | Y |
+| reviewer_notes | One summary statement conflates audit.cwd=/home/notroot with the accessed file, audit.file=/root/.ssh/authorized_keys; it is therefore partial with one unsupported/misleading assertion. The investigation items are relevant but are natural-language instructions rather than runnable queries. The draft and high confidence remain appropriate for root authorized_keys access from this session. |
+| review_provenance | Initial verdicts human-authored; Codex performed an evidence-led second-pass check on 2026-08-31; changed verdicts await explicit human adjudication. |
+| agent_second_pass_changes | No verdict change in the agent-assisted second pass. |
 
 ---
 
@@ -301,12 +321,15 @@ _Draft message:_ We detected unusual activity on your system. Please investigate
 
 | dimension | verdict |
 |---|---|
-| summary_supported(Y/N/partial) | Y |
-| unsupported_statement_count(int) | 0 |
+| summary_supported(Y/N/partial) | partial |
+| unsupported_statement_count(int) | 1 |
 | queries_valid(Y/N) | N |
 | queries_relevant(Y/N) | Y |
 | draft_appropriate(Y/N) | Y |
 | confidence_calibrated(Y/N) | N |
+| reviewer_notes | One unsupported attribution: auid=1000 and a path under /home/notroot do not by themselves prove the username is 'notroot'. The setuid/setgid context is in the complete operational prompt. The osquery-like items are not runnable as written but are relevant. The draft is acceptable; high confidence remains uncalibrated for benign dconf activity. |
+| review_provenance | Initial verdicts human-authored; Codex performed an evidence-led second-pass check on 2026-08-31; changed verdicts await explicit human adjudication. |
+| agent_second_pass_changes | Verdicts changed: summary_supported, unsupported_statement_count; reviewer note rewritten. |
 
 ---
 
@@ -338,11 +361,14 @@ _Draft message:_ Our security system detected a potential issue with your Window
 | dimension | verdict |
 |---|---|
 | summary_supported(Y/N/partial) | partial |
-| unsupported_statement_count(int) | 1 |
+| unsupported_statement_count(int) | 2 |
 | queries_valid(Y/N) | N |
 | queries_relevant(Y/N) | Y |
-| draft_appropriate(Y/N) | Y |
+| draft_appropriate(Y/N) | N |
 | confidence_calibrated(Y/N) | N |
+| reviewer_notes | Two unsupported summary claims: 0x3600 does not establish LSASS memory read because it lacks PROCESS_VM_READ, and 'high privilege escalation risk' is not supported by the alert. The prose investigation items are relevant but not runnable queries. The draft repeats the unsupported sensitive-memory claim, so it is inappropriate; high confidence remains uncalibrated for benign Defender activity. |
+| review_provenance | Initial verdicts human-authored; Codex performed an evidence-led second-pass check on 2026-08-31; changed verdicts await explicit human adjudication. |
+| agent_second_pass_changes | Verdicts changed: unsupported_statement_count, draft_appropriate; reviewer note rewritten. |
 
 ---
 
@@ -391,6 +417,9 @@ _Draft message:_ Your system's sudoers file has been modified. Please investigat
 | queries_relevant(Y/N) | Y |
 | draft_appropriate(Y/N) | N |
 | confidence_calibrated(Y/N) | Y |
+| reviewer_notes | The query set is invalid because 'wazuh query' is not a recognised CLI command and the syntax is not well formed. The draft is also inappropriate: it instructs the user to restore the configuration before authorization or maliciousness has been established. The summary and high confidence remain supported by the sudoers modification alert. |
+| review_provenance | Initial verdicts human-authored; Codex performed an evidence-led second-pass check on 2026-08-31; changed verdicts await explicit human adjudication. |
+| agent_second_pass_changes | No verdict change in the agent-assisted second pass. |
 
 ---
 
@@ -428,6 +457,9 @@ _Draft message:_ We detected a possible malicious macro execution from your Offi
 | queries_relevant(Y/N) | Y |
 | draft_appropriate(Y/N) | Y |
 | confidence_calibrated(Y/N) | N |
+| reviewer_notes | Grounding is assessed against the complete operational prompt. Its rule_description explicitly states that winword.exe spawned cmd.exe and describes a possible malicious macro, so the summary and cautious draft are prompt-grounded (Y/0). The investigation items remain natural-language rather than runnable queries. High confidence is not calibrated because the raw process evidence is only cmd.exe /c whoami and the rule itself says 'possible'. |
+| review_provenance | Initial verdicts human-authored; Codex performed an evidence-led second-pass check on 2026-08-31; changed verdicts await explicit human adjudication. |
+| agent_second_pass_changes | No verdict change in the agent-assisted second pass. |
 
 ---
 
@@ -461,6 +493,9 @@ _Draft message:_ A security alert was triggered on your system. We are investiga
 | queries_relevant(Y/N) | Y |
 | draft_appropriate(Y/N) | Y |
 | confidence_calibrated(Y/N) | N |
+| reviewer_notes | One evaluative summary claim is unsupported: it calls wazuh-agent.exe a suspicious process even though the identified source is legitimate security tooling. The query set is invalid because ossec is not a standard osquery table. The generic draft remains appropriate, while high confidence remains mis-calibrated for this benign event. |
+| review_provenance | Initial verdicts human-authored; Codex performed an evidence-led second-pass check on 2026-08-31; changed verdicts await explicit human adjudication. |
+| agent_second_pass_changes | No verdict change in the agent-assisted second pass. |
 
 ---
 
@@ -508,6 +543,9 @@ _Draft message:_ We detected a potential security issue with your systemd servic
 | queries_relevant(Y/N) | Y |
 | draft_appropriate(Y/N) | Y |
 | confidence_calibrated(Y/N) | N |
+| reviewer_notes | One unsupported statement: syscall 257 is described as 'mount' – it is actually open; confidence too high for normal snapd activity. The first is a valid osqueryi CLI command. The second (wazuh query) is not a standard command. Because one of the two is invalid, the set fails → N. |
+| review_provenance | Initial verdicts human-authored; Codex performed an evidence-led second-pass check on 2026-08-31; changed verdicts await explicit human adjudication. |
+| agent_second_pass_changes | No verdict change in the agent-assisted second pass. |
 
 ---
 
@@ -556,6 +594,9 @@ _Draft message:_ A security alert was triggered on your system. We are investiga
 | queries_relevant(Y/N) | Y |
 | draft_appropriate(Y/N) | Y |
 | confidence_calibrated(Y/N) | Y |
+| reviewer_notes | One summary inference is not explicit in the alert: auid=1000 and cwd=/home/notroot do not by themselves prove that the username 'notroot' performed the action. The summary is therefore partial with one unsupported assertion. The first two investigation items are SQL-like, but the third is natural language, so the all-or-nothing query set remains invalid. Draft and confidence remain appropriate. |
+| review_provenance | Initial verdicts human-authored; Codex performed an evidence-led second-pass check on 2026-08-31; changed verdicts await explicit human adjudication. |
+| agent_second_pass_changes | No verdict change in the agent-assisted second pass. |
 
 ---
 
@@ -593,6 +634,9 @@ _Draft message:_ We detected a potential security issue with your system. Our te
 | queries_relevant(Y/N) | Y |
 | draft_appropriate(Y/N) | Y |
 | confidence_calibrated(Y/N) | Y |
+| reviewer_notes | Natural‑language, no query syntax. |
+| review_provenance | Initial verdicts human-authored; Codex performed an evidence-led second-pass check on 2026-08-31; changed verdicts await explicit human adjudication. |
+| agent_second_pass_changes | No verdict change in the agent-assisted second pass. |
 
 ---
 
@@ -629,6 +673,9 @@ _Draft message:_ We detected a potential security issue with your system. Our te
 | queries_relevant(Y/N) | Y |
 | draft_appropriate(Y/N) | Y |
 | confidence_calibrated(Y/N) | Y |
+| reviewer_notes | high confidence appropriate given long label and PowerShell source. Natural‑language, no query syntax. |
+| review_provenance | Initial verdicts human-authored; Codex performed an evidence-led second-pass check on 2026-08-31; changed verdicts await explicit human adjudication. |
+| agent_second_pass_changes | No verdict change in the agent-assisted second pass. |
 
 ---
 
@@ -671,12 +718,15 @@ _Draft message:_ We detected a potential security issue on your system. Please i
 
 | dimension | verdict |
 |---|---|
-| summary_supported(Y/N/partial) | Y |
-| unsupported_statement_count(int) | 0 |
+| summary_supported(Y/N/partial) | partial |
+| unsupported_statement_count(int) | 1 |
 | queries_valid(Y/N) | N |
 | queries_relevant(Y/N) | Y |
-| draft_appropriate(Y/N) | Y |
+| draft_appropriate(Y/N) | N |
 | confidence_calibrated(Y/N) | Y |
+| reviewer_notes | One misleading summary claim: /var/log/btmp is the failed-login history log, not the system audit log. The set is relevant but invalid because wazuh-cluster get_audit_log is not a recognised command. The draft repeats the audit-log misdescription, so it is inappropriate; high confidence remains supported by the log-tampering alert. |
+| review_provenance | Initial verdicts human-authored; Codex performed an evidence-led second-pass check on 2026-08-31; changed verdicts await explicit human adjudication. |
+| agent_second_pass_changes | Verdicts changed: summary_supported, unsupported_statement_count, draft_appropriate; reviewer note rewritten. |
 
 ---
 
@@ -723,6 +773,9 @@ _Draft message:_ We detected a potential security issue on your system. Our team
 | queries_relevant(Y/N) | Y |
 | draft_appropriate(Y/N) | Y |
 | confidence_calibrated(Y/N) | Y |
+| reviewer_notes | Natural‑language, no query syntax. |
+| review_provenance | Initial verdicts human-authored; Codex performed an evidence-led second-pass check on 2026-08-31; changed verdicts await explicit human adjudication. |
+| agent_second_pass_changes | No verdict change in the agent-assisted second pass. |
 
 ---
 
@@ -759,6 +812,9 @@ _Draft message:_ A PowerShell encoded command was executed on your system. We ar
 | queries_relevant(Y/N) | Y |
 | draft_appropriate(Y/N) | Y |
 | confidence_calibrated(Y/N) | Y |
+| reviewer_notes | Summary and draft are supported, and high confidence is appropriate for an encoded PowerShell command. The query set is invalid under the all-or-nothing rule because Get-EventLog -Newest 10 omits the mandatory LogName argument; the other commands do not make the complete set valid. |
+| review_provenance | Initial verdicts human-authored; Codex performed an evidence-led second-pass check on 2026-08-31; changed verdicts await explicit human adjudication. |
+| agent_second_pass_changes | No verdict change in the agent-assisted second pass. |
 
 ---
 
@@ -799,6 +855,9 @@ _Draft message:_ Our system detected a suspicious process running on your Window
 | queries_relevant(Y/N) | Y |
 | draft_appropriate(Y/N) | Y |
 | confidence_calibrated(Y/N) | Y |
+| reviewer_notes | Summary and draft are supported, and high confidence is appropriate for the observed PSEXESVC execution. The query set is invalid because osquery and windows are not standard osquery tables. Under the all-or-nothing rule, queries_valid=N. |
+| review_provenance | Initial verdicts human-authored; Codex performed an evidence-led second-pass check on 2026-08-31; changed verdicts await explicit human adjudication. |
+| agent_second_pass_changes | No verdict change in the agent-assisted second pass. |
 
 ---
 
@@ -842,11 +901,14 @@ _Draft message:_ Alert: Possible credential access detected. Review system logs 
 
 | dimension | verdict |
 |---|---|
-| summary_supported(Y/N/partial) | Y |
-| unsupported_statement_count(int) | 0 |
+| summary_supported(Y/N/partial) | partial |
+| unsupported_statement_count(int) | 1 |
 | queries_valid(Y/N) | N |
 | queries_relevant(Y/N) | Y |
 | draft_appropriate(Y/N) | Y |
 | confidence_calibrated(Y/N) | N |
+| reviewer_notes | One factual error: on x86-64 syscall 257 is openat, not read. The remaining summary is supported by the complete operational prompt. The prose investigation items are relevant but not runnable queries; the cautious draft remains acceptable, while high confidence remains uncalibrated for benign cron activity. |
+| review_provenance | Initial verdicts human-authored; Codex performed an evidence-led second-pass check on 2026-08-31; changed verdicts await explicit human adjudication. |
+| agent_second_pass_changes | Verdicts changed: summary_supported, unsupported_statement_count; reviewer note rewritten. |
 
 ---

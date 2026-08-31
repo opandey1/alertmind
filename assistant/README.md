@@ -252,7 +252,7 @@ The redaction layer removes tested classes of common credentials (passwords, AWS
 - **Separated metrics** (`scoring.py`): `technique_exact`, `technique_relaxed` (parent/sub), `disposition_correct`, `response_consistent`, `overall`. A right technique with a contradictory benign disposition is no longer scored correct.
 - **Analyst vs Evaluator UI modes**: Analyst mode hides ground truth (use during the assisted timing run); Evaluator mode reveals scoring (use only after).
 - **Learning effect**: the assisted pass re-triages the **same corpus after a washout, in randomised order**. This is *not* a counterbalanced crossover, and the residual learning effect is reported as a limitation. The bias points toward an apparent speed-up, so it cannot explain the observed slowdown on false positives.
-- **Grounding review**: automated scoring covers only the technique tag and disposition. A single-reviewer manual rubric scored the summary, investigation queries and draft message across all 20 operational outputs per model on six dimensions; worksheets are in `measurement/grounding/`.
+- **Grounding review**: automated scoring covers only the technique tag and disposition. A human-authored first pass scored the summary, investigation queries and draft message across all 20 operational outputs per model on six dimensions; the same evidence-led Codex second pass was then applied to all three model worksheets. Every changed dimension and its provenance are recorded per alert in `measurement/grounding/`. One human remains the final adjudicator, so this is not an independent second-reviewer result.
 
 ## 8. Attribution
 
