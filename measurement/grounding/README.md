@@ -24,14 +24,19 @@ Two files per run:
 - **`grounding-review_<model>_<view>.csv`** — one row per alert, with the deliverables and pre-filled `auto_*` columns. Open in Excel and fill the six blank `HUMAN` columns. This is your tally sheet.
 - **`grounding-review_<model>_<view>.md`** — a readable worksheet: alert evidence beside the assistant output, with a blank verdict table per alert. Use this to *judge*; record the result in the CSV.
 
-Runs provided: **llama3.1 operational** and **gpt-5.5 operational** — the two the analyst actually sees (operational view). Ground the strict-view runs too if you want, but operational is what the timing pass and the deployment question rest on.
+Runs provided: **llama3.1 operational**, **GPT-5.5 operational**, and **qwen3:8b operational** — the three operational-view outputs used in the model comparison. Ground the strict-view runs too if needed, but the operational view is what the analyst actually sees and what the timing pass and deployment question rest on.
 
 | Worksheet | Source run | Prompt version | Redaction version |
 |---|---|---|---|
 | llama3.1 operational | `assistant/outputs/runs/20260713T115729Z_ollama_operational/` | `88b9c3f1656b683b` | `3a527e33fa159616` |
 | GPT-5.5 operational | `assistant/outputs/runs/20260717_073045_openai_oper_baseline/` | `23185744b88f77b7` | `3a527e33fa159616` |
+| qwen3:8b operational | `assistant/outputs/runs/20260830_054251_ollama_oper_baseline/` | `23185744b88f77b7` | `cf0549f832d13b7f` |
 
 The llama3.1 worksheet predates the later matched automated-comparison run `20260715_060542_ollama_oper_baseline` (14/14 operational exact-ID overlap). Its manual free-text verdicts apply only to the source run listed above and must not be attributed to that later output sample. The earlier run's committed scoring CSV is retained exactly as produced by the then-current single-ID validator. A13 and A19 were parsed correctly but rejected as `bad_syntax`; a non-writing re-score of the audit log with the current validator yields 13/14 attack exact, 14/14 attack relaxed, 14/20 disposition, 20/20 consistent and 14/20 overall. That retrospective score is provenance context, not the matched automated-comparison result.
+
+### Completed qwen3:8b operational review
+
+For `20260830_054251_ollama_oper_baseline`, **12/20 summaries were fully supported** and eight were partial, with **eight unsupported statements total**. The partial summaries were A06, A07, A08, A09, A11, A12, A16 and A17. Investigation sets were **relevant in 20/20** but **runnable/well-formed in 0/20** because they used generic or undefined SQL, prose, or incomplete shell commands rather than concrete Wazuh/Discover queries. Drafts were appropriate in **18/20** (A16 and A19 failed), and confidence was calibrated in **18/20** (A12 and A20 failed). These verdicts use the complete prompt as the grounding source; the worksheet's `key_fields` excerpt is supporting context, not the full evidence boundary.
 
 ## What the AUTO flags mean (and don't)
 
