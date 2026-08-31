@@ -89,7 +89,7 @@ Dashboards (daily SOC briefing + ATT&CK heatmap) · three NIST 800-61 IR playboo
 - **Redaction before/after proof** produced as the instructor required (original secret → redacted prompt), plus an injection-resistance record.
 - **Two methodological moves that make the evaluation honest:** a benign-salted corpus (14 attacks + 6 real false positives) and a strict **label-reduced view** that strips the rule's own ATT&CK label. A regression test proves 0/20 alerts leak a technique code.
 - **Impact measured vs. the Week-2 unassisted baseline** (pre-generated outputs, washout, randomised order): **MTTD 2.32 s** (detection property, unchanged by the assistant); triage time −30% on attacks, +1.68 min paired on false positives; analyst accuracy 20/20 in both conditions.
-- **Two-model comparison** (`llama3.1:8b` local vs `gpt-5.5-2026-04-23` hosted) on the frozen corpus, both views. Headline findings: label removal collapses llama's matched attack-technique score 14/14 → **1/14** (gpt 11/14 → 8/14); benign disposition **0/6** (llama) vs 5/6 operational / 3/6 strict (gpt). The operational grounding worksheets received a human first pass plus a provenance-recorded Codex second pass: current tallies are llama 12/20 fully supported summaries and 0/20 runnable queries, GPT 20/20 supported summaries and 15/20 runnable queries, and qwen3:8b 12/20 supported summaries and 0/20 runnable queries. Qwen corrections are human-approved; four changed llama rows and five changed GPT rows await explicit human adjudication. The llama grounding worksheet uses the separately retained earlier operational sample `20260713T115729Z_ollama_operational`, not the matched 14/14 run `20260715_060542_ollama_oper_baseline`. The matched strict logs add an efficiency view: median prompt tokens 963.5 vs 970.0, median completion tokens 218.5 vs 786.5 (GPT reasoning-token subset 337.5), and median call latency 60.37 s vs 10.66 s. All 20 input and redacted-prompt hashes match. The **$1.11** account observation applies only to the earlier 42-request operational + superseded-evaluation pair, not the later strict rerun.
+- **Initial two-model comparison** (`llama3.1:8b` local vs `gpt-5.5-2026-04-23` hosted) on the frozen corpus, both views. Headline findings: label removal collapses llama's matched attack-technique score 14/14 → **1/14** (gpt 11/14 → 8/14); benign disposition **0/6** (llama) vs 5/6 operational / 3/6 strict (gpt). The llama grounding worksheet uses the separately retained earlier operational sample `20260713T115729Z_ollama_operational`, not the matched 14/14 run `20260715_060542_ollama_oper_baseline`. The matched strict logs add an efficiency view: median prompt tokens 963.5 vs 970.0, median completion tokens 218.5 vs 786.5 (GPT reasoning-token subset 337.5), and median call latency 60.37 s vs 10.66 s. All 20 input and redacted-prompt hashes match. The **$1.11** account observation applies only to the earlier 42-request operational + superseded-evaluation pair, not the later strict rerun. A post-v1 Qwen extension and final three-model grounding adjudication are recorded below rather than rewritten into this Week-3 milestone.
 - **15-page technical report** drafted and reviewed; `DESIGN_AND_CHANGELOG.md` reference doc written.
 
 ### Blocked → resolved
@@ -101,7 +101,7 @@ Dashboards (daily SOC briefing + ATT&CK heatmap) · three NIST 800-61 IR playboo
 | Windows MAX_PATH crash + a schema-validator defect | Long run-dir paths; validator edge case | `\\?\` long-path handling; validator fix; both regression-tested |
 
 ### Known items carried forward
-- Grounding is operational-view only. A human-authored first pass now has a recorded agent-assisted evidence check, but the agent is not an independent human reviewer; automation, strict-view coverage and a second human reviewer remain deferred. Changed llama/GPT verdicts await explicit human adjudication.
+- Grounding is operational-view only. A human-authored first pass now has a recorded agent-assisted evidence check and all changes were explicitly approved by the human reviewer on 2026-08-31, but the agent is not an independent human reviewer; automation, strict-view coverage and a second human reviewer remain deferred.
 - Hosted runs are single stochastic samples (temperature unsupported) — comparison labelled exploratory; no assisted-timing run for GPT-5.5.
 - A18 is a scored false negative *and* a corpus construct-validity artifact (payload self-identifies as a test).
 
@@ -140,3 +140,14 @@ Dashboards (daily SOC briefing + ATT&CK heatmap) · three NIST 800-61 IR playboo
 
 ### Final wrap-up
 - Report finalised (15 pages; reported measurement and model figures traceable to retained artifacts); defense deck + transcript; frozen corpus and run directories committed; 90-day alert retention and supporting Wazuh evidence added during the submission extension. Lab snapshots archived clean.
+
+---
+
+## Post-v1 extension — Offline CI, qwen3:8b and grounding parity
+**Dates:** Aug 2026 · **Status:** ✅ Evidence and adjudication complete; presentation refresh delegated
+
+- Tagged and preserved the submitted v1, then added offline CI that runs 78 tests and re-derives the protected scoring/efficiency evidence without contacting a model or SIEM.
+- Added `qwen3:8b` as a post-v1 third-model condition. The accepted runs `20260830_054251_ollama_oper_baseline` and `20260830_070142_ollama_eval_baseline` ran on commit `7ca2543`; manifests pin normalized audit hashes, model digest and effective request configuration. Both views are 20/20 schema-valid.
+- Qwen strict results: 2/14 exact, 5/14 relaxed, 14/20 disposition, one of six benign alerts cleared, three hedged and two confidently wrong; A10 is the sole strict-view attack false negative. Median strict call latency was 168.21 s (59.83 min total) on the measured laptop.
+- Applied the same six-dimension operational grounding protocol to all three models. Final human-approved tallies: llama3.1 12/20 fully supported summaries, nine unsupported statements and 0/20 runnable query sets; qwen3:8b 12/20, eight and 0/20; GPT-5.5 20/20, zero and 15/20.
+- Tightened `queries_valid` from a syntax-oriented reading to an all-or-nothing, target-aware standard. Wazuh/OpenSearch queries must use indexed paths such as `data.audit.*` / `data.win.*` and run as written; rule-decoder names, prose, undefined pseudo-SQL and incomplete or unsafe shell fragments fail. One human explicitly approved every second-pass verdict change on 2026-08-31.
