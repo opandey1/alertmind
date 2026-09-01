@@ -341,9 +341,11 @@ SSH is currently inactive. Its reviewed Phase 1 configuration must:
   `ExitOnForwardFailure=yes`;
 - restrict the dedicated key in `authorized_keys` with
   `restrict,port-forwarding,permitopen="127.0.0.1:9200",command="/bin/false"`,
-  so that `restrict` blocks every other facility while `port-forwarding`
-  re-enables only the forwarding class constrained by `permitopen`; the key
-  cannot obtain a shell or forward elsewhere; and
+  so that `restrict` blocks every facility by default, `port-forwarding`
+  re-enables TCP forwarding generally, `permitopen` bounds the local (`-L`)
+  destination to Indexer loopback, and the forced command prevents a shell;
+- set `AllowTcpForwarding local` under a `Match User notroot` block in
+  `sshd_config`, so remote (`-R`) forwarding remains disabled; and
 - retain `GatewayPorts no`, no agent/X11 forwarding and no unrestricted TCP
   forwarding.
 

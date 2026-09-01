@@ -292,10 +292,20 @@ restrict,port-forwarding,permitopen="127.0.0.1:9200",command="/bin/false"
 ```
 
 `restrict` disables forwarding as well as PTY, agent/X11 forwarding and
-`~/.ssh/rc`; the explicit `port-forwarding` option re-enables that one class,
-and `permitopen` limits it to Indexer loopback. `PermitOpen` alone does not
-block a shell, which is why the key-level `restrict` and forced command are
-also required.
+`~/.ssh/rc`; the explicit `port-forwarding` option re-enables TCP forwarding
+generally, and `permitopen` limits only local (`-L`) forwarding to Indexer
+loopback. `PermitOpen` neither disables remote (`-R`) forwarding nor blocks a
+shell. Therefore the server configuration must also include:
+
+```text
+Match User notroot
+    AllowTcpForwarding local
+```
+
+The `Match` directive denies remote forwarding for this account, while the
+key-level `restrict`, `permitopen` and forced command deny the remaining
+facilities and shell access. Confirm that `sshd -T` reports
+`allowtcpforwarding local` before enabling the service.
 
 The corresponding private key is the fifth analyst-profile secret. Store it
 only under ignored `assistant/.secrets/`, protect it with a Windows ACL, and
