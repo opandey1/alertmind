@@ -161,8 +161,10 @@ entire subset, freeze the resulting configuration, and then run both full views.
 The retained `20260827_180830`/`20260827_192445` pair is explicitly a
 **pre-commit candidate**, not final evidence: its audit logs embed a commit that
 predates the executing changes. External disclosures and normalized hashes are
-under `measurement/run-manifests/`. Publish the three-model comparison only
-after a fresh matched pair records the actual committed rerun source.
+under `measurement/run-manifests/`. The publishable pair is
+`20260830_054251_ollama_oper_baseline` / `20260830_070142_ollama_eval_baseline`:
+both ran on commit `7ca2543`, are 20/20 schema-valid per view, and have manifests
+pinning normalized audit hashes, the model digest and effective request configuration.
 
 Hosted OpenAI GPT-5.5:
 
@@ -252,7 +254,7 @@ The redaction layer removes tested classes of common credentials (passwords, AWS
 - **Separated metrics** (`scoring.py`): `technique_exact`, `technique_relaxed` (parent/sub), `disposition_correct`, `response_consistent`, `overall`. A right technique with a contradictory benign disposition is no longer scored correct.
 - **Analyst vs Evaluator UI modes**: Analyst mode hides ground truth (use during the assisted timing run); Evaluator mode reveals scoring (use only after).
 - **Learning effect**: the assisted pass re-triages the **same corpus after a washout, in randomised order**. This is *not* a counterbalanced crossover, and the residual learning effect is reported as a limitation. The bias points toward an apparent speed-up, so it cannot explain the observed slowdown on false positives.
-- **Grounding review**: automated scoring covers only the technique tag and disposition. A single-reviewer manual rubric scored the summary, investigation queries and draft message across all 20 operational outputs per model on six dimensions; worksheets are in `measurement/grounding/`.
+- **Grounding review**: automated scoring covers only the technique tag and disposition. A human-authored first pass scored the summary, investigation queries and draft message across all 20 operational outputs per model on six dimensions; the same evidence-led Codex second pass was then applied to all three model worksheets. Every changed dimension and its provenance are recorded per alert in `measurement/grounding/`, and one human explicitly approved all changes on 2026-08-31. Query validity is target-aware and all-or-nothing: every suggested query must run against its stated target as written. This remains one human adjudication process, not an independent second-reviewer result.
 
 ## 8. Attribution
 

@@ -4,7 +4,9 @@
 
 **Prompt version:** `23185744b88f77b7` · **Redaction version:** `3a527e33fa159616`
 
-For each alert: read the **alert evidence**, then judge each assistant deliverable against it. Fill the six columns in the CSV. AUTO flags are hints to verify, not verdicts.
+**Review provenance:** Initial verdicts human-authored; Codex performed an evidence-led second-pass check on 2026-08-31; all second-pass verdicts explicitly approved by the human reviewer on 2026-08-31.
+
+For each alert: read the **alert evidence**, then judge each assistant deliverable against it. The six verdicts and reviewer notes are mirrored in the CSV. AUTO flags are hints to verify, not verdicts; the provenance fields record the second-pass changes.
 
 **Scoring key** — `summary_supported`: every line traceable to the alert (Y), some lines unsupported (partial), or key claims invented (N). `unsupported_statement_count`: number of assertions not backed by the alert. `queries_valid`: runnable/wellformed. `queries_relevant`: would actually advance this triage. `draft_appropriate`: accurate, no overclaim, safe to send after review. `confidence_calibrated`: stated confidence matches the evidence strength.
 
@@ -54,10 +56,13 @@ _Draft message:_ Hi, we observed a root-level change to a cron configuration fil
 |---|---|
 | summary_supported(Y/N/partial) | Y |
 | unsupported_statement_count(int) | 0 |
-| queries_valid(Y/N) | Y |
+| queries_valid(Y/N) | N |
 | queries_relevant(Y/N) | Y |
 | draft_appropriate(Y/N) | Y |
 | confidence_calibrated(Y/N) | Y |
+| reviewer_notes | Summary, draft and confidence are supported. The investigation set is relevant but not runnable against the Wazuh alert index as written because it uses audit.* rather than the indexed data.audit.* field namespace. |
+| review_provenance | Initial verdicts human-authored; Codex performed an evidence-led second-pass check on 2026-08-31; all second-pass verdicts explicitly approved by the human reviewer on 2026-08-31. |
+| agent_second_pass_changes | Verdict changed: queries_valid; reviewer note rewritten. |
 
 ---
 
@@ -95,6 +100,9 @@ _Draft message:_ Hi, we noticed Microsoft Edge configured an auto-start entry on
 | queries_relevant(Y/N) | Y |
 | draft_appropriate(Y/N) | Y |
 | confidence_calibrated(Y/N) | Y |
+| reviewer_notes | All claims supported; queries are appropriate; draft is cautious and accurate; medium confidence is well calibrated for a likely benign alert. |
+| review_provenance | Initial verdicts human-authored; Codex performed an evidence-led second-pass check on 2026-08-31; all second-pass verdicts explicitly approved by the human reviewer on 2026-08-31. |
+| agent_second_pass_changes | No verdict change in the agent-assisted second pass. |
 
 ---
 
@@ -133,6 +141,9 @@ _Draft message:_ Hi, we observed a script-style mshta.exe command on your Window
 | queries_relevant(Y/N) | Y |
 | draft_appropriate(Y/N) | Y |
 | confidence_calibrated(Y/N) | Y |
+| reviewer_notes | All points traceable; queries are solid; draft is appropriate; medium confidence fits the uncertainty. |
+| review_provenance | Initial verdicts human-authored; Codex performed an evidence-led second-pass check on 2026-08-31; all second-pass verdicts explicitly approved by the human reviewer on 2026-08-31. |
+| agent_second_pass_changes | No verdict change in the agent-assisted second pass. |
 
 ---
 
@@ -179,10 +190,13 @@ _Draft message:_ We observed a root-level change to an init script on linux-vict
 |---|---|
 | summary_supported(Y/N/partial) | Y |
 | unsupported_statement_count(int) | 0 |
-| queries_valid(Y/N) | Y |
+| queries_valid(Y/N) | N |
 | queries_relevant(Y/N) | Y |
 | draft_appropriate(Y/N) | Y |
 | confidence_calibrated(Y/N) | Y |
+| reviewer_notes | Summary, draft and confidence are supported. The investigation set is relevant but not runnable against the Wazuh alert index as written because it uses audit.* rather than the indexed data.audit.* field namespace. |
+| review_provenance | Initial verdicts human-authored; Codex performed an evidence-led second-pass check on 2026-08-31; all second-pass verdicts explicitly approved by the human reviewer on 2026-08-31. |
+| agent_second_pass_changes | Verdict changed: queries_valid; reviewer note rewritten. |
 
 ---
 
@@ -222,6 +236,9 @@ _Draft message:_ Hi, we are reviewing a registry autorun change on your Windows 
 | queries_relevant(Y/N) | Y |
 | draft_appropriate(Y/N) | Y |
 | confidence_calibrated(Y/N) | Y |
+| reviewer_notes | All statements traceable; queries relevant; draft appropriate; medium confidence is fine. |
+| review_provenance | Initial verdicts human-authored; Codex performed an evidence-led second-pass check on 2026-08-31; all second-pass verdicts explicitly approved by the human reviewer on 2026-08-31. |
+| agent_second_pass_changes | No verdict change in the agent-assisted second pass. |
 
 ---
 
@@ -271,6 +288,9 @@ _Draft message:_ Hi, we observed an interactive root session accessing /root/.ss
 | queries_relevant(Y/N) | Y |
 | draft_appropriate(Y/N) | Y |
 | confidence_calibrated(Y/N) | Y |
+| reviewer_notes | All supported; draft appropriately cautious; medium confidence. |
+| review_provenance | Initial verdicts human-authored; Codex performed an evidence-led second-pass check on 2026-08-31; all second-pass verdicts explicitly approved by the human reviewer on 2026-08-31. |
+| agent_second_pass_changes | No verdict change in the agent-assisted second pass. |
 
 ---
 
@@ -320,6 +340,9 @@ _Draft message:_ Hi, we noticed your desktop dconf service updated permissions o
 | queries_relevant(Y/N) | Y |
 | draft_appropriate(Y/N) | Y |
 | confidence_calibrated(Y/N) | Y |
+| reviewer_notes | All claims are supported; queries are valid and relevant; draft is appropriate; medium confidence for benign is well calibrated. |
+| review_provenance | Initial verdicts human-authored; Codex performed an evidence-led second-pass check on 2026-08-31; all second-pass verdicts explicitly approved by the human reviewer on 2026-08-31. |
+| agent_second_pass_changes | No verdict change in the agent-assisted second pass. |
 
 ---
 
@@ -352,10 +375,13 @@ _Draft message:_ Hi, we observed Microsoft Defender interacting with a protected
 |---|---|
 | summary_supported(Y/N/partial) | Y |
 | unsupported_statement_count(int) | 0 |
-| queries_valid(Y/N) | Y |
+| queries_valid(Y/N) | N |
 | queries_relevant(Y/N) | Y |
 | draft_appropriate(Y/N) | Y |
 | confidence_calibrated(Y/N) | Y |
+| reviewer_notes | Summary, draft and confidence are supported. The investigation set is relevant but all three queries use rule-language win.* fields rather than the indexed data.win.* namespace, so the set is not runnable against the Wazuh alert index as written. |
+| review_provenance | Initial verdicts human-authored; Codex performed an evidence-led second-pass check on 2026-08-31; all second-pass verdicts explicitly approved by the human reviewer on 2026-08-31. |
+| agent_second_pass_changes | Verdict changed: queries_valid; reviewer note rewritten. |
 
 ---
 
@@ -408,6 +434,9 @@ _Draft message:_ Hi, we detected a sudoers configuration change on linux-victim 
 | queries_relevant(Y/N) | Y |
 | draft_appropriate(Y/N) | Y |
 | confidence_calibrated(Y/N) | Y |
+| reviewer_notes | All supported; high confidence is justified by strong sudoers mod evidence; draft is appropriate. |
+| review_provenance | Initial verdicts human-authored; Codex performed an evidence-led second-pass check on 2026-08-31; all second-pass verdicts explicitly approved by the human reviewer on 2026-08-31. |
+| agent_second_pass_changes | No verdict change in the agent-assisted second pass. |
 
 ---
 
@@ -447,6 +476,9 @@ _Draft message:_ Hi, we’re reviewing an alert from your workstation involving 
 | queries_relevant(Y/N) | Y |
 | draft_appropriate(Y/N) | Y |
 | confidence_calibrated(Y/N) | Y |
+| reviewer_notes | Grounding is assessed against the complete operational prompt, not only the worksheet's key_fields excerpt. The prompt's rule_description explicitly states that C:\Users\user1\AppData\Local\Temp\winword.exe spawned cmd.exe and describes a possible malicious macro, so the summary and cautious document-related draft are prompt-grounded. Queries are valid and relevant; medium confidence remains calibrated. |
+| review_provenance | Initial verdicts human-authored; Codex performed an evidence-led second-pass check on 2026-08-31; all second-pass verdicts explicitly approved by the human reviewer on 2026-08-31. |
+| agent_second_pass_changes | No verdict change in the agent-assisted second pass. |
 
 ---
 
@@ -483,6 +515,9 @@ _Draft message:_ We are reviewing a security alert involving the Wazuh agent on 
 | queries_relevant(Y/N) | Y |
 | draft_appropriate(Y/N) | Y |
 | confidence_calibrated(Y/N) | Y |
+| reviewer_notes | All supported; draft cautious; medium confidence reasonable for a likely false positive. |
+| review_provenance | Initial verdicts human-authored; Codex performed an evidence-led second-pass check on 2026-08-31; all second-pass verdicts explicitly approved by the human reviewer on 2026-08-31. |
+| agent_second_pass_changes | No verdict change in the agent-assisted second pass. |
 
 ---
 
@@ -534,6 +569,9 @@ _Draft message:_ Hi, we saw snapd modifying a systemd mount unit on linux-victim
 | queries_relevant(Y/N) | Y |
 | draft_appropriate(Y/N) | Y |
 | confidence_calibrated(Y/N) | Y |
+| reviewer_notes | All supported; queries and draft are appropriate; medium confidence fine. |
+| review_provenance | Initial verdicts human-authored; Codex performed an evidence-led second-pass check on 2026-08-31; all second-pass verdicts explicitly approved by the human reviewer on 2026-08-31. |
+| agent_second_pass_changes | No verdict change in the agent-assisted second pass. |
 
 ---
 
@@ -586,6 +624,9 @@ _Draft message:_ Hi, we saw a privileged user account change on linux-victim aro
 | queries_relevant(Y/N) | Y |
 | draft_appropriate(Y/N) | Y |
 | confidence_calibrated(Y/N) | Y |
+| reviewer_notes | All traceable; medium confidence appropriate. |
+| review_provenance | Initial verdicts human-authored; Codex performed an evidence-led second-pass check on 2026-08-31; all second-pass verdicts explicitly approved by the human reviewer on 2026-08-31. |
+| agent_second_pass_changes | No verdict change in the agent-assisted second pass. |
 
 ---
 
@@ -625,6 +666,9 @@ _Draft message:_ Hi, we are reviewing a security alert from your Windows system 
 | queries_relevant(Y/N) | Y |
 | draft_appropriate(Y/N) | Y |
 | confidence_calibrated(Y/N) | Y |
+| reviewer_notes | All supported; high confidence warranted; draft appropriate. |
+| review_provenance | Initial verdicts human-authored; Codex performed an evidence-led second-pass check on 2026-08-31; all second-pass verdicts explicitly approved by the human reviewer on 2026-08-31. |
+| agent_second_pass_changes | No verdict change in the agent-assisted second pass. |
 
 ---
 
@@ -661,6 +705,9 @@ _Draft message:_ Hi, we observed a PowerShell process on your Windows system mak
 | queries_relevant(Y/N) | Y |
 | draft_appropriate(Y/N) | Y |
 | confidence_calibrated(Y/N) | Y |
+| reviewer_notes | All traceable; queries valid; draft good; medium confidence. |
+| review_provenance | Initial verdicts human-authored; Codex performed an evidence-led second-pass check on 2026-08-31; all second-pass verdicts explicitly approved by the human reviewer on 2026-08-31. |
+| agent_second_pass_changes | No verdict change in the agent-assisted second pass. |
 
 ---
 
@@ -706,10 +753,13 @@ _Draft message:_ Hi, we’re reviewing a security alert involving a root shell s
 |---|---|
 | summary_supported(Y/N/partial) | Y |
 | unsupported_statement_count(int) | 0 |
-| queries_valid(Y/N) | Y |
+| queries_valid(Y/N) | N |
 | queries_relevant(Y/N) | Y |
 | draft_appropriate(Y/N) | Y |
 | confidence_calibrated(Y/N) | Y |
+| reviewer_notes | Summary, draft and confidence are supported. The investigation set is relevant but not runnable against the Wazuh alert index as written because it uses audit.* rather than the indexed data.audit.* field namespace. |
+| review_provenance | Initial verdicts human-authored; Codex performed an evidence-led second-pass check on 2026-08-31; all second-pass verdicts explicitly approved by the human reviewer on 2026-08-31. |
+| agent_second_pass_changes | Verdict changed: queries_valid; reviewer note rewritten. |
 
 ---
 
@@ -753,10 +803,13 @@ _Draft message:_ Hi, we saw a kernel module management command run with root pri
 |---|---|
 | summary_supported(Y/N/partial) | Y |
 | unsupported_statement_count(int) | 0 |
-| queries_valid(Y/N) | Y |
+| queries_valid(Y/N) | N |
 | queries_relevant(Y/N) | Y |
 | draft_appropriate(Y/N) | Y |
 | confidence_calibrated(Y/N) | Y |
+| reviewer_notes | Summary, draft and confidence are supported. The investigation set is relevant but not runnable against the Wazuh alert index as written because it uses audit.* rather than the indexed data.audit.* field namespace. |
+| review_provenance | Initial verdicts human-authored; Codex performed an evidence-led second-pass check on 2026-08-31; all second-pass verdicts explicitly approved by the human reviewer on 2026-08-31. |
+| agent_second_pass_changes | Verdict changed: queries_valid; reviewer note rewritten. |
 
 ---
 
@@ -794,6 +847,9 @@ _Draft message:_ Hi, we observed a PowerShell command run on win-victim that app
 | queries_relevant(Y/N) | Y |
 | draft_appropriate(Y/N) | Y |
 | confidence_calibrated(Y/N) | Y |
+| reviewer_notes | All traceable; medium confidence appropriate for likely benign test. |
+| review_provenance | Initial verdicts human-authored; Codex performed an evidence-led second-pass check on 2026-08-31; all second-pass verdicts explicitly approved by the human reviewer on 2026-08-31. |
+| agent_second_pass_changes | No verdict change in the agent-assisted second pass. |
 
 ---
 
@@ -833,6 +889,9 @@ _Draft message:_ We observed PsExec-related service activity on win-victim aroun
 | queries_relevant(Y/N) | Y |
 | draft_appropriate(Y/N) | Y |
 | confidence_calibrated(Y/N) | Y |
+| reviewer_notes | All supported; medium confidence for possible admin use. |
+| review_provenance | Initial verdicts human-authored; Codex performed an evidence-led second-pass check on 2026-08-31; all second-pass verdicts explicitly approved by the human reviewer on 2026-08-31. |
+| agent_second_pass_changes | No verdict change in the agent-assisted second pass. |
 
 ---
 
@@ -884,5 +943,8 @@ _Draft message:_ Hi, we observed a scheduled cron process on linux-victim access
 | queries_relevant(Y/N) | Y |
 | draft_appropriate(Y/N) | Y |
 | confidence_calibrated(Y/N) | Y |
+| reviewer_notes | All supported; draft appropriately cautious; medium confidence is fine. |
+| review_provenance | Initial verdicts human-authored; Codex performed an evidence-led second-pass check on 2026-08-31; all second-pass verdicts explicitly approved by the human reviewer on 2026-08-31. |
+| agent_second_pass_changes | No verdict change in the agent-assisted second pass. |
 
 ---

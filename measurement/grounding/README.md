@@ -17,21 +17,46 @@ For each alert, judge the assistant output against the alert evidence on six dim
 
 A "hallucination" for this project is any **factual** claim in these three deliverables that the alert does not support — a fabricated file path, an invented account, a process that isn't in the telemetry, a CVE that doesn't apply. Those are the major-deduction items the rubric calls out.
 
+`queries_valid` uses an **all-or-nothing, target-aware** standard: every item in the suggested set must be runnable against its stated target as written. For Wazuh/OpenSearch Discover, indexed alert fields use paths such as `data.audit.*` and `data.win.*`; rule-decoder names such as `audit.*` or `win.*`, prose instructions, undefined pseudo-SQL, and incomplete or unsafe shell fragments are not runnable queries. This is stricter than the syntax-only interpretation used in the initial review. The tightened standard was applied consistently to all three worksheets and explicitly approved by the human reviewer.
+
 ## How to use the kit
 
 Two files per run:
 
-- **`grounding-review_<model>_<view>.csv`** — one row per alert, with the deliverables and pre-filled `auto_*` columns. Open in Excel and fill the six blank `HUMAN` columns. This is your tally sheet.
-- **`grounding-review_<model>_<view>.md`** — a readable worksheet: alert evidence beside the assistant output, with a blank verdict table per alert. Use this to *judge*; record the result in the CSV.
+- **`grounding-review_<model>_<view>.csv`** — one row per alert, with the deliverables, `auto_*` hints, six verdict dimensions, reviewer notes and explicit review provenance.
+- **`grounding-review_<model>_<view>.md`** — the same verdicts and provenance beside the alert evidence and assistant output. The CSV and Markdown tables are mechanically checked for parity.
 
-Runs provided: **llama3.1 operational** and **gpt-5.5 operational** — the two the analyst actually sees (operational view). Ground the strict-view runs too if you want, but operational is what the timing pass and the deployment question rest on.
+Runs provided: **llama3.1 operational**, **GPT-5.5 operational**, and **qwen3:8b operational** — the three operational-view outputs used in the model comparison. Ground the strict-view runs too if needed, but the operational view is what the analyst actually sees and what the timing pass and deployment question rest on.
 
 | Worksheet | Source run | Prompt version | Redaction version |
 |---|---|---|---|
 | llama3.1 operational | `assistant/outputs/runs/20260713T115729Z_ollama_operational/` | `88b9c3f1656b683b` | `3a527e33fa159616` |
 | GPT-5.5 operational | `assistant/outputs/runs/20260717_073045_openai_oper_baseline/` | `23185744b88f77b7` | `3a527e33fa159616` |
+| qwen3:8b operational | `assistant/outputs/runs/20260830_054251_ollama_oper_baseline/` | `23185744b88f77b7` | `cf0549f832d13b7f` |
 
 The llama3.1 worksheet predates the later matched automated-comparison run `20260715_060542_ollama_oper_baseline` (14/14 operational exact-ID overlap). Its manual free-text verdicts apply only to the source run listed above and must not be attributed to that later output sample. The earlier run's committed scoring CSV is retained exactly as produced by the then-current single-ID validator. A13 and A19 were parsed correctly but rejected as `bad_syntax`; a non-writing re-score of the audit log with the current validator yields 13/14 attack exact, 14/14 attack relaxed, 14/20 disposition, 20/20 consistent and 14/20 overall. That retrospective score is provenance context, not the matched automated-comparison result.
+
+## Review protocol and provenance
+
+All three worksheets follow the same procedural sequence: an initial human-authored verdict pass, followed by an evidence-led Codex second pass against the **complete serialized operational prompt and response**, not only the compact `key_fields` excerpt. The CSV and Markdown worksheets record both `review_provenance` and `agent_second_pass_changes` for every alert, so factual corrections and judgement changes are visible rather than silently overwritten.
+
+This does **not** create an independent second-reviewer result: one human remains the final adjudicator. On 2026-08-31, the human reviewer explicitly approved all agent-assisted changes in the llama3.1, GPT-5.5 and qwen3:8b worksheets, including the target-aware `queries_valid` interpretation above. The totals below are therefore the final adjudicated operational-grounding results for these retained samples.
+
+| Worksheet | Fully supported summaries | Unsupported statements | Queries valid / relevant | Draft appropriate | Confidence calibrated | Adjudication status |
+|---|---:|---:|---:|---:|---:|---|
+| llama3.1 operational | 12/20 (8 partial) | 9 | 0/20 / 20/20 | 17/20 | 13/20 | Human-approved |
+| GPT-5.5 operational | 20/20 | 0 | 15/20 / 20/20 | 20/20 | 20/20 | Human-approved |
+| qwen3:8b operational | 12/20 (8 partial) | 8 | 0/20 / 20/20 | 18/20 | 18/20 | Human-approved |
+
+### qwen3:8b operational review
+
+For `20260830_054251_ollama_oper_baseline`, **12/20 summaries were fully supported** and eight were partial, with **eight unsupported statements total**. The partial summaries were A06, A07, A08, A09, A11, A12, A16 and A17. Investigation sets were **relevant in 20/20** but **runnable/well-formed in 0/20** because they used generic or undefined SQL, prose, or incomplete shell commands rather than concrete Wazuh/Discover queries. Drafts were appropriate in **18/20** (A16 and A19 failed), and confidence was calibrated in **18/20** (A12 and A20 failed). These verdicts use the complete prompt as the grounding source; the worksheet's `key_fields` excerpt is supporting context, not the full evidence boundary.
+
+### Human-approved llama3.1 and GPT-5.5 second-pass corrections
+
+The llama3.1 second pass changed A07, A08, A16 and A20. It identified unsupported username attribution, two unsupported A08 claims (including an LSASS-memory-read claim not established by access mask `0x3600`), `/var/log/btmp` being described as an audit log, and syscall 257 being described as `read` rather than `openat`. The final human-approved tally is **12/20 fully supported summaries**, **nine unsupported statements**, **0/20 valid and 20/20 relevant query sets**, **17/20 appropriate drafts** and **13/20 calibrated confidence verdicts**.
+
+The GPT-5.5 second pass changed `queries_valid` for A01, A04, A08, A16 and A17. Those sets are relevant, but use rule-language `audit.*` or `win.*` fields rather than the indexed Wazuh `data.audit.*` / `data.win.*` paths. The final human-approved tally is **20/20 fully supported summaries**, **zero unsupported statements**, **15/20 valid and 20/20 relevant query sets**, and **20/20** for both draft appropriateness and confidence calibration.
 
 ## What the AUTO flags mean (and don't)
 
@@ -49,7 +74,8 @@ The auto layer does **not** judge relevance, appropriateness, or calibration —
 1. Work the `.md` worksheet top to bottom; for each alert, read the evidence first, then the three deliverables.
 2. Resolve every `⚑ AUTO` flag: is the named entity real, or invented?
 3. Score the six dimensions in the CSV; note the specific unsupported claim in `reviewer_notes`.
-4. Pay special attention to the **six benign false positives** (A02, A07, A08, A11, A12, A20) and to **A18** — grounding failures there are the most decision-relevant.
+4. If an agent-assisted evidence check changes a verdict, record the affected dimensions in `agent_second_pass_changes` and the author/adjudication state in `review_provenance`.
+5. Pay special attention to the **six benign false positives** (A02, A07, A08, A11, A12, A20) and to **A18** — grounding failures there are the most decision-relevant.
 
 ## Reporting the result
 

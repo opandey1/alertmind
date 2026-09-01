@@ -23,7 +23,7 @@ For the complete methodology, evidence index, limitations and results, see the *
 | IR playbooks | Phishing, malware and account-compromise playbooks following the NIST SP 800-61r2 four-phase lifecycle, as specified by the capstone brief |
 | LLM assistant | Python/Streamlit assistant with local, hosted and deterministic mock providers; strict JSON output, redaction, views, audit logging and scoring |
 | Paste & inspect | Ad hoc JSON or plain-text alert triage with limits, redaction trace, injection markers, boundary gate, endpoint-aware consent and sanitized proof/audit output |
-| Evaluation | Frozen 20-alert corpus: 14 controlled attacks plus 6 historical benign false positives; paired timing, automated scoring and manual grounding review |
+| Evaluation | Frozen 20-alert corpus: 14 controlled attacks plus 6 historical benign false positives; paired timing, automated scoring and provenance-recorded grounding review |
 
 ## Architecture and trust boundary
 
@@ -56,27 +56,29 @@ Analyst disposition accuracy stayed **20/20** in both passes because every incor
 
 ### Model comparison: strict scoring and operational grounding
 
-The operational alert contains its rule-authored ATT&CK label. A separate evaluation view removes the tested label-bearing fields before scoring to avoid measuring label copying. The two free-text grounding rows below are labelled separately because that manual review used the operational outputs, not the strict-view outputs.
+The operational alert contains its rule-authored ATT&CK label. A separate evaluation view removes the tested label-bearing fields before scoring to avoid measuring label copying. The two free-text grounding rows below are labelled separately because that review used the operational outputs, not the strict-view outputs. Grounding began as a human-authored first pass and then received an evidence-led Codex second pass against each complete operational prompt. The per-alert worksheets record every changed dimension; one human explicitly approved all changes on 2026-08-31, so the agent pass is an audit aid rather than an independent second human review.
 
-| Measure | `llama3.1:8b` | `gpt-5.5-2026-04-23` |
-|---|---:|---:|
-| Attack technique, operational exact / relaxed | **14/14 · 14/14** | 11/14 · 14/14 |
-| Attack technique, strict exact / relaxed | 1/14 · 1/14 | **8/14 · 12/14** |
-| Disposition, all alerts | 14/20 | **16/20** |
-| Benign false positives cleared | **0/6** | **3/6**, with 3 hedged and 0 confidently wrong |
-| Summaries fully supported (operational grounding) | 15/20 | **20/20** |
-| Investigation queries runnable (operational grounding) | **0/20** | **20/20** |
-| Valid JSON across matched operational + evaluation runs | 40/40 | 40/40 |
-| Prompt tokens, median (strict run) | 963.5 | 970.0 |
-| Completion tokens, median (strict run) | 218.5 | 786.5 |
-| Reasoning-token subset, median (strict run) | Not separately reported | 337.5 |
-| End-to-end call latency, median / 20-call total (strict run) | 60.37 s / 21.18 min | **10.66 s / 3.81 min** |
+| Measure | `llama3.1:8b` | `qwen3:8b` | `gpt-5.5-2026-04-23` |
+|---|---:|---:|---:|
+| Attack technique, operational exact / relaxed | **14/14 · 14/14** | **14/14 · 14/14** | 11/14 · 14/14 |
+| Attack technique, strict exact / relaxed | 1/14 · 1/14 | 2/14 · 5/14 | **8/14 · 12/14** |
+| Disposition, all alerts (strict) | 14/20 | 14/20 | **16/20** |
+| Benign false positives cleared (strict) | **0/6** | **1/6**, with 3 hedged and 2 confidently wrong | **3/6**, with 3 hedged and 0 confidently wrong |
+| Summaries fully supported (operational grounding) | 12/20 (8 partial) | 12/20 (8 partial) | **20/20** |
+| Investigation queries runnable (operational grounding) | **0/20** | **0/20** | **15/20** |
+| Valid JSON across matched operational + evaluation runs | 40/40 | 40/40 | 40/40 |
+| Prompt tokens, median (strict run) | 963.5 | 1,522.0 | 970.0 |
+| Completion tokens, median (strict run) | 218.5 | 306.0 | 786.5 |
+| Reasoning-token subset, median (strict run) | Not separately reported | Not separately reported | 337.5 |
+| End-to-end call latency, median / 20-call total (strict run) | 60.37 s / 21.18 min | 168.21 s / 59.83 min | **10.66 s / 3.81 min** |
 
-The automated operational/strict comparison uses llama3.1 runs `20260715_060542_ollama_oper_baseline` and `20260718_180713_ollama_eval_baseline`. The llama operational grounding worksheet uses an earlier output sample, `20260713T115729Z_ollama_operational`; its free-text verdicts are not attributed to the later 14/14 operational run. All 20 strict-view pairs have matching input and redacted-prompt hashes and use the same prompt and redaction versions. That establishes matched serialized inputs; the near-identical prompt-token medians do not, because token counts are tokenizer-specific. GPT-5.5 completion tokens include the separately reported reasoning-token subset. Ollama did not report a separate reasoning count, which must not be read as proof that the model performed no internal reasoning.
+The automated comparison uses llama3.1 runs `20260715_060542_ollama_oper_baseline` / `20260718_180713_ollama_eval_baseline`, qwen3:8b runs `20260830_054251_ollama_oper_baseline` / `20260830_070142_ollama_eval_baseline`, and GPT-5.5 runs `20260717_073045_openai_oper_baseline` / `20260718_183704_openai_eval_baseline`. The llama operational grounding worksheet uses an earlier output sample, `20260713T115729Z_ollama_operational`; its free-text verdicts are not attributed to the later 14/14 operational run. Across all three strict runs, all 20 `input_hash` and serialized `redacted_prompt_hash` values match. Qwen records a later redaction implementation version, but its 20 serialized prompts still match the other strict runs byte-for-byte. Token counts remain tokenizer-specific and are not evidence of input equivalence. GPT-5.5 completion tokens include its separately reported reasoning-token subset; Ollama's missing separate reasoning count must not be read as proof of no internal reasoning.
+
+The grounding rubric treats a query set as runnable only when every item can execute against its stated target as written. For Wazuh/OpenSearch Discover that means indexed fields such as `data.audit.*` / `data.win.*`; rule-decoder names, prose, undefined pseudo-SQL, and incomplete or unsafe shell fragments fail the all-or-nothing set. This target-aware standard is stricter than the initial syntax-only pass, was applied uniformly to all three worksheets, and all resulting verdict changes were explicitly approved by the human reviewer. Provenance and exact per-alert changes are committed under `measurement/grounding/`.
 
 The earlier llama run's committed scoring CSV is preserved as an **as-run historical artifact** from the then-current single-ID validator: A13 and A19 were parsed correctly but marked `schema_invalid` because their slash-joined ATT&CK IDs were rejected. A retrospective re-score of the unchanged audit log with the current multi-ID validator yields **13/14 exact, 14/14 relaxed, 14/20 disposition, 20/20 consistent and 14/20 overall**; A10 is the sole exact-ID miss. Those derived figures describe the earlier grounding-source run and do not replace the matched `20260715_060542` automated result of 14/14 exact.
 
-This is an exploratory system-level comparison, not a controlled model benchmark: model scale, training, hosting, tokenizer, reasoning configuration and sampling differ simultaneously. The extra GPT-5.5 reasoning tokens are an observed usage difference, not evidence that reasoning tokens caused the quality difference. Latency is the observed end-to-end call time on the measured laptop CPU and hosted service, not an intrinsic speed ranking. GPT-5.5 is one stochastic sample per view, and the timed assisted pass was not repeated with it.
+This is an exploratory system-level comparison, not a controlled model benchmark: model scale, training, hosting, tokenizer, reasoning configuration and sampling differ simultaneously. The extra GPT-5.5 reasoning tokens are an observed usage difference, not evidence that reasoning tokens caused the quality difference. Latency is the observed end-to-end call time on the measured laptop CPU and hosted service, not an intrinsic speed ranking. GPT-5.5 is one stochastic sample per view; Qwen is one accepted matched pair and showed output variability across retained candidate/final runs despite a recorded seed. The timed assisted pass was not repeated with either comparison model.
 
 The corpus is frozen at `measurement/alert-corpus.json`:
 
@@ -289,7 +291,7 @@ python rebuild_from_audit.py outputs/runs/<run_id>/audit-log.jsonl --score-only
 
 Omitting `--score-only` writes derived files under `assistant/outputs/rebuilt/<run_id>/`, not beside the source audit log. Existing derived files require an explicit `--overwrite`, and the timing-log default is resolved from the repository rather than the caller's working directory.
 
-**Offline CI.** Every push to `main` and pull request targeting it runs the 78-test regression suite and re-derives the CI-protected assistant-evaluation findings from committed artifacts: frozen-corpus and timing-log SHA-256, canonical scoring for five retained runs, and the §9.8 token, latency, prompt/redaction-version and paired-hash results. No live SIEM, model provider, credentials or repository secrets are required. The badge therefore shows that these specific committed measurements still reproduce without another model call — it does not yet protect the Qwen candidate runs and does not cover MTTD, the assisted-timing study, grounding verdicts, dashboards or detection counts, which are evidenced elsewhere in this repository. Workflow: [`.github/workflows/offline-ci.yml`](.github/workflows/offline-ci.yml); assertions: [`measurement/verify_frozen_evidence.py`](measurement/verify_frozen_evidence.py).
+**Offline CI.** Every push to `main` and pull request targeting it runs the 78-test regression suite and re-derives the CI-protected assistant-evaluation findings from committed artifacts: frozen-corpus and timing-log SHA-256, canonical scoring for seven retained result-bearing runs, the §9.8 token/latency/hash findings, and the accepted Qwen pair's normalized audit hashes, manifests, model digest and effective request configuration. No live SIEM, model provider, credentials or repository secrets are required. The badge therefore shows that these specific committed measurements still reproduce without another model call. It does not cover MTTD, the assisted-timing study, human grounding verdicts, dashboards or detection counts, which are evidenced elsewhere in this repository. Workflow: [`.github/workflows/offline-ci.yml`](.github/workflows/offline-ci.yml); assertions: [`measurement/verify_frozen_evidence.py`](measurement/verify_frozen_evidence.py).
 
 **Rebuilding the lab from a clean clone:** follow [`docs/rebuild-guide.md`](docs/rebuild-guide.md). Recovery and credential-reset procedures are in [`docs/runbooks/`](docs/runbooks/), and [`docs/artifacts.md`](docs/artifacts.md) indexes the produced artifacts.
 
@@ -301,11 +303,10 @@ Reproduce the analysis by running [`measurement/analysis.ipynb`](measurement/ana
 - `assistant/outputs/runs/20260718_183704_openai_eval_baseline/`
 - `assistant/outputs/runs/20260717_073045_openai_oper_baseline/`
 - `assistant/outputs/runs/20260717_074112_openai_eval_baseline/` — superseded, still-leaky evaluation view retained as history
+- `assistant/outputs/runs/20260830_054251_ollama_oper_baseline/` — accepted qwen3:8b operational extension
+- `assistant/outputs/runs/20260830_070142_ollama_eval_baseline/` — accepted qwen3:8b strict extension
 
-The retained Qwen pilots and pre-commit candidate pair are also committed for
-transparency, but are not yet part of the published comparison. Their provenance
-disclosures and newline-normalized audit hashes are in
-[`measurement/run-manifests/`](measurement/run-manifests/).
+The superseded Qwen pilots and pre-commit candidate pair remain committed for transparency. The accepted pair above ran on committed code; its provenance disclosures, model capture and newline-normalized audit hashes are in [`measurement/run-manifests/`](measurement/run-manifests/).
 
 ## Detection and response content
 
@@ -324,7 +325,7 @@ disclosures and newline-normalized audit hashes are in
 
 - The 20-alert, single-analyst lab study is directional rather than statistically powered; the assisted pass also followed the unassisted pass after a washout.
 - Local and hosted model results are not a controlled capability comparison, and hosted results are single stochastic samples.
-- The next informative model experiment is a pre-registered second 7–9B local instruct model under the same prompt, views, sampling and hardware, with the full manual grounding rubric; an ungrounded third column was not added late.
+- The post-v1 qwen3:8b extension adds a second local 8B model with the same corpus, prompt, views, automated scoring and manual grounding rubric. It remains one matched pair rather than a performance distribution, and its inference settings differ from llama3.1.
 - One synthetic attack payload identifies itself as an AlertMind test after decoding, creating a documented construct-validity limitation.
 - Redaction does not guarantee removal of unknown or encoded secrets.
 - Prompt-injection markers provide detection and visibility; only reserved-boundary attempts are deterministically blocked. Semantic model influence remains possible.
