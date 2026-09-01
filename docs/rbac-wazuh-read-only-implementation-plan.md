@@ -1,7 +1,7 @@
 # AlertMind — RBAC and read-only Wazuh integration
 
-**Document status:** Phase 0 characterization and live inventory complete;
-review corrections in progress; implementation not started
+**Document status:** Phase 0 characterization, live inventory and owner safety
+evidence complete; completion review pending; implementation not started
 
 **Date:** 1 September 2026
 
@@ -261,6 +261,15 @@ The 1 September 2026 inventory established the following design inputs:
   (`linux-victim`) are the initial DLS allowlist. ID `000` is excluded: its
   historical documents use both `wazuh-siem` and `Ubuntu`, demonstrating that
   names are not a stable DLS key.
+- On 2 September 2026, the owner recorded SHA-256 enrollment fingerprints for
+  IDs `001` and `002`, confirmed neither had been re-enrolled since inventory,
+  and retained only the ID, name and digest in
+  [`evidence/rbac/phase0-owner-checklist.md`](../evidence/rbac/phase0-owner-checklist.md).
+  Any later re-enrollment invalidates this binding until it is reviewed again.
+- The effective `action.destructive_requires_name` default is `false`.
+  Therefore the optional index-level DELETE denial proof is prohibited in the
+  current lab. The document-level zero-state-change denial matrix remains the
+  planned behavioral proof.
 - OpenSearch Security is 2.19.5.0. Its versioned permissions documentation does
   not provide the newer `perform_permission_check` facility, so this plan does
   not attempt to feature-detect it with a request that might mutate data.
@@ -561,12 +570,16 @@ rotation, revocation and rollback.
 5. **Done:** add the secret-free implementation checklist, Git ignore rules
    and Phase 0 scaffolds under `siem/rbac/`, `deployment/oidc/keycloak/` and
    `evidence/rbac/`.
-6. **Current correction cycle:** reconcile this plan, the Phase 0 runbook and
-   evidence checklist with the live inventory and independent review. Capture
-   the non-secret enrollment fingerprints before any role is created.
+6. **Done — `f92db3d`, `fde2fe4`, `73efcd7`:** reconcile this plan, the Phase 0
+   runbook and evidence checklist with the live inventory and independent
+   review, including the restricted local-forward-only SSH design and its
+   match-aware pre-enable proof.
+7. **Current owner-evidence cycle:** record the non-secret enrollment
+   fingerprints, snapshot/transport/secrets confirmations and effective
+   destructive-action setting before any role is created.
 
-Phase 0 remains open until this correction cycle and the recorded enrollment
-fingerprints receive independent review.
+Phase 0 remains open until the owner-evidence record receives independent
+review.
 
 **Gate:** clean baseline, recoverable Wazuh snapshot and no secrets in Git.
 
@@ -730,8 +743,12 @@ cryptographically random, literal nonexistent IDs:
 
 Optional index-level create/delete checks use literal concrete names only.
 First read `action.destructive_requires_name` from effective cluster settings
-and require it to be `true`. Test create against the already-existing concrete
-index name, and delete against one cryptographically random nonexistent
+and require it to be `true`. The 2 September 2026 inventory resolved the
+effective default to `false`, so these optional checks are **omitted and
+prohibited in the current lab**. Do not weaken or change that cluster setting
+merely to run a test. If a separately reviewed future configuration resolves
+every effective value to `true`, test create against the already-existing
+concrete index name and delete against one cryptographically random nonexistent
 literal name matching `wazuh-alerts-4.x-*`. Never use `*`, `_all`, a comma list
 or any existing name in an index DELETE. If any supposedly denied request does
 not return 403, stop, preserve sanitized evidence, disable live access and
@@ -829,15 +846,17 @@ part of the live integration state.
    `docs(rbac): tighten security proof and dependency gates`
 3. **Done — `d1416f4`:**
    `test(rbac): characterize offline path and scaffold inventory`
-4. **Current correction cycle:**
-   `docs(rbac): reconcile phase0 plan with live inventory`
-5. `chore(rbac): add secret-free identity and role templates`
-6. `feat(auth): add OIDC profiles and server-side authorization`
-7. `feat(wazuh): add constrained read-only alert client`
-8. `feat(assistant): triage live Wazuh alerts through guarded pipeline`
-9. `test(rbac): cover identity, reader, audit and denial boundaries`
-10. `evidence(rbac): record least-privilege integration proof`
-11. `docs(architecture): publish implemented read-only Wazuh path`
+4. **Done — `f92db3d`, `fde2fe4`, `73efcd7`:** Phase 0 inventory and review
+   corrections.
+5. **Current owner-evidence cycle:**
+   `evidence(rbac): record phase0 owner safety gate`
+6. `chore(rbac): add secret-free identity and role templates`
+7. `feat(auth): add OIDC profiles and server-side authorization`
+8. `feat(wazuh): add constrained read-only alert client`
+9. `feat(assistant): triage live Wazuh alerts through guarded pipeline`
+10. `test(rbac): cover identity, reader, audit and denial boundaries`
+11. `evidence(rbac): record least-privilege integration proof`
+12. `docs(architecture): publish implemented read-only Wazuh path`
 
 Each commit stages explicit paths only. Never use `git add -A` in this
 repository because of the known line-ending churn risk.
@@ -848,10 +867,12 @@ repository because of the known line-ending churn risk.
 
 Before implementation, the project owner must:
 
-1. create and retain a clean Wazuh VM snapshot;
-2. record the current non-secret enrollment fingerprints for agent IDs 001 and
-   002 and repeat that check after either agent is re-enrolled;
-3. approve the reviewed host-only, key-restricted SSH local-forward setup;
+1. **Done:** create and retain a clean Wazuh VM snapshot;
+2. **Done for the current enrollment state:** record the current non-secret
+   enrollment fingerprints for agent IDs 001 and 002; repeat that check after
+   either agent is re-enrolled;
+3. **Done:** approve the reviewed host-only, key-restricted SSH local-forward
+   setup;
 4. generate the dedicated SSH key locally and choose strong passwords, OIDC
    client secrets and an audit-subject HMAC key without pasting any secret or
    private key into an agent chat or commit;

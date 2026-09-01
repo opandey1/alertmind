@@ -3,15 +3,14 @@
 This directory is the secret-free source location for the post-v1 human and
 machine read-only Wazuh role templates.
 
-**Current status:** Phase 0 inventory complete; correction review pending. No
-role, user or mapping has been created in Wazuh, and no YAML template is
-authoritative yet.
+**Current status:** Phase 0 inventory and owner safety evidence are complete;
+final evidence review is pending. No role, user or mapping has been created in
+Wazuh, and no YAML template is authoritative yet.
 
 Templates are deliberately deferred until the read-only inventory and its
 corrections in
 [`docs/runbooks/rbac-wazuh-read-only-setup.md`](../../docs/runbooks/rbac-wazuh-read-only-setup.md)
-receive independent approval and the agent enrollment fingerprints are
-recorded.
+and the sanitized owner-evidence record receive independent approval.
 
 Planned identities:
 
