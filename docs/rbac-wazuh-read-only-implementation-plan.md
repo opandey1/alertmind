@@ -1,10 +1,12 @@
 # AlertMind — RBAC and read-only Wazuh integration
 
-**Document status:** Final implementation plan; implementation not started
+**Document status:** Review-corrected implementation plan; implementation not
+started
 
 **Date:** 1 September 2026
 
-**Applies to:** current `assistant/` package, Wazuh 4.14.5, Streamlit 1.62.0
+**Applies to:** current `assistant/` package, Wazuh 4.14.5, Streamlit
+`>=1.59` user specification and Streamlit 1.62.0 CI lock
 
 **Roadmap item:** Post-v1 local-first access control and live alert ingestion
 
@@ -51,8 +53,10 @@ The plan is based on the current repository rather than the earlier
   the independent delimiter gate, egress consent, schema validation and an
   optional sanitized audit record.
 - Paste & inspect is explicitly local and single-user today.
-- Streamlit is locked to 1.62.0, but the authentication extra and Authlib are
-  not currently installed.
+- `assistant/requirements.txt` is the flexible user-install specification and
+  currently permits `streamlit>=1.59`; `assistant/requirements-ci.lock` is the
+  reproducible Python 3.12 Linux CI lock and pins Streamlit 1.62.0. Neither
+  currently includes the Streamlit authentication extra/Authlib.
 - Wazuh 4.14.5 is an all-in-one deployment. Only `admin` exists; the indexer is
   documented as localhost-only; `socanalyst`, `assistant-svc` and live
   ingestion are unimplemented.
@@ -118,7 +122,8 @@ shipped browser-visible “development login”.
 
 Use Streamlit's native OIDC flow (`st.login`, `st.user`, `st.logout`) with a
 local Keycloak realm as the reference lab deployment. Add the Streamlit auth
-extra/Authlib to the dependency lock. A different standards-compliant OIDC
+extra/Authlib to the flexible requirement and regenerate the CI lock under the
+bounded dependency gate in Phase 2. A different standards-compliant OIDC
 provider may be substituted without changing the application authorization
 contract.
 
@@ -185,12 +190,17 @@ retrieve_wazuh_alerts
 triage_wazuh_alert
 call_remote_model
 save_sanitized_audit
-view_connection_health
+view_connection_status
+run_connection_preflight
 ```
 
-The `socanalyst` role receives the first six. A setup administrator may receive
-`view_connection_health`, but configuration remains file/secret-store based;
-the application has no widget for entering secrets or changing endpoints.
+The OIDC `alertmind-socanalyst` role receives every permission above except
+`run_connection_preflight`. Its connection status is limited to availability,
+last-check time and a correlation ID. `run_connection_preflight` is reserved
+for a local setup administrator and may report sanitized identity, role and
+read health. Neither view exposes an endpoint, credential, certificate path,
+index detail or alert body. Configuration remains file/secret-store based; the
+application has no widget for entering secrets or changing endpoints.
 
 Unknown, missing, expired or ambiguous role claims fail closed. Validate the
 expected issuer, audience, subject, expiry and exact group claim. Streamlit's
@@ -211,9 +221,14 @@ Before editing Wazuh:
    roles/mappings and relevant security configuration.
 3. Record `network.host`, the Indexer certificate subject/SAN, the host-only
    adapter address, firewall state and the actual alert index pattern.
-4. Confirm the in-scope agents (`win-victim`, `linux-victim`) and the exact
+4. Enumerate composable and legacy index templates, aliases and ISM pattern
+   attachments that could affect either the real alert indices or the planned
+   RBAC probe index. Select a probe name inside the final service-role pattern
+   but outside every template or policy that would add a rollover, retention,
+   ingestion or other side effect.
+5. Confirm the in-scope agents (`win-victim`, `linux-victim`) and the exact
    mapped field used for document-level security.
-5. Verify current services and dashboards before change so rollback has a
+6. Verify current services and dashboards before change so rollback has a
    known-good comparison.
 
 ### 6.2 `socanalyst` human role
@@ -252,7 +267,10 @@ tenant_permissions: []
 
 Start with these explicit actions. Add a read-only action only when a captured
 403 from a required fixed client request proves it is necessary. Never add a
-wildcard permission for convenience.
+wildcard permission for convenience. Wildcard resolution or a fixed preflight
+may reveal that `indices:admin/resolve/index` is required; treat it as a
+candidate, not a baseline permission. Record the triggering 403 and the final
+minimal action set in the proof artifact.
 
 Do not create a Wazuh Server API user/role for `assistant-svc`. It therefore
 has no credential with which to call manager, agent, ruleset, security or
@@ -307,10 +325,13 @@ In the analyst profile:
 - load provider, model, endpoint and credentials from server-side secrets;
 - expose only an allowlisted provider/model choice, or pin one provider/model;
 - never place secrets or authorization headers in `st.session_state`; and
-- render only sanitized connection status to authorized users.
+- authorize `view_connection_status` before rendering only availability,
+  last-check time and a correlation ID to an analyst.
 
-The offline CLI and preflight tools retain their existing environment-based
-configuration for reproducible evaluation work.
+The offline evaluation CLI retains its existing environment-based
+configuration for reproducibility. The new Wazuh connection preflight is a
+separate local-administrator operation guarded by `run_connection_preflight`;
+it is not an analyst UI control.
 
 ### 7.3 Wazuh reader contract
 
@@ -394,7 +415,8 @@ unchanged.
 Record:
 
 - UTC timestamp and event/decision ID;
-- HMAC-pseudonymized OIDC subject, resolved role and auth source;
+- HMAC-pseudonymized OIDC subject, non-secret HMAC key identifier/version,
+  resolved role and auth source;
 - permission, action, allow/deny result and denial reason category;
 - source (`wazuh`, `paste`, `frozen_corpus`, `synthetic_fixture`);
 - hashed Wazuh reference and service identity name, never its password;
@@ -406,6 +428,14 @@ Do not record tokens, passwords, authorization headers, raw pasted input,
 unredacted Wazuh `_source`, planted secrets or unrestricted provider error
 bodies. Document Windows ACL, retention and rotation; `chmod 0o600` alone is
 not a Windows security guarantee.
+
+Load `ALERTMIND_AUDIT_SUBJECT_HMAC_KEY` only from the server-side secret store
+and expose its non-secret identifier separately as
+`ALERTMIND_AUDIT_SUBJECT_HMAC_KEY_ID`. In a two- or three-person lab the HMAC
+is pseudonymization for storage hygiene, not anonymity: anyone holding the key
+can enumerate the small subject population. Rotation changes the correlation
+domain, so record the key identifier and rotation event without retaining the
+old or new key in Git or the audit database.
 
 ---
 
@@ -431,8 +461,14 @@ evidence/rbac/rbac-proof.md
 Templates may contain role names, endpoints, index patterns and placeholder
 claims. They must not contain passwords, client secrets, bearer tokens,
 authorization headers, private keys or unredacted alerts. Add
-`.streamlit/secrets.toml`, local CA copies, audit databases and Keycloak data
-directories to `.gitignore` before local setup.
+`.streamlit/secrets.toml`, `assistant/.secrets/`, local CA copies, audit
+databases and Keycloak data directories to `.gitignore` before local setup.
+
+The analyst-profile secret inventory is the OIDC client secret,
+`assistant-svc` password, any hosted-provider key and
+`ALERTMIND_AUDIT_SUBJECT_HMAC_KEY`. Example files contain placeholders only;
+the HMAC key identifier is non-secret, but the key itself is handled and
+rotated like the OIDC client secret.
 
 ---
 
@@ -440,11 +476,19 @@ directories to `.gitignore` before local setup.
 
 ### Phase 0 — preserve and characterize
 
-1. Create the feature branch from current `main`.
-2. Run 78 tests and the frozen-evidence verifier; record the starting commit.
-3. Add characterization tests for current Paste results and provider behavior.
-4. Snapshot Wazuh and capture the inventory in Section 6.1.
-5. Commit this plan and a secret-free implementation checklist.
+1. **Done:** create `feat/rbac-wazuh-readonly` from current `main` at
+   `8f2d179`.
+2. **Done:** run the 78-test baseline and frozen-evidence verifier before the
+   plan commit.
+3. **Pending:** add characterization tests for current Paste results and
+   provider behavior.
+4. **Pending — human/admin:** snapshot Wazuh and capture the inventory in
+   Section 6.1, including the candidate probe's template and ISM matches.
+5. **Partly done:** the plan was committed as `9b91a02`; the secret-free
+   implementation checklist and the `siem/rbac/`, `deployment/` and
+   `evidence/rbac/` directories remain pending.
+
+Phase 0 remains open until every pending item is complete.
 
 **Gate:** clean baseline, recoverable Wazuh snapshot and no secrets in Git.
 
@@ -461,7 +505,16 @@ management operations fail at Wazuh before any app integration begins.
 
 ### Phase 2 — Streamlit authentication and authorization
 
-1. Pin `streamlit[auth]`/Authlib and regenerate the Python 3.12 Linux lock.
+1. Change the flexible user specification in `assistant/requirements.txt` to
+   include the supported Streamlit authentication extra/Authlib, then
+   regenerate `assistant/requirements-ci.lock` for Python 3.12 Linux. Before
+   accepting it:
+   - diff the old and new locks and record every moved package/version and the
+     dependency reason;
+   - reject or separately review unexplained unrelated upgrades;
+   - install the regenerated hashed lock in a clean environment; and
+   - run the complete assistant suite and frozen-evidence verifier in that
+     environment.
 2. Configure local Keycloak and a secret-free realm/client template.
 3. Add profile configuration, `auth.py` and `permissions.py`.
 4. Require OIDC for the analyst profile and fail closed on claim defects.
@@ -477,8 +530,12 @@ reach alert data or side effects; analyst permissions pass.
 1. Add the reader, response validator and normalization layer.
 2. Test fixed path/query construction, allowlists, limits, TLS and sanitized
    failures with recorded fixtures—never live credentials.
-3. Add a connection preflight that reports identity, role and read health
-   without exposing secrets or alert bodies.
+3. Add a local-administrator preflight, authorized by
+   `run_connection_preflight`, that reports sanitized identity, role and read
+   health without exposing secrets, alert bodies, endpoints, certificate paths
+   or index details.
+4. Add an analyst-safe `view_connection_status` result containing only
+   availability, last-check time and a correlation ID.
 
 **Gate:** a mocked arbitrary path/index/query cannot be expressed through the
 public interface; live search/get succeeds with `assistant-svc`.
@@ -502,7 +559,9 @@ possible from the UI or client.
 3. Produce a sanitized proof artifact with hashes and screenshots.
 4. Update README, assistant README/changelog, architecture source/render,
    report, presentation and evaluator questionnaire from **planned** to
-   **implemented** only after all acceptance criteria pass.
+   **implemented** only after all acceptance criteria pass. This applies only
+   to living copies on `main` and actively maintained external source
+   artifacts; do not modify the `v1.0` tag or retro-edit submitted artifacts.
 5. Correct every planned alert-source reference from Server API `:55000` to
    Indexer API `:9200`; keep `:55000` identified as a separate management
    plane.
@@ -556,15 +615,35 @@ mocks. Live integration proof runs manually in the isolated lab.
 | `socanalyst` | Change rules, agents, RBAC or run active response | Wazuh denial |
 | `assistant-svc` | Search/get in-scope `wazuh-alerts-*` documents | Allowed |
 | `assistant-svc` | Read `wazuh-archives-*`, security or unrelated indices | 403 |
-| `assistant-svc` | Index/update/delete a disposable denial-probe document | 403; no document mutation |
+| `assistant-svc` | Get the DLS-visible sentinel from the disposable in-pattern probe index | Allowed before mutation checks |
+| `assistant-svc` | Index/update/delete in that same probe index | 403; sentinel unchanged and no document created |
 | `assistant-svc` credentials | Authenticate to Server API `:55000` | Rejected; no Server API identity |
 | browser/session tamper | Change role, index, query or endpoint | Server-side denial/validation |
 | analyst profile | Inspect rendered page/network and audit output | No service/provider/OIDC secret |
 
 Run mutation-denial probes only against a disposable, administrator-created
-test index/document on the VM snapshot. If a supposedly denied operation
-succeeds, stop, preserve evidence, disable live access and repair the role
-before continuing.
+index on the VM snapshot. A candidate is
+`wazuh-alerts-rbacprobe-000001`: it is inside the planned
+`wazuh-alerts-*` service-role pattern but outside the documented
+`wazuh-alerts-4.x-*` retention pattern. Do not rely on that name until the
+Phase 0 inventory confirms that no composable/legacy template or ISM policy
+attaches a rollover, retention, ingestion or other side effect.
+
+The administrator creates one sentinel with a unique recorded `_id`, an
+unmistakable marker such as `alertmind.rbac_probe: true`, and an in-scope DLS
+field value. Keep its time field outside active dashboard evidence windows and
+omit detection/ATT&CK fields. The same `assistant-svc` principal must read that
+sentinel successfully before index, update and delete attempts are made. This
+proves that any later 403 comes from the action boundary rather than the index
+pattern or DLS.
+
+Run the probe outside all alert/dashboard evidence-capture windows and never
+against an index used by Wazuh or Filebeat. Record the probe index and `_id`.
+After the denied attempts, the administrator verifies the sentinel is
+unchanged, removes the complete probe index and proves it no longer exists
+before any RBAC screenshot or dashboard evidence is collected. If a supposedly
+denied operation succeeds, stop, preserve the failure evidence, disable live
+access and repair the role before continuing.
 
 ---
 
@@ -576,12 +655,17 @@ before continuing.
 - [ ] Unknown, ambiguous and expired identities fail closed.
 - [ ] Every protected operation performs server-side authorization at the
       action boundary.
+- [ ] Analysts can see only coarse connection status; detailed identity, role
+      and read preflight output remains a local-administrator operation.
 - [ ] Provider and Wazuh secrets are absent from widgets, session state,
       downloads, model prompts, logs and source control.
 - [ ] `admin` is absent from routine application and service configuration.
 - [ ] `socanalyst` can investigate but cannot alter Wazuh state.
 - [ ] `assistant-svc` has only tested search/get access to the approved alert
       scope, has no Dashboard tenant and has no Server API identity.
+- [ ] The same `assistant-svc` principal can read the isolated in-pattern
+      sentinel and is then denied index/update/delete; the sentinel remains
+      unchanged and the probe index is removed before evidence capture.
 - [ ] Indexer access is host-only/firewall-restricted and TLS verification is
       enabled with a valid hostname/SAN.
 - [ ] The UI cannot submit arbitrary Query DSL, index names, endpoints or HTTP
@@ -597,6 +681,9 @@ before continuing.
 - [ ] Live alerts and ad-hoc labels never enter frozen benchmark scoring.
 - [ ] Sanitized allow, deny, retrieval, provider and audit events are
       attributable to a pseudonymous human subject.
+- [ ] The audit-subject HMAC key is server-side, ignored by Git, versioned only
+      by a non-secret identifier and documented as pseudonymization rather
+      than anonymity.
 - [ ] Existing tests and all frozen-evidence checks pass without modifying
       committed run evidence.
 - [ ] A rollback drill succeeds.
@@ -609,13 +696,18 @@ before continuing.
 
 1. Set the analyst/live-Wazuh profile off and restart Streamlit; offline mode
    remains available.
-2. Revoke/rotate `assistant-svc` and remove its role mapping.
-3. Remove or disable the `socanalyst` mappings if they caused a Dashboard
+2. Remove any disposable RBAC probe index and verify it no longer exists.
+3. Revoke/rotate `assistant-svc` and remove its role mapping.
+4. Remove or disable the `socanalyst` mappings if they caused a Dashboard
    regression.
-4. Revert the Indexer bind/firewall change and restore the saved security
+5. Revert the Indexer bind/firewall change and restore the saved security
    configuration or VM snapshot if required.
-5. Verify Wazuh Indexer, Manager, Filebeat and Dashboard health in order.
-6. Preserve sanitized failure evidence; do not alter frozen corpus or run
+6. Revoke/rotate the OIDC client secret and
+   `ALERTMIND_AUDIT_SUBJECT_HMAC_KEY` if exposure is suspected or the rollback
+   drill calls for rotation. Record only the new HMAC key identifier and note
+   that it begins a new subject-correlation epoch.
+7. Verify Wazuh Indexer, Manager, Filebeat and Dashboard health in order.
+8. Preserve sanitized failure evidence; do not alter frozen corpus or run
    artifacts.
 
 Rollback does not require a model rerun because no accepted model artifact is
@@ -625,14 +717,17 @@ part of the live integration state.
 
 ## 13. Proposed implementation commits
 
-1. `docs(rbac): finalize local-first Wazuh integration plan`
-2. `chore(rbac): add secret-free identity and role templates`
-3. `feat(auth): add OIDC profiles and server-side authorization`
-4. `feat(wazuh): add constrained read-only alert client`
-5. `feat(assistant): triage live Wazuh alerts through guarded pipeline`
-6. `test(rbac): cover identity, reader, audit and denial boundaries`
-7. `evidence(rbac): record least-privilege integration proof`
-8. `docs(architecture): publish implemented read-only Wazuh path`
+1. **Done — `9b91a02`:**
+   `docs(rbac): finalize local-first Wazuh integration plan`
+2. **Current correction:**
+   `docs(rbac): tighten security proof and dependency gates`
+3. `chore(rbac): add secret-free identity and role templates`
+4. `feat(auth): add OIDC profiles and server-side authorization`
+5. `feat(wazuh): add constrained read-only alert client`
+6. `feat(assistant): triage live Wazuh alerts through guarded pipeline`
+7. `test(rbac): cover identity, reader, audit and denial boundaries`
+8. `evidence(rbac): record least-privilege integration proof`
+9. `docs(architecture): publish implemented read-only Wazuh path`
 
 Each commit stages explicit paths only. Never use `git add -A` in this
 repository because of the known line-ending churn risk.
@@ -646,13 +741,15 @@ Before implementation, the project owner must:
 1. create and retain a clean Wazuh VM snapshot;
 2. confirm the host-only IPs, in-scope agent names/IDs and current Indexer
    certificate SAN;
-3. choose strong passwords/client secrets locally and never paste them into an
-   agent chat or commit them;
-4. approve installation of a local Keycloak instance or nominate an existing
+3. confirm the live index, template and ISM patterns used to select a
+   side-effect-free RBAC probe name;
+4. choose strong passwords, client secrets and an audit-subject HMAC key
+   locally and never paste them into an agent chat or commit them;
+5. approve installation of a local Keycloak instance or nominate an existing
    OIDC provider;
-5. perform the privileged Wazuh/Keycloak configuration steps while the agent
+6. perform the privileged Wazuh/Keycloak configuration steps while the agent
    supplies reviewed commands and secret-free templates; and
-6. personally exercise the final analyst login and approve the sanitized
+7. personally exercise the final analyst login and approve the sanitized
    positive/negative evidence.
 
 The first implementation turn should stop after Phase 0 inventory if the
