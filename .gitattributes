@@ -7,3 +7,9 @@
 # measurement/verify_frozen_evidence.py instead.
 measurement/alert-corpus.json text eol=lf
 measurement/timing-log.csv    text eol=lf
+
+# Phase 1 Wazuh REST payloads are copied to the VM and hash-checked before
+# application. They are new, non-evidence artifacts, so pinning LF avoids
+# platform-dependent payload hashes without renormalising historical files.
+siem/rbac/*.json              text eol=lf
+siem/rbac/SHA256SUMS          text eol=lf

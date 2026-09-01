@@ -1,9 +1,9 @@
 # Runbook — RBAC and read-only Wazuh integration
 
 **Status:** Phase 0 characterization, owner-supplied live inventory and the
-owner safety checklist are complete. Independent review of the final evidence
-record is pending; no Wazuh, SSH, network, identity-provider or application
-configuration has been changed.
+owner safety checklist are independently approved and merged. Phase 1A adds
+reviewable secret-free role/mapping artifacts only; no Wazuh, SSH, network,
+identity-provider or application configuration has been changed.
 
 **Applies to:** the post-v1 local-first analyst profile described in
 [`docs/rbac-wazuh-read-only-implementation-plan.md`](../rbac-wazuh-read-only-implementation-plan.md).
@@ -26,13 +26,15 @@ certificates while following this section.
 | Wazuh recovery gate | Owner reported complete | Manager, Indexer, Filebeat and Dashboard returned `active` on 1 September 2026. |
 | Read-only Wazuh inventory | Complete | Sanitized results are recorded in Section 6. |
 | Canonical namespace check | Complete | Both planned roles/mappings and both planned users returned 404. |
-| Agent enrollment fingerprints | Owner captured; awaiting review | Sanitized ID/name/SHA-256 bindings for 001/002 are in `evidence/rbac/phase0-owner-checklist.md`. |
+| Agent enrollment fingerprints | Complete and approved | Sanitized ID/name/SHA-256 bindings for 001/002 are in `evidence/rbac/phase0-owner-checklist.md`. |
 | Corrected Phase 0 documents | Complete and approved | Commits `f92db3d`, `fde2fe4` and `73efcd7`; Claude approved the final correction cycle. |
-| Secret-free owner checklist | Owner complete; awaiting review | Snapshot, no-re-enrollment, transport approval and no-secret confirmations are in the sanitized evidence record. |
+| Secret-free owner checklist | Complete and approved | Snapshot, no-re-enrollment, transport approval and no-secret confirmations are in the sanitized evidence record. |
 | Secrets in Git | Prohibited | Local secrets, certificate copies, runtime state and Keycloak data paths are ignored. |
 
-Phase 1 must not start until the owner-evidence commit receives independent
-approval.
+Phase 0 closed when Claude approved `882c465`; the owner subsequently merged
+it to `main` at `de4b6a5`. Phase 1 begins with repository-only identity
+templates and tests. No live mutation is permitted until that package receives
+its own independent approval.
 
 ## 2. Rules for collecting inventory
 
@@ -286,7 +288,51 @@ Phase 0 passes only when:
 If any condition fails, leave the offline profile unchanged and do not begin
 RBAC or SSH configuration.
 
-## 8. Approved Phase 1 transport constraints — not yet executed
+## 8. Phase 1A identity package — repository-only, not yet executed
+
+The normative files are:
+
+- `siem/rbac/scope-contract.json`;
+- `siem/rbac/indexer-role_socanalyst_ro.json`;
+- `siem/rbac/indexer-role_assistant_alerts_ro.json`;
+- `siem/rbac/indexer-role-mapping_socanalyst_ro.json`;
+- `siem/rbac/indexer-role-mapping_assistant_alerts_ro.json`;
+- `siem/rbac/SHA256SUMS`; and
+- `siem/rbac/negative-test-matrix.md`.
+
+The two role files and two mapping files are exact OpenSearch Security REST
+request bodies. The scope contract is deliberately non-executable and pins
+their approved index pattern, DLS object, principal names and enrollment
+fingerprints. Offline tests fail if the executable payloads drift from that
+contract or acquire a broader permission. The seven Phase 1A checks bring the
+assistant suite from the Phase 0 baseline of 86 to 93 tests.
+
+Before any live apply:
+
+1. obtain independent approval of the Phase 1A commit;
+2. recompute both enrollment fingerprints and compare them exactly with the
+   scope contract;
+3. re-run the canonical 404 namespace check, stopping on any non-404 result;
+4. verify the four JSON request bodies used by the operator against the
+   approved commit's `siem/rbac/SHA256SUMS`; the JSON payloads and manifest
+   are LF-pinned so the hashes are stable across Windows and Linux checkouts;
+5. create strong, unique `socanalyst` and `assistant-svc` passwords only
+   through an approved interactive Wazuh/Indexer path—never paste, echo, log or
+   commit them; and
+6. after applying each role and direct-user mapping, read it back as
+   administrator and compare the effective JSON before testing either user.
+
+There is no password-bearing user template and no custom Wazuh Server role
+payload. The human user is later mapped to Wazuh's built-in `readonly` role
+after the current Server API role/mapping and Dashboard `run_as` state are
+read back. Record that this role is broader than alert-only read access.
+`assistant-svc` receives no Server API identity and no Dashboard tenant.
+
+If a required fixed request returns a missing-permission 403, stop and review
+the exact action before editing the role. Do not add a wildcard action group
+or broaden the index/DLS scope for convenience.
+
+## 9. Approved Phase 1 transport constraints — not yet executed
 
 The preferred transport keeps Indexer on VM loopback and forwards Windows
 `127.0.0.1:19200` over SSH on the host-only adapter to VM
@@ -331,4 +377,5 @@ only under ignored `assistant/.secrets/`, protect it with a Windows ACL, and
 include it in generation, rotation, revocation and rollback records. The key
 must not open an interactive shell, request a PTY, use agent/X11 forwarding,
 enable gateway ports or reach any destination other than `127.0.0.1:9200`.
-Do not enable SSH until the correction commit is approved.
+Do not enable SSH until the Phase 1 transport configuration and rollback
+commands receive their own independent approval.
