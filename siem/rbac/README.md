@@ -3,19 +3,26 @@
 This directory is the secret-free source location for the post-v1 human and
 machine read-only Wazuh role templates.
 
-**Current status:** Phase 0 scaffold only. No role, user or mapping has been
-created in Wazuh, and no YAML template is authoritative yet.
+**Current status:** Phase 0 inventory complete; correction review pending. No
+role, user or mapping has been created in Wazuh, and no YAML template is
+authoritative yet.
 
-Templates are deliberately deferred until the read-only inventory in
+Templates are deliberately deferred until the read-only inventory and its
+corrections in
 [`docs/runbooks/rbac-wazuh-read-only-setup.md`](../../docs/runbooks/rbac-wazuh-read-only-setup.md)
-confirms the real alert index, template/ISM matches and usable DLS fields.
+receive independent approval and the agent enrollment fingerprints are
+recorded.
 
 Planned identities:
 
 - `socanalyst`: routine human dashboard investigation with no administration,
   rule/decoder changes, agent management or active response;
 - `assistant-svc`: machine-only Indexer search/get access to the approved alert
-  scope, with no Dashboard tenant and no Wazuh Server API identity.
+  scope, with no Dashboard tenant and no Wazuh Server API identity. Its initial
+  scope is `wazuh-alerts-4.x-*` with DLS on `agent.id` 001/002.
+
+No disposable alert/probe index or sentinel may be created. Live denial proof
+uses the fail-safe zero-state-change matrix in the implementation plan.
 
 Planned committed artifacts:
 

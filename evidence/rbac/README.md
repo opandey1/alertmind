@@ -12,15 +12,22 @@ Accepted evidence may include:
 - hashes of committed secret-free templates;
 - OIDC allow/deny results with a pseudonymized subject;
 - `socanalyst` positive reads and negative administration/action tests;
-- `assistant-svc` search/get success and index/update/delete denials against the
-  disposable probe;
-- proof that the sentinel remained unchanged and the probe index was removed;
-- verified-TLS connectivity and firewall-scope evidence;
+- non-secret enrollment fingerprints tying DLS agent IDs 001/002 to the
+  reviewed enrollment state;
+- `assistant-svc` declarative `authinfo`/role readback and search/get success
+  in the approved `wazuh-alerts-4.x-*` scope;
+- fail-safe `_create`, `_update` and DELETE denials using one positively read
+  existing document and random nonexistent literal IDs, plus hashes/lookups
+  proving zero state change;
+- proof that no disposable alert/probe index or sentinel was created;
+- verified-TLS SSH-tunnel connectivity, host-only listener scope and denial of
+  interactive shell or unapproved forwarding for the dedicated key;
 - one sanitized live alert reaching a schema-valid DRAFT through the shared
   guarded path; and
 - rollback/revocation and post-rollback service health.
 
-Do not commit credentials, client secrets, HMAC keys, private keys,
+Do not commit credentials, enrollment keys, client secrets, HMAC keys, SSH or
+Indexer private keys,
 authorization headers, unrestricted error bodies, unredacted alert `_source`,
 raw pasted input or screenshots containing those values. Evidence filenames
 must not imply implementation success until the complete acceptance matrix has
