@@ -60,9 +60,11 @@ The plan is based on the current repository rather than the earlier
 - Wazuh 4.14.5 is an all-in-one deployment. Only `admin` exists; the indexer is
   documented as localhost-only; `socanalyst`, `assistant-svc` and live
   ingestion are unimplemented.
-- The current regression baseline is 78 assistant tests plus the frozen-
-  evidence verifier. Frozen corpus files and committed run evidence are
-  immutable.
+- The pre-feature regression baseline was 78 assistant tests plus the frozen-
+  evidence verifier. Phase 0 adds eight characterization tests, bringing the
+  branch to 86 tests without changing prompts, views, redaction, schema,
+  scoring or frozen evidence. Frozen corpus files and committed run evidence
+  are immutable.
 
 No benchmark model rerun is required if this work leaves prompts, views,
 redaction semantics, schema, scoring and accepted run artifacts unchanged.
@@ -476,19 +478,23 @@ rotated like the OIDC client secret.
 
 ### Phase 0 — preserve and characterize
 
-1. **Done:** create `feat/rbac-wazuh-readonly` from current `main` at
-   `8f2d179`.
+1. **Done:** create `feat/rbac-wazuh-readonly` from `main` at `8f2d179`, merge
+   the approved plan to `main` at `39c989a`, then create the fresh
+   implementation branch `feat/rbac-wazuh-phase0` from that merge.
 2. **Done:** run the 78-test baseline and frozen-evidence verifier before the
    plan commit.
-3. **Pending:** add characterization tests for current Paste results and
-   provider behavior.
-4. **Pending — human/admin:** snapshot Wazuh and capture the inventory in
-   Section 6.1, including the candidate probe's template and ISM matches.
-5. **Partly done:** the plan was committed as `9b91a02`; the secret-free
-   implementation checklist and the `siem/rbac/`, `deployment/` and
-   `evidence/rbac/` directories remain pending.
+3. **Done:** add eight characterization tests for current Paste results,
+   provider behavior and the default offline Streamlit UI. All 86 tests pass.
+4. **Partly done — human/admin:** the owner reports a powered-off Wazuh
+   snapshot was taken and all four services passed the recovery gate. The
+   read-only inventory in Section 6.1, including the candidate probe's
+   template and ISM matches, remains pending.
+5. **Done:** add the secret-free implementation checklist, Git ignore rules
+   and Phase 0 scaffolds under `siem/rbac/`, `deployment/oidc/keycloak/` and
+   `evidence/rbac/`.
 
-Phase 0 remains open until every pending item is complete.
+Phase 0 remains open until the inventory is complete and independently
+reviewed.
 
 **Gate:** clean baseline, recoverable Wazuh snapshot and no secrets in Git.
 
@@ -719,15 +725,17 @@ part of the live integration state.
 
 1. **Done — `9b91a02`:**
    `docs(rbac): finalize local-first Wazuh integration plan`
-2. **Current correction:**
+2. **Done — `8ebbc1f`:**
    `docs(rbac): tighten security proof and dependency gates`
-3. `chore(rbac): add secret-free identity and role templates`
-4. `feat(auth): add OIDC profiles and server-side authorization`
-5. `feat(wazuh): add constrained read-only alert client`
-6. `feat(assistant): triage live Wazuh alerts through guarded pipeline`
-7. `test(rbac): cover identity, reader, audit and denial boundaries`
-8. `evidence(rbac): record least-privilege integration proof`
-9. `docs(architecture): publish implemented read-only Wazuh path`
+3. **Current Phase 0:**
+   `test(rbac): characterize offline path and scaffold inventory`
+4. `chore(rbac): add secret-free identity and role templates`
+5. `feat(auth): add OIDC profiles and server-side authorization`
+6. `feat(wazuh): add constrained read-only alert client`
+7. `feat(assistant): triage live Wazuh alerts through guarded pipeline`
+8. `test(rbac): cover identity, reader, audit and denial boundaries`
+9. `evidence(rbac): record least-privilege integration proof`
+10. `docs(architecture): publish implemented read-only Wazuh path`
 
 Each commit stages explicit paths only. Never use `git add -A` in this
 repository because of the known line-ending churn risk.

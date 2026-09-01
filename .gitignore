@@ -4,6 +4,13 @@ wazuh-install-files.tar
 *.pem
 *.key
 .env
+# analyst-profile secrets and local runtime state
+assistant/.streamlit/secrets.toml
+assistant/.secrets/
+assistant/.certs/
+assistant/.runtime/
+deployment/oidc/keycloak/data/
+deployment/oidc/keycloak/.env
 # local noise
 *.log
 .DS_Store

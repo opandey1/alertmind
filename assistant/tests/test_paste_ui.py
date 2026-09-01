@@ -44,6 +44,29 @@ class PasteUiStateTests(unittest.TestCase):
     def test_app_renders_paste_tab(self):
         self.assertIn("🧪 Paste & inspect", [tab.label for tab in self.app.tabs])
 
+    def test_default_offline_ui_contract(self):
+        self.assertEqual(_widget(self.app.radio, "Mode").value, "Analyst")
+        self.assertEqual(_widget(self.app.selectbox, "Provider").value, "mock")
+        self.assertEqual(_widget(self.app.text_input, "Model").value, "mock")
+        self.assertEqual(_widget(self.app.selectbox, "View").value, "operational")
+        self.assertEqual(_widget(self.app.selectbox, "Prompt").value, "baseline")
+        self.assertEqual(
+            [tab.label for tab in self.app.tabs],
+            ["🔎 Triage one alert", "🧪 Paste & inspect"],
+        )
+
+    def test_evaluator_mode_adds_scoring_without_removing_paste(self):
+        _widget(self.app.radio, "Mode").set_value("Evaluator")
+        self.app.run(timeout=15)
+        self.assertEqual(
+            [tab.label for tab in self.app.tabs],
+            [
+                "🔎 Triage one alert",
+                "🧪 Paste & inspect",
+                "📊 Evaluator scoring",
+            ],
+        )
+
     def test_loading_new_sample_clears_result_and_draft(self):
         self._click("Load synthetic secrets example")
         self._click("Run paste & inspect")
