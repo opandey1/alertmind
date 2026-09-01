@@ -304,8 +304,21 @@ Match User notroot
 
 The `Match` directive denies remote forwarding for this account, while the
 key-level `restrict`, `permitopen` and forced command deny the remaining
-facilities and shell access. Confirm that `sshd -T` reports
-`allowtcpforwarding local` before enabling the service.
+facilities and shell access. Before enabling the service, evaluate the
+connection-specific configuration and a different-user control:
+
+```bash
+sudo sshd -T -C user=notroot,host=wazuh-siem,addr=192.168.56.1,laddr=192.168.56.102,lport=22 \
+  | grep '^allowtcpforwarding '
+sudo sshd -T -C user=root,host=wazuh-siem,addr=192.168.56.1,laddr=192.168.56.102,lport=22 \
+  | grep '^allowtcpforwarding '
+```
+
+The first result must be `allowtcpforwarding local`. The second must reflect
+the global/different-user value and must not become `local` merely because of
+the `Match User notroot` block. Record both outputs as scope evidence. Do not
+substitute a plain `sshd -T`: without `-C` connection parameters it does not
+evaluate the `Match` rule.
 
 The corresponding private key is the fifth analyst-profile secret. Store it
 only under ignored `assistant/.secrets/`, protect it with a Windows ACL, and

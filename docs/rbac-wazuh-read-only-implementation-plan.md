@@ -349,11 +349,15 @@ SSH is currently inactive. Its reviewed Phase 1 configuration must:
 - retain `GatewayPorts no`, no agent/X11 forwarding and no unrestricted TCP
   forwarding.
 
-Capture and review the effective `sshd -T` output before enabling the service,
-then verify the listener, certificate, Indexer, Manager, Filebeat and Dashboard
-afterward. If these restrictions cannot be enforced reliably, stop and review
-the more invasive host-only Indexer bind plus certificate-regeneration path.
-Do not silently fall back to an all-interface Indexer or SSH listener.
+Before enabling the service, capture context-aware effective configuration for
+both `notroot` and a different user with `sshd -T -C`. The `notroot` result must
+report `allowtcpforwarding local`; the control user must not inherit that
+`Match User notroot` value. A plain `sshd -T` is insufficient because it does
+not evaluate `Match` rules. Then verify the listener, certificate, Indexer,
+Manager, Filebeat and Dashboard afterward. If these restrictions cannot be
+enforced reliably, stop and review the more invasive host-only Indexer bind
+plus certificate-regeneration path. Do not silently fall back to an
+all-interface Indexer or SSH listener.
 
 ---
 
