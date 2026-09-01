@@ -1,12 +1,13 @@
 # AlertMind — RBAC and read-only Wazuh integration
 
-**Document status:** Review-corrected implementation plan; implementation not
-started
+**Document status:** Phase 0 characterization and live inventory complete;
+review corrections in progress; implementation not started
 
 **Date:** 1 September 2026
 
-**Applies to:** current `assistant/` package, Wazuh 4.14.5, Streamlit
-`>=1.59` user specification and Streamlit 1.62.0 CI lock
+**Applies to:** current `assistant/` package; submitted-v1 Wazuh 4.14.5
+baseline; current live `wazuh-indexer` 4.14.7-1 / OpenSearch 2.19.5;
+Streamlit `>=1.59` user specification and Streamlit 1.62.0 CI lock
 
 **Roadmap item:** Post-v1 local-first access control and live alert ingestion
 
@@ -33,11 +34,14 @@ The implemented feature will establish these properties:
 5. The model remains text-only and draft-only. This feature adds a read path,
    not an action path.
 
-The live alert source is the **Wazuh Indexer API on HTTPS port 9200**, because
-Wazuh stores alerts in `wazuh-alerts-*`. The Wazuh Server API on port 55000 is
-a management plane and is not part of the assistant runtime. Existing diagrams
-and documentation that show `:55000` as the planned alert-ingestion path must
-be corrected when the feature is proven.
+The live alert source is the **Wazuh Indexer API on HTTPS port 9200**. The live
+inventory found 25 production alert indices under `wazuh-alerts-4.x-*`; that
+observed namespace is the initial application and service-role allowlist. The
+broader `wazuh-alerts-*` string is used by the live ISM auto-attachment policy
+and is not, by itself, authority to grant broader read access. The Wazuh Server
+API on port 55000 is a management plane and is not part of the assistant
+runtime. Existing diagrams and documentation that show `:55000` as the planned
+alert-ingestion path must be corrected when the feature is proven.
 
 ---
 
@@ -57,12 +61,17 @@ The plan is based on the current repository rather than the earlier
   currently permits `streamlit>=1.59`; `assistant/requirements-ci.lock` is the
   reproducible Python 3.12 Linux CI lock and pins Streamlit 1.62.0. Neither
   currently includes the Streamlit authentication extra/Authlib.
-- Wazuh 4.14.5 is an all-in-one deployment. Only `admin` exists; the indexer is
-  documented as localhost-only; `socanalyst`, `assistant-svc` and live
-  ingestion are unimplemented.
-- The current regression baseline is 78 assistant tests plus the frozen-
-  evidence verifier. Frozen corpus files and committed run evidence are
-  immutable.
+- The submitted v1 used an all-in-one Wazuh 4.14.5 deployment. The current live
+  Indexer package is 4.14.7-1 with OpenSearch/OpenSearch Security 2.19.5; this
+  is post-v1 lab drift and does not retroactively change the v1 evidence. The
+  Indexer remains localhost-only. Canonical planned roles, mappings and users
+  all returned 404, so `socanalyst`, `assistant-svc` and live ingestion remain
+  unimplemented.
+- The pre-feature regression baseline was 78 assistant tests plus the frozen-
+  evidence verifier. Phase 0 adds eight characterization tests, bringing the
+  branch to 86 tests without changing prompts, views, redaction, schema,
+  scoring or frozen evidence. Frozen corpus files and committed run evidence
+  are immutable.
 
 No benchmark model rerun is required if this work leaves prompts, views,
 redaction semantics, schema, scoring and accepted run artifacts unchanged.
@@ -149,7 +158,10 @@ Streamlit analyst profile ── validates claims ── authorizes named permis
   │
   │ server-side HTTPS + assistant-svc + trusted CA
   ▼
-Wazuh Indexer :9200 / wazuh-alerts-*/_search
+Windows 127.0.0.1:19200 ── restricted SSH local forward
+  │
+  ▼
+Wazuh Indexer 127.0.0.1:9200 / wazuh-alerts-4.x-*/_search
   │ bounded hits; DLS/index role remains authoritative
   ▼
 normalize one selected hit
@@ -221,24 +233,46 @@ Before editing Wazuh:
    roles/mappings and relevant security configuration.
 3. Record `network.host`, the Indexer certificate subject/SAN, the host-only
    adapter address, firewall state and the actual alert index pattern.
-4. Enumerate composable and legacy index templates, aliases and ISM pattern
-   attachments that could affect either the real alert indices or the planned
-   RBAC probe index. Select a probe name inside the final service-role pattern
-   but outside every template or policy that would add a rollover, retention,
-   ingestion or other side effect.
-5. Confirm the in-scope agents (`win-victim`, `linux-victim`) and the exact
-   mapped field used for document-level security.
-6. Verify current services and dashboards before change so rollback has a
+4. Enumerate composable and legacy index templates, aliases and ISM
+   auto-attachment patterns separately. A composable-template simulation is
+   not evidence that no legacy template or ISM policy matches.
+5. Confirm the in-scope agents and the exact mapped DLS field. Record a SHA-256
+   fingerprint of each current enrollment key beside the non-secret ID/name,
+   without printing or storing the key itself. Agent IDs can be reassigned on
+   re-enrollment, so re-verify both fingerprint and DLS scope after any
+   re-enrollment.
+6. Record the Indexer package, OpenSearch Security plugin and OpenSearch
+   versions rather than inferring the current live version from submitted-v1
+   documentation.
+7. Verify current services and dashboards before change so rollback has a
    known-good comparison.
+
+The 1 September 2026 inventory established the following design inputs:
+
+- Indexer is bound to `127.0.0.1:9200`; its HTTP certificate SAN contains only
+  `IP:127.0.0.1`.
+- All 25 observed alert indices and the legacy Wazuh alert template use
+  `wazuh-alerts-4.x-*`; no alert aliases exist.
+- No composable template matched the former candidate probe, but the live ISM
+  policy auto-attaches to every `wazuh-alerts-*` index. That simulation was a
+  false negative for lifecycle effects. No disposable alert/probe index may be
+  created.
+- `agent.id` is a searchable keyword. IDs `001` (`win-victim`) and `002`
+  (`linux-victim`) are the initial DLS allowlist. ID `000` is excluded: its
+  historical documents use both `wazuh-siem` and `Ubuntu`, demonstrating that
+  names are not a stable DLS key.
+- OpenSearch Security is 2.19.5.0. Its versioned permissions documentation does
+  not provide the newer `perform_permission_check` facility, so this plan does
+  not attempt to feature-detect it with a request that might mutate data.
 
 ### 6.2 `socanalyst` human role
 
 Create a Wazuh internal user `socanalyst` and map it to:
 
 - an Indexer role `alertmind_socanalyst_ro` with
-  `cluster_composite_ops_ro`, read access only to `wazuh-alerts-*`, read-only
-  access to the required dashboard tenant, and document-level filtering to the
-  two AlertMind agents where the tested field permits it; and
+  `cluster_composite_ops_ro`, read access only to `wazuh-alerts-4.x-*`,
+  read-only access to the required dashboard tenant, and document-level
+  filtering on `agent.id` values `001` and `002`; and
 - the minimum Wazuh Server API read role required by the Dashboard. If the
   built-in `readonly` role is used for compatibility, document that it is
   broader than alert-only access and verify that all write/active-response
@@ -257,8 +291,8 @@ Create an internal Indexer user `assistant-svc` mapped only to
 cluster_permissions: []
 index_permissions:
   - index_patterns:
-      - wazuh-alerts-*
-    dls: <simple tested filter for win-victim and linux-victim>
+      - wazuh-alerts-4.x-*
+    dls: <tested terms filter on agent.id values "001" and "002">
     allowed_actions:
       - indices:data/read/search
       - indices:data/read/get
@@ -276,22 +310,54 @@ Do not create a Wazuh Server API user/role for `assistant-svc`. It therefore
 has no credential with which to call manager, agent, ruleset, security or
 active-response endpoints on `:55000`.
 
+The role template and proof artifact must record the enrollment fingerprints
+that were current when IDs `001` and `002` were approved. A changed fingerprint
+or re-enrolled agent closes live access until the mapping and DLS scope are
+reviewed again.
+
 ### 6.4 Network and TLS
 
-The preferred lab path exposes Indexer HTTPS only on the host-only adapter,
-with the Windows firewall/Ubuntu firewall allowing TCP 9200 solely from the
-physical assistant host. Do not bind the Indexer to every interface. The
-certificate must contain the address or DNS name used by the client; copy only
-the public root CA to the assistant host.
+The preferred lab path keeps Indexer HTTPS bound to VM loopback and uses a
+restricted SSH local forward over the VirtualBox host-only network:
 
-If the existing certificate cannot validate the host-only address, regenerate
-the node certificate or use a hostname that is present in its SAN. Do not ship
-`verify=False` or suppress certificate warnings. Preserve the NAT-isolated
-lab boundary and keep port 9200 unreachable from untrusted networks.
+```text
+Windows 127.0.0.1:19200
+  → SSH 192.168.56.102:22
+  → VM 127.0.0.1:9200
+```
 
-Treat the Indexer endpoint allowlist as optional hardening after role tests:
-it is cluster-wide and can disrupt Dashboard/Filebeat behavior if enabled
-without a complete endpoint inventory.
+This preserves the existing `IP:127.0.0.1` certificate SAN and fails closed if
+the tunnel stops; Indexer never becomes reachable on a VM network interface.
+The Windows client validates `https://127.0.0.1:19200` with a copied public
+root CA. Do not ship `verify=False`, suppress certificate warnings or copy any
+private Indexer key.
+
+SSH is currently inactive. Its reviewed Phase 1 configuration must:
+
+- listen only on VM host-only address `192.168.56.102`, not NAT or wildcard;
+- disable root, password and keyboard-interactive login;
+- allow only public-key authentication for `notroot`;
+- bind the client forward only to Windows loopback and set
+  `ExitOnForwardFailure=yes`;
+- restrict the dedicated key in `authorized_keys` with
+  `restrict,port-forwarding,permitopen="127.0.0.1:9200",command="/bin/false"`,
+  so that `restrict` blocks every facility by default, `port-forwarding`
+  re-enables TCP forwarding generally, `permitopen` bounds the local (`-L`)
+  destination to Indexer loopback, and the forced command prevents a shell;
+- set `AllowTcpForwarding local` under a `Match User notroot` block in
+  `sshd_config`, so remote (`-R`) forwarding remains disabled; and
+- retain `GatewayPorts no`, no agent/X11 forwarding and no unrestricted TCP
+  forwarding.
+
+Before enabling the service, capture context-aware effective configuration for
+both `notroot` and a different user with `sshd -T -C`. The `notroot` result must
+report `allowtcpforwarding local`; the control user must not inherit that
+`Match User notroot` value. A plain `sshd -T` is insufficient because it does
+not evaluate `Match` rules. Then verify the listener, certificate, Indexer,
+Manager, Filebeat and Dashboard afterward. If these restrictions cannot be
+enforced reliably, stop and review the more invasive host-only Indexer bind
+plus certificate-regeneration path. Do not silently fall back to an
+all-interface Indexer or SSH listener.
 
 ---
 
@@ -338,15 +404,15 @@ it is not an analyst UI control.
 The reader exposes only:
 
 ```python
-search_recent_alerts(*, since, agent_names, min_level, limit)
+search_recent_alerts(*, since, agent_ids, min_level, limit)
 get_alert(*, index_name, document_id)
 ```
 
 Requirements:
 
-- constant base path and `wazuh-alerts-*` index pattern;
+- constant base path and `wazuh-alerts-4.x-*` index pattern;
 - fixed Query DSL templates assembled from validated scalar filters;
-- agent names intersected with the server-side allowlist;
+- agent IDs intersected with the server-side `{"001", "002"}` allowlist;
 - lookback capped at 24 hours and result count capped at 50;
 - descending `@timestamp` order and a bounded `_source` field set;
 - no scroll, scripts, aggregations, user-supplied sort, query strings or raw
@@ -464,11 +530,15 @@ authorization headers, private keys or unredacted alerts. Add
 `.streamlit/secrets.toml`, `assistant/.secrets/`, local CA copies, audit
 databases and Keycloak data directories to `.gitignore` before local setup.
 
-The analyst-profile secret inventory is the OIDC client secret,
-`assistant-svc` password, any hosted-provider key and
-`ALERTMIND_AUDIT_SUBJECT_HMAC_KEY`. Example files contain placeholders only;
-the HMAC key identifier is non-secret, but the key itself is handled and
-rotated like the OIDC client secret.
+The analyst-profile secret inventory contains five classes: the OIDC client
+secret, `assistant-svc` password, any hosted-provider key,
+`ALERTMIND_AUDIT_SUBJECT_HMAC_KEY`, and the SSH tunnel private key. Store the
+tunnel key under the ignored `assistant/.secrets/` directory, never in a
+Streamlit widget or repository file, and restrict its Windows ACL to the
+account running the local application. Example files contain placeholders
+only. The HMAC key identifier and SSH public-key fingerprint are non-secret;
+the corresponding secret/private keys require documented generation,
+rotation, revocation and rollback.
 
 ---
 
@@ -476,32 +546,44 @@ rotated like the OIDC client secret.
 
 ### Phase 0 — preserve and characterize
 
-1. **Done:** create `feat/rbac-wazuh-readonly` from current `main` at
-   `8f2d179`.
+1. **Done:** create `feat/rbac-wazuh-readonly` from `main` at `8f2d179`, merge
+   the approved plan to `main` at `39c989a`, then create the fresh
+   implementation branch `feat/rbac-wazuh-phase0` from that merge.
 2. **Done:** run the 78-test baseline and frozen-evidence verifier before the
    plan commit.
-3. **Pending:** add characterization tests for current Paste results and
-   provider behavior.
-4. **Pending — human/admin:** snapshot Wazuh and capture the inventory in
-   Section 6.1, including the candidate probe's template and ISM matches.
-5. **Partly done:** the plan was committed as `9b91a02`; the secret-free
-   implementation checklist and the `siem/rbac/`, `deployment/` and
-   `evidence/rbac/` directories remain pending.
+3. **Done:** add eight characterization tests for current Paste results,
+   provider behavior and the default offline Streamlit UI. All 86 tests pass.
+4. **Done — human/admin:** the owner recorded a powered-off Wazuh snapshot,
+   verified all four services and supplied the sanitized read-only inventory
+   summarized in Section 6.1. The inventory prohibited the former probe,
+   selected `agent.id` values `001`/`002`, narrowed the alert namespace and
+   selected a restricted SSH tunnel as the preferred transport.
+5. **Done:** add the secret-free implementation checklist, Git ignore rules
+   and Phase 0 scaffolds under `siem/rbac/`, `deployment/oidc/keycloak/` and
+   `evidence/rbac/`.
+6. **Current correction cycle:** reconcile this plan, the Phase 0 runbook and
+   evidence checklist with the live inventory and independent review. Capture
+   the non-secret enrollment fingerprints before any role is created.
 
-Phase 0 remains open until every pending item is complete.
+Phase 0 remains open until this correction cycle and the recorded enrollment
+fingerprints receive independent review.
 
 **Gate:** clean baseline, recoverable Wazuh snapshot and no secrets in Git.
 
 ### Phase 1 — Wazuh RBAC and transport
 
-1. Create and test `socanalyst`.
-2. Create and test machine-only `assistant-svc`.
-3. Apply the narrow alert index pattern and tested DLS.
-4. Configure host-only reachability, firewall restriction and valid TLS.
-5. Capture effective role mappings and representative allow/deny responses.
+1. Configure and verify the host-only, key-restricted SSH local forward while
+   leaving Indexer on loopback.
+2. Create and test `socanalyst`.
+3. Create and test machine-only `assistant-svc`.
+4. Apply the `wazuh-alerts-4.x-*` index pattern and `agent.id` 001/002 DLS.
+5. Capture declarative role/authentication evidence and the fail-safe
+   representative allow/deny responses in Section 10.2.
 
 **Gate:** both identities can perform their intended reads; writes and
-management operations fail at Wazuh before any app integration begins.
+management operations fail at Wazuh before any app integration begins; the
+tunnel key cannot open a shell or reach any destination except
+`127.0.0.1:9200`.
 
 ### Phase 2 — Streamlit authentication and authorization
 
@@ -613,37 +695,52 @@ mocks. Live integration proof runs manually in the isolated lab.
 | OIDC analyst | Hosted call without fresh bound consent | Blocked before provider request |
 | `socanalyst` | View required Wazuh dashboards/alerts | Allowed |
 | `socanalyst` | Change rules, agents, RBAC or run active response | Wazuh denial |
-| `assistant-svc` | Search/get in-scope `wazuh-alerts-*` documents | Allowed |
+| `assistant-svc` | Search/get in-scope `wazuh-alerts-4.x-*` documents for agent IDs 001/002 | Allowed |
 | `assistant-svc` | Read `wazuh-archives-*`, security or unrelated indices | 403 |
-| `assistant-svc` | Get the DLS-visible sentinel from the disposable in-pattern probe index | Allowed before mutation checks |
-| `assistant-svc` | Index/update/delete in that same probe index | 403; sentinel unchanged and no document created |
+| `assistant-svc` | `GET _plugins/_security/authinfo` plus admin readback of its role | Expected service identity/role and no write grant |
+| `assistant-svc` | `_create` with an already-existing, positively read document ID | 403; accidental allow can only conflict, never overwrite |
+| `assistant-svc` | `_update` a random nonexistent ID, with no `upsert` field | 403; ID remains absent |
+| `assistant-svc` | DELETE a second random nonexistent document ID | 403; ID remains absent |
 | `assistant-svc` credentials | Authenticate to Server API `:55000` | Rejected; no Server API identity |
+| SSH tunnel key | Request shell or any forward except `127.0.0.1:9200` | Rejected |
 | browser/session tamper | Change role, index, query or endpoint | Server-side denial/validation |
 | analyst profile | Inspect rendered page/network and audit output | No service/provider/OIDC secret |
 
-Run mutation-denial probes only against a disposable, administrator-created
-index on the VM snapshot. A candidate is
-`wazuh-alerts-rbacprobe-000001`: it is inside the planned
-`wazuh-alerts-*` service-role pattern but outside the documented
-`wazuh-alerts-4.x-*` retention pattern. Do not rely on that name until the
-Phase 0 inventory confirms that no composable/legacy template or ISM policy
-attaches a rollover, retention, ingestion or other side effect.
+Do not create a disposable probe or sentinel. The live ISM policy
+auto-attaches to `wazuh-alerts-*`, so every candidate inside the former broad
+service-role namespace has a lifecycle side effect.
 
-The administrator creates one sentinel with a unique recorded `_id`, an
-unmistakable marker such as `alertmind.rbac_probe: true`, and an in-scope DLS
-field value. Keep its time field outside active dashboard evidence windows and
-omit detection/ATT&CK fields. The same `assistant-svc` principal must read that
-sentinel successfully before index, update and delete attempts are made. This
-proves that any later 403 comes from the action boundary rather than the index
-pattern or DLS.
+The behavioral denial sequence uses one real DLS-visible document and two
+cryptographically random, literal nonexistent IDs:
 
-Run the probe outside all alert/dashboard evidence-capture windows and never
-against an index used by Wazuh or Filebeat. Record the probe index and `_id`.
-After the denied attempts, the administrator verifies the sentinel is
-unchanged, removes the complete probe index and proves it no longer exists
-before any RBAC screenshot or dashboard evidence is collected. If a supposedly
-denied operation succeeds, stop, preserve the failure evidence, disable live
-access and repair the role before continuing.
+1. As `assistant-svc`, search an actual `wazuh-alerts-4.x-*` index for an
+   agent-ID 001/002 document, then GET that same concrete index and `_id`.
+   Record a content hash rather than `_source`. This positive read makes the
+   subsequent denials non-vacuous for index pattern and DLS.
+2. Attempt `_create` on the same concrete index with the already-existing
+   `_id`. Expected: 403. If write permission was accidentally granted,
+   create-only semantics return conflict and cannot overwrite the document.
+3. Attempt `_update` on a random nonexistent `_id` with only a `doc` body and
+   `doc_as_upsert:false`. The body must contain **no `upsert` field**. Expected:
+   403; an accidental allow returns not found and cannot create a document.
+4. Attempt document DELETE on a second random nonexistent literal `_id`.
+   Expected: 403; an accidental allow returns not found.
+5. Re-GET and re-hash the original document, then GET both random IDs to prove
+   zero state change.
+
+Optional index-level create/delete checks use literal concrete names only.
+First read `action.destructive_requires_name` from effective cluster settings
+and require it to be `true`. Test create against the already-existing concrete
+index name, and delete against one cryptographically random nonexistent
+literal name matching `wazuh-alerts-4.x-*`. Never use `*`, `_all`, a comma list
+or any existing name in an index DELETE. If any supposedly denied request does
+not return 403, stop, preserve sanitized evidence, disable live access and
+repair the role; the chosen fallback outcomes must still leave state unchanged.
+
+Pair behavioral evidence with declarative readback: capture sanitized
+`GET _plugins/_security/authinfo` output as `assistant-svc` and admin
+`GET _plugins/_security/api/roles/alertmind_assistant_alerts_ro` output. This
+combination shows both the configured grant and the enforced boundary.
 
 ---
 
@@ -663,11 +760,16 @@ access and repair the role before continuing.
 - [ ] `socanalyst` can investigate but cannot alter Wazuh state.
 - [ ] `assistant-svc` has only tested search/get access to the approved alert
       scope, has no Dashboard tenant and has no Server API identity.
-- [ ] The same `assistant-svc` principal can read the isolated in-pattern
-      sentinel and is then denied index/update/delete; the sentinel remains
-      unchanged and the probe index is removed before evidence capture.
-- [ ] Indexer access is host-only/firewall-restricted and TLS verification is
-      enabled with a valid hostname/SAN.
+- [ ] DLS uses `agent.id` 001/002, the corresponding non-secret enrollment
+      fingerprints are recorded, and scope is re-verified after re-enrollment.
+- [ ] The same `assistant-svc` principal positively reads one real DLS-visible
+      document and is then denied the fail-safe create/update/delete requests;
+      the original hash is unchanged and both random IDs remain absent.
+- [ ] Declarative `authinfo` and role readback agree with the behavioral proof.
+- [ ] Indexer remains loopback-only; the host-only SSH local forward verifies
+      TLS against the existing `IP:127.0.0.1` SAN and fails closed when stopped.
+- [ ] The dedicated SSH key cannot open a shell or forward anywhere except
+      `127.0.0.1:9200`.
 - [ ] The UI cannot submit arbitrary Query DSL, index names, endpoints or HTTP
       methods.
 - [ ] Search lookback, agent scope, result count, response size and timeouts are
@@ -684,6 +786,8 @@ access and repair the role before continuing.
 - [ ] The audit-subject HMAC key is server-side, ignored by Git, versioned only
       by a non-secret identifier and documented as pseudonymization rather
       than anonymity.
+- [ ] The SSH private key is server-side/local-only, ignored by Git, protected
+      by Windows ACLs, and covered by rotation, revocation and rollback.
 - [ ] Existing tests and all frozen-evidence checks pass without modifying
       committed run evidence.
 - [ ] A rollback drill succeeds.
@@ -696,12 +800,14 @@ access and repair the role before continuing.
 
 1. Set the analyst/live-Wazuh profile off and restart Streamlit; offline mode
    remains available.
-2. Remove any disposable RBAC probe index and verify it no longer exists.
+2. Stop and disable the SSH tunnel/listener, remove its restricted public-key
+   entry and revoke/rotate the local SSH private key.
 3. Revoke/rotate `assistant-svc` and remove its role mapping.
 4. Remove or disable the `socanalyst` mappings if they caused a Dashboard
    regression.
-5. Revert the Indexer bind/firewall change and restore the saved security
-   configuration or VM snapshot if required.
+5. Restore the saved SSH configuration or VM snapshot if required; Indexer
+   should still be loopback-only and should not require a bind/certificate
+   rollback on the preferred path.
 6. Revoke/rotate the OIDC client secret and
    `ALERTMIND_AUDIT_SUBJECT_HMAC_KEY` if exposure is suspected or the rollback
    drill calls for rotation. Record only the new HMAC key identifier and note
@@ -719,15 +825,19 @@ part of the live integration state.
 
 1. **Done — `9b91a02`:**
    `docs(rbac): finalize local-first Wazuh integration plan`
-2. **Current correction:**
+2. **Done — `8ebbc1f`:**
    `docs(rbac): tighten security proof and dependency gates`
-3. `chore(rbac): add secret-free identity and role templates`
-4. `feat(auth): add OIDC profiles and server-side authorization`
-5. `feat(wazuh): add constrained read-only alert client`
-6. `feat(assistant): triage live Wazuh alerts through guarded pipeline`
-7. `test(rbac): cover identity, reader, audit and denial boundaries`
-8. `evidence(rbac): record least-privilege integration proof`
-9. `docs(architecture): publish implemented read-only Wazuh path`
+3. **Done — `d1416f4`:**
+   `test(rbac): characterize offline path and scaffold inventory`
+4. **Current correction cycle:**
+   `docs(rbac): reconcile phase0 plan with live inventory`
+5. `chore(rbac): add secret-free identity and role templates`
+6. `feat(auth): add OIDC profiles and server-side authorization`
+7. `feat(wazuh): add constrained read-only alert client`
+8. `feat(assistant): triage live Wazuh alerts through guarded pipeline`
+9. `test(rbac): cover identity, reader, audit and denial boundaries`
+10. `evidence(rbac): record least-privilege integration proof`
+11. `docs(architecture): publish implemented read-only Wazuh path`
 
 Each commit stages explicit paths only. Never use `git add -A` in this
 repository because of the known line-ending churn risk.
@@ -739,12 +849,12 @@ repository because of the known line-ending churn risk.
 Before implementation, the project owner must:
 
 1. create and retain a clean Wazuh VM snapshot;
-2. confirm the host-only IPs, in-scope agent names/IDs and current Indexer
-   certificate SAN;
-3. confirm the live index, template and ISM patterns used to select a
-   side-effect-free RBAC probe name;
-4. choose strong passwords, client secrets and an audit-subject HMAC key
-   locally and never paste them into an agent chat or commit them;
+2. record the current non-secret enrollment fingerprints for agent IDs 001 and
+   002 and repeat that check after either agent is re-enrolled;
+3. approve the reviewed host-only, key-restricted SSH local-forward setup;
+4. generate the dedicated SSH key locally and choose strong passwords, OIDC
+   client secrets and an audit-subject HMAC key without pasting any secret or
+   private key into an agent chat or commit;
 5. approve installation of a local Keycloak instance or nominate an existing
    OIDC provider;
 6. perform the privileged Wazuh/Keycloak configuration steps while the agent
@@ -752,9 +862,9 @@ Before implementation, the project owner must:
 7. personally exercise the final analyst login and approve the sanitized
    positive/negative evidence.
 
-The first implementation turn should stop after Phase 0 inventory if the
-Indexer cannot be exposed on the host-only network with valid TLS and a
-recoverable rollback path.
+The first implementation turn must stop if the restricted SSH tunnel cannot
+provide host-only access with valid TLS and a recoverable rollback path. Do not
+rebind Indexer or regenerate its certificate without a separate reviewed plan.
 
 ---
 
@@ -767,6 +877,8 @@ recoverable rollback path.
 - [Wazuh Server API RBAC](https://documentation.wazuh.com/current/user-manual/api/rbac/index.html)
 - [OpenSearch access control and action groups](https://docs.opensearch.org/latest/security/access-control/index/)
 - [OpenSearch document-level security](https://docs.opensearch.org/latest/security/access-control/document-level-security/)
+- [OpenSearch 2.19 permissions](https://docs.opensearch.org/2.19/security/access-control/permissions/)
+- [OpenSSH `authorized_keys`](https://man.openbsd.org/sshd.8#AUTHORIZED_KEYS_FILE_FORMAT)
 - [Streamlit OIDC authentication](https://docs.streamlit.io/develop/concepts/connections/authentication)
 - [Streamlit `st.login`](https://docs.streamlit.io/develop/api-reference/user/st.login)
 
