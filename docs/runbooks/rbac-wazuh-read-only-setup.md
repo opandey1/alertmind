@@ -1,8 +1,9 @@
 # Runbook — RBAC and read-only Wazuh integration
 
-**Status:** Phase 0 characterization and owner-supplied live inventory are
-complete. Review corrections are in progress; no Wazuh, SSH, network,
-identity-provider or application configuration has been changed.
+**Status:** Phase 0 characterization, owner-supplied live inventory and the
+owner safety checklist are complete. Independent review of the final evidence
+record is pending; no Wazuh, SSH, network, identity-provider or application
+configuration has been changed.
 
 **Applies to:** the post-v1 local-first analyst profile described in
 [`docs/rbac-wazuh-read-only-implementation-plan.md`](../rbac-wazuh-read-only-implementation-plan.md).
@@ -25,12 +26,13 @@ certificates while following this section.
 | Wazuh recovery gate | Owner reported complete | Manager, Indexer, Filebeat and Dashboard returned `active` on 1 September 2026. |
 | Read-only Wazuh inventory | Complete | Sanitized results are recorded in Section 6. |
 | Canonical namespace check | Complete | Both planned roles/mappings and both planned users returned 404. |
-| Agent enrollment fingerprints | Pending owner capture | Record only SHA-256 digests for IDs 001/002 before role creation. |
-| Corrected Phase 0 documents | Awaiting review | The unsafe disposable probe has been removed. |
+| Agent enrollment fingerprints | Owner captured; awaiting review | Sanitized ID/name/SHA-256 bindings for 001/002 are in `evidence/rbac/phase0-owner-checklist.md`. |
+| Corrected Phase 0 documents | Complete and approved | Commits `f92db3d`, `fde2fe4` and `73efcd7`; Claude approved the final correction cycle. |
+| Secret-free owner checklist | Owner complete; awaiting review | Snapshot, no-re-enrollment, transport approval and no-secret confirmations are in the sanitized evidence record. |
 | Secrets in Git | Prohibited | Local secrets, certificate copies, runtime state and Keycloak data paths are ignored. |
 
-Phase 1 must not start until the enrollment fingerprints are recorded and the
-correction commit receives independent approval.
+Phase 1 must not start until the owner-evidence commit receives independent
+approval.
 
 ## 2. Rules for collecting inventory
 
@@ -207,6 +209,10 @@ sudo curl --silent --show-error --fail-with-body \
   "$INDEXER_URL/_cluster/settings?include_defaults=true&filter_path=transient.action.destructive_requires_name,persistent.action.destructive_requires_name,defaults.action.destructive_requires_name"
 ```
 
+The 2 September 2026 capture returned the effective default as `false`.
+Accordingly, the optional index-level DELETE proof is prohibited in this lab.
+Do not change this cluster safety setting merely to enable a test.
+
 ## 5. Lifecycle cross-check and prohibited probe
 
 `POST /_index_template/_simulate_index/<name>` evaluates composable templates
@@ -241,7 +247,7 @@ and guaranteed-nonexistent literal IDs.
 | Agent state | `000 wazuh-siem` active/local; `001 win-victim` and `002 linux-victim` disconnected because endpoint VMs remained off |
 | DLS allowlist | `agent.id` values `001`, `002`; ID `000` excluded |
 | Agent value counts | `001=7,890`; `002=16,667`; `000=11,445`; ID 000 spans names `wazuh-siem=11,030` and `Ubuntu=415` |
-| Enrollment fingerprints | `<pending owner capture before role creation>` |
+| Enrollment fingerprints | `001 win-victim`: `ce6dbeeff3df5ffef33e643ea36b60ffaf4f9b73577bf8c68789c867d672a5b7`; `002 linux-victim`: `483a8b3caa8e9a252aa8ea632d7a5c1ab04358c170f314ec01f1d696dfffdebf` |
 | Live Indexer version | `wazuh-indexer 4.14.7-1`; OpenSearch/OpenSearch Security `2.19.5`/`2.19.5.0` |
 | Submitted-v1 version | Wazuh 4.14.5; preserved separately and not retro-edited |
 | Node certificate | SAN `IP:127.0.0.1`; expires 2036-06-19; SHA-256 `BC:90:AA:A9:18:88:39:41:65:A3:3F:C8:BE:9F:C6:67:CA:6F:0A:08:F5:DE:20:2C:62:A0:E0:89:26:23:32:FB` |
@@ -257,7 +263,7 @@ and guaranteed-nonexistent literal IDs.
 | Planned internal users | `socanalyst` and `assistant-svc` return 404 |
 | Disposable alert probe | Prohibited: broad ISM auto-attachment makes the former candidate unsafe |
 | Preferred transport | Reviewed design: host-only, key-restricted SSH local forward; not implemented |
-| `action.destructive_requires_name` | `<pending before optional index-level DELETE proof>` |
+| `action.destructive_requires_name` | Effective default `false`; optional index-level DELETE proof prohibited |
 
 Unset the convenience variables when finished:
 
@@ -275,7 +281,7 @@ Phase 0 passes only when:
 - enrollment fingerprints for IDs 001/002 are recorded without exposing keys;
 - the restricted SSH tunnel design and fail-safe denial matrix are documented;
 - no disposable alert/probe index or sentinel is created; and
-- an independent reviewer approves the correction commit.
+- an independent reviewer approves the correction and owner-evidence commits.
 
 If any condition fails, leave the offline profile unchanged and do not begin
 RBAC or SSH configuration.

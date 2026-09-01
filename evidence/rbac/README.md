@@ -3,8 +3,11 @@
 This directory will contain sanitized proof for the post-v1 least-privilege
 Wazuh integration.
 
-**Current status:** Phase 0 scaffold only. No live RBAC proof has been captured,
-and the feature must still be described as planned.
+**Current status:** The sanitized Phase 0 owner checklist and enrollment
+fingerprints are recorded in
+[`phase0-owner-checklist.md`](phase0-owner-checklist.md) and await independent
+review. No live RBAC proof has been captured, and the feature must still be
+described as planned.
 
 Accepted evidence may include:
 
