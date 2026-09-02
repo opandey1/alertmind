@@ -408,7 +408,15 @@ if [ "${#EFFECTIVE_HOST_KEYS[@]}" -ne 1 ] ||
 fi
 echo 'PASS host-key policy: exactly one effective ED25519 key'
 
-require_line "$CONTROL" 'allowtcpforwarding yes'
+for line in \
+  'allowtcpforwarding no' \
+  'permitopen none' \
+  'maxsessions 0' \
+  'permittty no' \
+  'forcecommand /bin/false'
+do
+  require_line "$CONTROL" "$line"
+done
 if grep -Fxq 'allowtcpforwarding local' "$CONTROL"; then
   echo 'STOP: Match restriction leaked into the different-user control'
   exit 1
@@ -440,9 +448,9 @@ echo 'STOP POINT: do not unmask or enable SSH until this output is reviewed'
 )
 ```
 
-Record only the PASS lines, package versions, public fingerprints and the
-target/control `allowtcpforwarding` results. Do not commit the complete
-effective configuration.
+Record only the PASS lines, package versions, public fingerprints, the target
+forwarding result and the five non-matching control denials. Do not commit the
+complete effective configuration.
 
 ## 8. Enable only the classic service after output review
 
