@@ -232,8 +232,32 @@ class RbacTemplateContractTests(unittest.TestCase):
             "`own_index` is absent",
             "unexpected",
             "effective role",
+            "empty wildcard `200` with zero shards and zero hits is vacuous",
+            "Do not create an archive index",
         ):
             self.assertIn(required, matrix)
+
+    def test_live_enforcement_evidence_records_boundary_and_caveats(self):
+        evidence = (
+            REPO_ROOT / "evidence" / "rbac" /
+            "phase1b-indexer-enforcement-proof.md"
+        ).read_text(encoding="utf-8")
+        normalized = " ".join(evidence.split())
+        for required in (
+            "indices:data/write/bulk",
+            "indices:data/write/reindex",
+            "11,816",
+            "security_exception",
+            "zero visible state change",
+            "No concrete `wazuh-archives-*` index existed",
+            "that result is vacuous",
+            "VERIFY_X509_STRICT",
+            "CERT_REQUIRED",
+            "hostname verification",
+            "SSH remains disabled",
+            "application integration remain unimplemented",
+        ):
+            self.assertIn(required, normalized)
 
     def test_runbook_orders_inherited_role_gate_before_project_mappings(self):
         runbook = (

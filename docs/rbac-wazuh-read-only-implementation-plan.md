@@ -1,12 +1,15 @@
 # AlertMind — RBAC and read-only Wazuh integration
 
-**Document status:** Phase 0 and the Phase 1A repository package are approved
-and merged. Both custom Indexer roles and internal users exist on VM loopback,
-but project mappings were withheld after an inherited `own_index` write grant
-was found. The Phase 1B correction awaits review; SSH and live integration
-remain unimplemented.
+**Document status:** Phase 0, the Phase 1A package and the inherited-role
+correction are approved and merged. The owner applied the scoped correction,
+both direct-user mappings and the fail-safe Indexer enforcement matrix on VM
+loopback; its sanitized proof awaits independent review. SSH transport, Wazuh
+Server/Dashboard configuration, OIDC and application integration remain
+unimplemented.
 
 **Date:** 1 September 2026
+
+**Last updated:** 2 September 2026
 
 **Applies to:** current `assistant/` package; submitted-v1 Wazuh 4.14.5
 baseline; current live `wazuh-indexer` 4.14.7-1 / OpenSearch 2.19.5;
@@ -68,10 +71,11 @@ The plan is based on the current repository rather than the earlier
   Indexer package is 4.14.7-1 with OpenSearch/OpenSearch Security 2.19.5; this
   is post-v1 lab drift and does not retroactively change the v1 evidence. The
   Indexer remains localhost-only. The Phase 0 baseline found the canonical
-  roles, mappings and users absent. The two custom roles and users have since
-  been created on VM loopback, but the project mappings were withheld after
-  both users inherited `own_index` through its wildcard mapping. RBAC proof,
-  SSH transport and live ingestion remain incomplete.
+  roles, mappings and users absent. The two custom roles and users were later
+  created on VM loopback. A pre-mapping check exposed inherited `own_index`
+  access; after independent review, the owner narrowed that mapping, applied
+  both direct-user mappings and completed the fail-safe Indexer matrix. That
+  proof awaits review. SSH transport and live ingestion remain incomplete.
 - The pre-feature regression baseline was 78 assistant tests plus the frozen-
   evidence verifier. Phase 0 adds eight characterization tests, bringing the
   branch to 86 tests without changing prompts, views, redaction, schema,
@@ -283,10 +287,12 @@ The 1 September 2026 inventory established the following design inputs:
   not attempt to feature-detect it with a request that might mutate data.
 - The pre-mapping Phase 1 check found that both new internal users inherited
   reserved role `own_index` through an editable mapping with `users: ["*"]`.
-  That role grants `cluster_composite_ops` and `indices_all` on
-  `${user_name}`. Permissions are additive, so direct project mappings cannot
-  compensate for it. The mapping must be narrowed and effective authinfo must
-  be clean before either project mapping is applied.
+  Live action-group expansion showed `cluster_composite_ops` included bulk and
+  reindex writes, while `indices_all` expanded to `indices:*` on
+  `${user_name}`. Permissions are additive, so direct project mappings could
+  not compensate for it. The owner applied the independently reviewed scoped
+  mapping first, proved both users had no effective role, and only then applied
+  the two project mappings.
 
 ### 6.2 `socanalyst` human role
 
@@ -387,6 +393,16 @@ the tunnel stops; Indexer never becomes reachable on a VM network interface.
 The Windows client validates `https://127.0.0.1:19200` with a copied public
 root CA. Do not ship `verify=False`, suppress certificate warnings or copy any
 private Indexer key.
+
+Python 3.13+ enables `VERIFY_X509_STRICT` in its default SSL context. The live
+Wazuh CA lacks a key-usage extension and Python 3.14 therefore rejected it
+under that additional strictness. The VM evidence harness cleared only
+`VERIFY_X509_STRICT`; it retained the configured CA, `CERT_REQUIRED` and
+hostname verification, and the authenticated endpoint still rejected an
+unauthenticated request with `401`. Before implementing the Windows client,
+either use an independently reviewed compatibility context with those same
+verification properties or replace the certificate chain in a separate
+infrastructure cycle. Never substitute an unverified context.
 
 SSH is currently inactive. Its reviewed Phase 1 configuration must:
 
@@ -651,24 +667,24 @@ Phase 0 is closed. The approved commit is merged to `main` at `de4b6a5`.
 1. **Done and approved:** add the secret-free scope contract, exact Indexer
    role payloads, direct-user mappings and pre-registered denial matrix. Seven
    offline contract tests brought the suite from 86 to 93 tests.
-2. **Partial live state:** on VM loopback, create the two custom roles and the
-   internal users `socanalyst` and `assistant-svc` with human-entered passwords.
-   Stop before project mappings because pre-mapping authinfo exposed inherited
+2. **Done:** on VM loopback, create the two custom roles and the internal users
+   `socanalyst` and `assistant-svc` with human-entered passwords. Work stopped
+   before project mappings when pre-mapping authinfo exposed inherited
    `own_index` access.
-3. Add and independently approve the scoped `own_index` JSON Patch,
-   rollback-only patch, transfer hashes, sanitized finding evidence and drift
-   tests. Recheck every mapping selector and authentication domain before
-   applying it.
-4. Narrow the wildcard mapping, prove `own_index` and every unexpected role
-   absent for both users, and require `403` on both username-named read-only
-   searches. Only then apply the two project mappings and repeat authinfo and
-   username-index checks.
-5. Configure and verify the host-only, key-restricted SSH local forward while
-   leaving Indexer on loopback. Capture both context-aware `sshd -T -C`
-   outputs before enabling SSH.
-6. Execute the fail-safe document-level allow/deny sequence in Section 10.2
-   and `siem/rbac/negative-test-matrix.md`; the optional index-level test
-   remains prohibited.
+3. **Done and approved:** add the scoped `own_index` JSON Patch, rollback-only
+   patch, transfer hashes, sanitized finding evidence and drift tests. Recheck
+   every mapping selector and authentication domain before applying it.
+4. **Owner-executed; evidence awaiting review:** narrow the wildcard mapping,
+   prove `own_index` and every unexpected role absent for both users, require
+   `403` on both username-named read-only searches, then apply the two project
+   mappings and repeat authinfo and username-index checks.
+5. **Next gate:** configure and verify the host-only, key-restricted SSH local
+   forward while leaving Indexer on loopback. Capture both context-aware
+   `sshd -T -C` outputs before enabling SSH.
+6. **Owner-executed on VM loopback; evidence awaiting review:** execute the
+   fail-safe document-level allow/deny sequence in Section 10.2 and
+   `siem/rbac/negative-test-matrix.md`; the optional index-level test remains
+   prohibited.
 7. Verify `socanalyst` Dashboard read access and Wazuh write,
    administration and active-response denials. If built-in `readonly` is
    used, disclose its broader read scope in the proof. Label dashboard evidence
@@ -790,7 +806,8 @@ mocks. Live integration proof runs manually in the isolated lab.
 | `socanalyst` | View required Wazuh dashboards/alerts | Allowed |
 | `socanalyst` | Change rules, agents, RBAC or run active response | Wazuh denial |
 | `assistant-svc` | Search/get in-scope `wazuh-alerts-4.x-*` documents for agent IDs 001/002 | Allowed |
-| `assistant-svc` | Read `wazuh-archives-*`, security or unrelated indices | 403 |
+| `assistant-svc` | Read a concrete `wazuh-archives-*` index, when one exists | 403; otherwise record the live-data row as not testable and do not create an archive index |
+| `assistant-svc` | Read Security, Dashboard or unrelated indices | 403 |
 | both new Indexer users, before project mapping | Authinfo after scoped `own_index` patch | Correct username; no backend/direct role; no effective role; no `own_index` |
 | both new Indexer users, before and after project mapping | Read-only search of the corresponding username-named index | 403; no index is created |
 | `assistant-svc` | `GET _plugins/_security/authinfo` plus admin readback of its role/mappings | Only expected service identity/role; no `own_index`, cluster, tenant or write grant |
@@ -801,6 +818,12 @@ mocks. Live integration proof runs manually in the isolated lab.
 | SSH tunnel key | Request shell or any forward except `127.0.0.1:9200` | Rejected |
 | browser/session tamper | Change role, index, query or endpoint | Server-side denial/validation |
 | analyst profile | Inspect rendered page/network and audit output | No service/provider/OIDC secret |
+
+The 2 September VM-local run had no concrete archive index. Its wildcard
+search returned an empty `200` with zero shards and zero hits, which is vacuous
+and is not evidence of either access or denial. A literal archive-namespace
+control and existing Security/Dashboard indices returned `403`. Repeat the
+archive row against a concrete archive index if one later exists.
 
 Do not create a disposable probe or sentinel. The live ISM policy
 auto-attaches to `wazuh-alerts-*`, so every candidate inside the former broad
@@ -948,14 +971,16 @@ part of the live integration state.
    `evidence(rbac): record phase0 owner safety gate`
 6. **Done and approved — `da86617`:**
    `chore(rbac): add secret-free identity and role templates`
-7. **Current Phase 1B correction:**
+7. **Done and approved — `ccd5ea3`:**
    `fix(rbac): remove inherited write grant before identity mapping`
-8. `feat(auth): add OIDC profiles and server-side authorization`
-9. `feat(wazuh): add constrained read-only alert client`
-10. `feat(assistant): triage live Wazuh alerts through guarded pipeline`
-11. `test(rbac): cover identity, reader, audit and denial boundaries`
-12. `evidence(rbac): record least-privilege integration proof`
-13. `docs(architecture): publish implemented read-only Wazuh path`
+8. **Owner-executed; current review cycle:**
+   `evidence(rbac): record live Indexer enforcement proof`
+9. `feat(auth): add OIDC profiles and server-side authorization`
+10. `feat(wazuh): add constrained read-only alert client`
+11. `feat(assistant): triage live Wazuh alerts through guarded pipeline`
+12. `test(rbac): cover identity, reader, audit and denial boundaries`
+13. `evidence(rbac): record complete least-privilege integration proof`
+14. `docs(architecture): publish implemented read-only Wazuh path`
 
 Each commit stages explicit paths only. Never use `git add -A` in this
 repository because of the known line-ending churn risk.
