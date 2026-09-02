@@ -2,7 +2,8 @@
 
 **Captured:** 2 September 2026 (owner-supplied, IST)
 
-**Status:** Sanitized pre-implementation evidence; independent review pending
+**Status:** Sanitized pre-implementation evidence; independently approved in
+Claude's 2 September 2026 review of `882c465` and merged to `main`
 
 **Scope:** This record closes the human-input portion of Phase 0. It does not
 claim that Wazuh RBAC, SSH transport, OIDC or live assistant integration has
@@ -56,5 +57,6 @@ verification.
 
 ## Review gate
 
-No Phase 1 Wazuh mutation or SSH enablement may begin until this record and the
-corresponding documentation update receive an independent `approve` verdict.
+Closed: Claude returned `approve` for `882c465` on 2 September 2026. This
+approval permits Phase 1 to begin but does not approve any later role, user,
+mapping, SSH or denial-proof change; each remains independently review-gated.

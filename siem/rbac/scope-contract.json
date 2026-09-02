@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "captured_at": "2026-09-02",
+  "index_pattern": "wazuh-alerts-4.x-*",
+  "dls_query": {
+    "terms": {
+      "agent.id": [
+        "001",
+        "002"
+      ]
+    }
+  },
+  "agent_bindings": [
+    {
+      "agent_id": "001",
+      "agent_name": "win-victim",
+      "enrollment_sha256": "ce6dbeeff3df5ffef33e643ea36b60ffaf4f9b73577bf8c68789c867d672a5b7"
+    },
+    {
+      "agent_id": "002",
+      "agent_name": "linux-victim",
+      "enrollment_sha256": "483a8b3caa8e9a252aa8ea632d7a5c1ab04358c170f314ec01f1d696dfffdebf"
+    }
+  ],
+  "principals": {
+    "socanalyst": {
+      "indexer_role": "alertmind_socanalyst_ro",
+      "wazuh_server_role": "readonly"
+    },
+    "assistant-svc": {
+      "indexer_role": "alertmind_assistant_alerts_ro",
+      "wazuh_server_identity": false,
+      "dashboard_tenant": false
+    }
+  }
+}

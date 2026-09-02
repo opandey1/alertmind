@@ -1,7 +1,8 @@
 # AlertMind — RBAC and read-only Wazuh integration
 
-**Document status:** Phase 0 characterization, live inventory and owner safety
-evidence complete; completion review pending; implementation not started
+**Document status:** Phase 0 independently approved and merged; Phase 1A
+secret-free identity/role package in implementation; no live Wazuh or SSH
+state changed
 
 **Date:** 1 September 2026
 
@@ -319,10 +320,10 @@ Do not create a Wazuh Server API user/role for `assistant-svc`. It therefore
 has no credential with which to call manager, agent, ruleset, security or
 active-response endpoints on `:55000`.
 
-The role template and proof artifact must record the enrollment fingerprints
-that were current when IDs `001` and `002` were approved. A changed fingerprint
-or re-enrolled agent closes live access until the mapping and DLS scope are
-reviewed again.
+The machine-checked `siem/rbac/scope-contract.json` and the eventual proof
+artifact record the enrollment fingerprints that were current when IDs `001`
+and `002` were approved. A changed fingerprint or re-enrolled agent closes
+live access until the mapping and DLS scope are reviewed again.
 
 ### 6.4 Network and TLS
 
@@ -516,7 +517,9 @@ old or new key in Git or the audit database.
 
 ## 8. Configuration and committed artifacts
 
-Add sanitized, secret-free templates and runbooks:
+Add sanitized, secret-free templates and runbooks. The `siem/rbac/*.json`
+payloads and `negative-test-matrix.md` are the current Phase 1A package; the
+authentication, Keycloak and proof paths below are later-phase artifacts:
 
 ```text
 docs/rbac-wazuh-read-only-implementation-plan.md
@@ -525,17 +528,25 @@ assistant/.streamlit/secrets.example.toml
 deployment/oidc/keycloak/README.md
 deployment/oidc/keycloak/realm-template.json
 siem/rbac/README.md
-siem/rbac/indexer-role_socanalyst_ro.yml
-siem/rbac/indexer-role_assistant_alerts_ro.yml
-siem/rbac/server-role_socanalyst_ro.yml
+siem/rbac/scope-contract.json
+siem/rbac/indexer-role_socanalyst_ro.json
+siem/rbac/indexer-role_assistant_alerts_ro.json
+siem/rbac/indexer-role-mapping_socanalyst_ro.json
+siem/rbac/indexer-role-mapping_assistant_alerts_ro.json
 siem/rbac/negative-test-matrix.md
 evidence/rbac/README.md
 evidence/rbac/rbac-proof.md
 ```
 
+The JSON role and mapping files are exact OpenSearch Security REST payloads.
+There is no custom Wazuh Server role template: `socanalyst` uses the built-in
+`readonly` role after its broader read scope is disclosed and tested, while
+`assistant-svc` receives no Server API identity. No password-bearing internal
+user payload is committed.
+
 Templates may contain role names, endpoints, index patterns and placeholder
-claims. They must not contain passwords, client secrets, bearer tokens,
-authorization headers, private keys or unredacted alerts. Add
+claims. They must not contain passwords, password hashes, client secrets,
+bearer tokens, authorization headers, private keys or unredacted alerts. Add
 `.streamlit/secrets.toml`, `assistant/.secrets/`, local CA copies, audit
 databases and Keycloak data directories to `.gitignore` before local setup.
 
@@ -574,24 +585,34 @@ rotation, revocation and rollback.
    runbook and evidence checklist with the live inventory and independent
    review, including the restricted local-forward-only SSH design and its
    match-aware pre-enable proof.
-7. **Current owner-evidence cycle:** record the non-secret enrollment
-   fingerprints, snapshot/transport/secrets confirmations and effective
-   destructive-action setting before any role is created.
+7. **Done — `882c465`, independently approved:** record the non-secret
+   enrollment fingerprints, snapshot/transport/secrets confirmations and
+   effective destructive-action setting before any role is created.
 
-Phase 0 remains open until the owner-evidence record receives independent
-review.
+Phase 0 is closed. The approved commit is merged to `main` at `de4b6a5`.
 
 **Gate:** clean baseline, recoverable Wazuh snapshot and no secrets in Git.
 
 ### Phase 1 — Wazuh RBAC and transport
 
-1. Configure and verify the host-only, key-restricted SSH local forward while
-   leaving Indexer on loopback.
-2. Create and test `socanalyst`.
-3. Create and test machine-only `assistant-svc`.
-4. Apply the `wazuh-alerts-4.x-*` index pattern and `agent.id` 001/002 DLS.
-5. Capture declarative role/authentication evidence and the fail-safe
-   representative allow/deny responses in Section 10.2.
+1. Add and independently approve the secret-free scope contract, exact
+   Indexer role payloads, direct-user mappings and pre-registered denial
+   matrix. Seven offline contract tests bring the suite from 86 to 93 tests and
+   fail if scope or permissions drift. No live state changes in this review
+   cycle.
+2. On VM loopback, create `socanalyst` and machine-only `assistant-svc`,
+   apply the exact `wazuh-alerts-4.x-*` pattern and `agent.id` 001/002 DLS,
+   then capture declarative role/mapping/authentication readback. Passwords
+   are entered interactively by the human and never committed or pasted.
+3. Configure and verify the host-only, key-restricted SSH local forward while
+   leaving Indexer on loopback. Capture both context-aware `sshd -T -C`
+   outputs before enabling SSH.
+4. Execute the fail-safe document-level allow/deny sequence in Section 10.2
+   and `siem/rbac/negative-test-matrix.md`; the optional index-level test
+   remains prohibited.
+5. Verify `socanalyst` Dashboard read access and Wazuh write,
+   administration and active-response denials. If built-in `readonly` is
+   used, disclose its broader read scope in the proof.
 
 **Gate:** both identities can perform their intended reads; writes and
 management operations fail at Wazuh before any app integration begins; the
@@ -848,9 +869,10 @@ part of the live integration state.
    `test(rbac): characterize offline path and scaffold inventory`
 4. **Done — `f92db3d`, `fde2fe4`, `73efcd7`:** Phase 0 inventory and review
    corrections.
-5. **Current owner-evidence cycle:**
+5. **Done — `882c465`:**
    `evidence(rbac): record phase0 owner safety gate`
-6. `chore(rbac): add secret-free identity and role templates`
+6. **Current Phase 1A cycle:**
+   `chore(rbac): add secret-free identity and role templates`
 7. `feat(auth): add OIDC profiles and server-side authorization`
 8. `feat(wazuh): add constrained read-only alert client`
 9. `feat(assistant): triage live Wazuh alerts through guarded pipeline`

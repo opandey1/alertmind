@@ -1,0 +1,18 @@
+{
+  "cluster_permissions": [],
+  "index_permissions": [
+    {
+      "index_patterns": [
+        "wazuh-alerts-4.x-*"
+      ],
+      "dls": "{\"terms\":{\"agent.id\":[\"001\",\"002\"]}}",
+      "fls": [],
+      "masked_fields": [],
+      "allowed_actions": [
+        "indices:data/read/search",
+        "indices:data/read/get"
+      ]
+    }
+  ],
+  "tenant_permissions": []
+}
