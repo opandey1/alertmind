@@ -11,9 +11,12 @@ identified an inherited `own_index` write grant. The owner subsequently
 applied the reviewed correction and both direct-user mappings, then completed
 the declarative, read-scope and fail-safe write-denial checks recorded in
 [`phase1b-indexer-enforcement-proof.md`](phase1b-indexer-enforcement-proof.md).
-That live proof is awaiting independent review. It closes only the Indexer
-gate; SSH, Wazuh Server/Dashboard, OIDC and application integration remain
-unimplemented, so the complete feature must still be described as planned.
+That live proof is independently approved and merged through PR #10. It closes
+only the Indexer gate. The sanitized SSH package prerequisite is recorded in
+[`phase1c-ssh-prerequisite-check.md`](phase1c-ssh-prerequisite-check.md), but
+OpenSSH remains uninstalled and no transport proof exists yet. Wazuh
+Server/Dashboard, OIDC and application integration remain unimplemented, so
+the complete feature must still be described as planned.
 
 Accepted evidence may include:
 

@@ -1,0 +1,1 @@
+from="192.168.56.1",restrict,port-forwarding,permitopen="127.0.0.1:9200",command="/bin/false"

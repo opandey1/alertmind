@@ -191,6 +191,172 @@ class RbacTemplateContractTests(unittest.TestCase):
             actual_digest = hashlib.sha256((RBAC_DIR / name).read_bytes()).hexdigest()
             self.assertEqual(actual_digest, expected_digest)
 
+    def test_ssh_transport_manifest_matches_lf_stable_public_inputs(self):
+        expected_names = {
+            "sshd-alertmind.conf",
+            "ssh-authorized-key-options.txt",
+        }
+        recorded = {}
+        for line in (RBAC_DIR / "SSH-SHA256SUMS").read_text(
+            encoding="ascii"
+        ).splitlines():
+            digest, name = line.split(maxsplit=1)
+            recorded[name] = digest
+
+        self.assertEqual(set(recorded), expected_names)
+        for name, expected_digest in recorded.items():
+            payload = (RBAC_DIR / name).read_bytes()
+            self.assertNotIn(b"\r\n", payload)
+            self.assertTrue(payload.endswith(b"\n"))
+            self.assertEqual(hashlib.sha256(payload).hexdigest(), expected_digest)
+
+    def test_sshd_dropin_is_host_only_public_key_only_and_sessionless(self):
+        lines = [
+            line.strip()
+            for line in (RBAC_DIR / "sshd-alertmind.conf").read_text(
+                encoding="utf-8"
+            ).splitlines()
+            if line.strip() and not line.lstrip().startswith("#")
+        ]
+        self.assertEqual(
+            lines,
+            [
+                "Port 22",
+                "AddressFamily inet",
+                "ListenAddress 192.168.56.102",
+                "HostKey /etc/ssh/ssh_host_ed25519_key",
+                "PermitRootLogin no",
+                "PubkeyAuthentication yes",
+                "PasswordAuthentication no",
+                "KbdInteractiveAuthentication no",
+                "AuthenticationMethods publickey",
+                "PermitEmptyPasswords no",
+                "AuthorizedKeysFile .ssh/authorized_keys",
+                "AllowUsers notroot@192.168.56.1",
+                "X11Forwarding no",
+                "AllowAgentForwarding no",
+                "AllowStreamLocalForwarding no",
+                "GatewayPorts no",
+                "PermitTunnel no",
+                "PermitUserEnvironment no",
+                "PermitUserRC no",
+                "AllowTcpForwarding no",
+                "PermitOpen none",
+                "ForceCommand /bin/false",
+                "PermitTTY no",
+                "MaxSessions 0",
+                "Match User notroot Address 192.168.56.1",
+                "AllowTcpForwarding local",
+                "PermitOpen 127.0.0.1:9200",
+                "ForceCommand /bin/false",
+                "PermitTTY no",
+                "MaxSessions 0",
+                "Match all",
+            ],
+        )
+        serialized = "\n".join(lines)
+        for forbidden in (
+            "ListenAddress 0.0.0.0",
+            "ListenAddress 10.0.2.15",
+            "ListenAddress ::",
+            "HostKey /etc/ssh/ssh_host_rsa_key",
+            "HostKey /etc/ssh/ssh_host_ecdsa_key",
+            "PasswordAuthentication yes",
+            "KbdInteractiveAuthentication yes",
+            "AllowTcpForwarding yes",
+            "PermitOpen any",
+            "AllowUsers *",
+        ):
+            self.assertNotIn(forbidden, serialized)
+
+    def test_ssh_authorized_key_prefix_has_no_key_and_is_doubly_bounded(self):
+        prefix = (RBAC_DIR / "ssh-authorized-key-options.txt").read_text(
+            encoding="ascii"
+        ).strip()
+        self.assertEqual(
+            prefix,
+            'from="192.168.56.1",restrict,port-forwarding,'
+            'permitopen="127.0.0.1:9200",command="/bin/false"',
+        )
+        for forbidden in (
+            "ssh-ed25519",
+            "ssh-rsa",
+            "AAA",
+            "PRIVATE KEY",
+            "permitopen=\"*",
+            "from=\"*",
+        ):
+            self.assertNotIn(forbidden, prefix)
+
+    def test_ssh_runbook_keeps_install_inert_and_proves_before_enable(self):
+        runbook = (
+            REPO_ROOT / "docs" / "runbooks" /
+            "rbac-wazuh-ssh-transport.md"
+        ).read_text(encoding="utf-8")
+        normalized = " ".join(runbook.split())
+        for required in (
+            "do not execute until an independent reviewer approves",
+            "Do not run `apt autoremove`",
+            "openssh-server=1:10.2p1-2ubuntu3.5",
+            "openssh-sftp-server=1:10.2p1-2ubuntu3.5",
+            "apt-get --simulate install --no-install-recommends",
+            "send the complete simulation output for review",
+            "--no-install-recommends",
+            "ln -s /dev/null",
+            "ssh.service ssh.socket",
+            "both SSH activation paths remained inert",
+            "sshd.service: masked alias; no active sshd@ instance",
+            "hostkey /etc/ssh/ssh_host_ed25519_key",
+            "host-key policy: exactly one effective ED25519 key",
+            "sshd -T -C",
+            "user=notroot,host=wazuh-siem,addr=192.168.56.1",
+            "user=root,host=wazuh-siem,addr=192.168.56.1",
+            "allowtcpforwarding local",
+            "allowtcpforwarding yes",
+            "STOP POINT: do not unmask or enable SSH",
+            "ssh.socket remains masked",
+            "expected exactly one ED25519 host key",
+            "StrictHostKeyChecking=yes",
+            "UserKnownHostsFile=$KnownHosts",
+            "127.0.0.1:19200:127.0.0.1:9200",
+            "administratively prohibited",
+            "authentication failure as a forwarding-policy proof",
+            "Immediate rollback",
+            "packages remain inert",
+        ):
+            self.assertIn(required, normalized)
+
+        simulation = runbook.index(
+            "apt-get --simulate install --no-install-recommends"
+        )
+        mask = runbook.index("ln -s /dev/null")
+        install = runbook.index("apt-get install --yes --no-install-recommends")
+        target_proof = runbook.index("user=notroot,host=wazuh-siem")
+        stop = runbook.index("STOP POINT: do not unmask or enable SSH")
+        enable = runbook.index("sudo systemctl unmask ssh.service")
+        self.assertLess(simulation, mask)
+        self.assertLess(mask, install)
+        self.assertLess(install, target_proof)
+        self.assertLess(target_proof, stop)
+        self.assertLess(stop, enable)
+
+    def test_phase1c_prerequisite_records_clean_package_stop_point(self):
+        evidence = (
+            REPO_ROOT / "evidence" / "rbac" /
+            "phase1c-ssh-prerequisite-check.md"
+        ).read_text(encoding="utf-8")
+        normalized = " ".join(evidence.split())
+        for required in (
+            "Postfix is absent",
+            "without `autoremove`",
+            "`dpkg --audit` produced no finding",
+            "`openssh-server` remains not installed",
+            "no TCP 22, 25, 465 or 587 listener exists",
+            "Wazuh Manager, Indexer, Filebeat and Dashboard remain active",
+            "No OpenSSH package, key, daemon configuration or listener has been installed or enabled",
+        ):
+            self.assertIn(required, normalized)
+
     def test_payloads_contain_no_secret_bearing_fields_or_broad_index_grants(self):
         payloads = [
             self.contract,

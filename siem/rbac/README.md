@@ -3,14 +3,11 @@
 This directory is the secret-free source location for the post-v1 human and
 machine read-only Wazuh role templates.
 
-**Current status:** Phase 0, the Phase 1A package and the inherited-role
-correction are independently approved and merged. On 2 September 2026 the
-owner narrowed the live `own_index` mapping, proved both new identities had no
-remaining inherited role, applied the two reviewed direct-user mappings and
-completed the fail-safe Indexer read/write matrix. Sanitized results are in
-`evidence/rbac/phase1b-indexer-enforcement-proof.md` and await independent
-review. SSH, Wazuh Server/Dashboard, OIDC and application integration remain
-unimplemented.
+**Current status:** Phase 0 and the Phase 1A/1B Indexer identity and enforcement
+gates are independently approved and merged through PR #10. The exact Phase
+1C SSH configuration and key-option prefix are committed here for review, but
+OpenSSH remains uninstalled and TCP 22 remains closed. Wazuh
+Server/Dashboard, OIDC and application integration remain unimplemented.
 
 Planned identities:
 
@@ -39,6 +36,19 @@ Committed Phase 1A artifacts and the Phase 1B correction package:
 - `SHA256SUMS` — LF-stable transfer hashes for all six executable payloads;
   and
 - `negative-test-matrix.md` — executed and reusable zero-state-change proof.
+
+Unexecuted Phase 1C transport inputs:
+
+- `sshd-alertmind.conf` — host-only, public-key-only server drop-in with a
+  source-scoped `notroot` match, local forwarding only, server-side
+  `PermitOpen`, no shell sessions and no alternate facilities;
+- `ssh-authorized-key-options.txt` — exact prefix for the dedicated public key;
+  it contains no key material; and
+- `SSH-SHA256SUMS` — LF-stable transfer hashes for those two public inputs.
+
+The execution and rollback sequence is in
+`docs/runbooks/rbac-wazuh-ssh-transport.md`. These files do not claim that SSH
+is installed or enabled.
 
 ## Inherited `own_index` correction
 

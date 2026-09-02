@@ -1,20 +1,20 @@
 # Runbook — RBAC and read-only Wazuh integration
 
-**Status:** Phase 0, the Phase 1A package and the inherited-role correction are
-independently approved and merged. The owner has now applied the live
-`own_index` correction and both direct-user mappings, then completed the
-Indexer declarative, DLS/read-scope and fail-safe write-denial checks. The
-sanitized proof awaits independent review. SSH, network, Wazuh
-Server/Dashboard, identity-provider and application configuration remain
-unchanged.
+**Status:** Phase 0 and the Phase 1A/1B Indexer identity and enforcement gates
+are independently approved and merged through PR #10. The Phase 1C SSH
+transport remains disabled. Its exact package, pre-enable proof and rollback
+are prepared in
+[`rbac-wazuh-ssh-transport.md`](rbac-wazuh-ssh-transport.md) for independent
+review. Wazuh Server/Dashboard, identity-provider and application
+configuration remain unchanged.
 
 **Applies to:** the post-v1 local-first analyst profile described in
 [`docs/rbac-wazuh-read-only-implementation-plan.md`](../rbac-wazuh-read-only-implementation-plan.md).
 
-**Safety boundary:** Do not begin the SSH transport or any later integration
-step until the completed Phase 1B Indexer enforcement proof receives
-independent approval. Do not repeat a write-denial request unless this matrix
-is still fail-safe and the role/mapping preconditions are rechecked.
+**Safety boundary:** Do not execute the SSH transport or any later integration
+step until the Phase 1C package receives independent approval. Do not repeat a
+write-denial request unless this matrix is still fail-safe and the role/mapping
+preconditions are rechecked.
 
 ---
 
@@ -38,8 +38,9 @@ is still fail-safe and the role/mapping preconditions are rechecked.
 Phase 0 closed when Claude approved `882c465`; the owner subsequently merged
 it to `main` at `de4b6a5`. The Phase 1A identity package was subsequently
 approved and merged at `76246e8`; its custom roles and users were created as
-recorded in Section 8. The current stop point is independent review of the
-completed Indexer enforcement proof before the SSH transport gate.
+recorded in Section 8. The completed Indexer enforcement proof was approved and
+merged through PR #10 at `f20800d`. The current stop point is independent
+review of the unexecuted Phase 1C SSH package.
 
 ## 2. Rules for collecting inventory
 
@@ -476,7 +477,7 @@ Only after all four conditions may the rollback patch be applied and read back.
 Restoring the wildcard first recreates the inherited write grant and is a
 security regression, not a rollback.
 
-## 9. Approved Phase 1 transport constraints — not yet executed
+## 9. Phase 1C transport package — not yet executed
 
 The preferred transport keeps Indexer on VM loopback and forwards Windows
 `127.0.0.1:19200` over SSH on the host-only adapter to VM
@@ -521,5 +522,10 @@ only under ignored `assistant/.secrets/`, protect it with a Windows ACL, and
 include it in generation, rotation, revocation and rollback records. The key
 must not open an interactive shell, request a PTY, use agent/X11 forwarding,
 enable gateway ports or reach any destination other than `127.0.0.1:9200`.
-Do not enable SSH until the Phase 1 transport configuration and rollback
-commands receive their own independent approval.
+The exact pinned installation, two-path activation mask, public-key procedure,
+match-aware pre-enable proof, listener/TLS/denial matrix and rollback are in
+[`rbac-wazuh-ssh-transport.md`](rbac-wazuh-ssh-transport.md). That runbook and
+the committed payload hashes must receive independent approval before any
+OpenSSH package, unit or key change. Its installation gate stops again with
+both units masked so the live `sshd -T -C` output can be reviewed before TCP 22
+is enabled.
