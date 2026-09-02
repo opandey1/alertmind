@@ -56,10 +56,13 @@ completed Indexer enforcement proof before the SSH transport gate.
 - Never point `openssl x509` at a file whose name contains `key`.
 - Do not add `-k`/`--insecure` or suppress certificate verification.
 - Python 3.13+ may reject this lab's older Wazuh CA under its newly enabled
-  `VERIFY_X509_STRICT` default because the CA lacks a key-usage extension. A
-  reviewed compatibility context may clear only that flag while retaining the
-  configured CA, `CERT_REQUIRED` and hostname verification. Never use an
-  unverified context or `verify=False`.
+  `VERIFY_X509_STRICT` default because the CA lacks a key-usage extension.
+  Disabling that flag relaxes a broader bundle of strict RFC 5280 checks; it is
+  not a targeted exception for one missing extension. Prefer a reviewed
+  certificate-chain replacement. Any compatibility context must explicitly
+  accept that broader reduction while retaining the configured CA,
+  `CERT_REQUIRED` and hostname verification. Never use an unverified context
+  or `verify=False`.
 - Stop if any command would mutate state or unexpectedly returns credentials or
   raw alert bodies.
 
@@ -264,7 +267,7 @@ and guaranteed-nonexistent literal IDs.
 | Submitted-v1 version | Wazuh 4.14.5; preserved separately and not retro-edited |
 | Node certificate | SAN `IP:127.0.0.1`; expires 2036-06-19; SHA-256 `BC:90:AA:A9:18:88:39:41:65:A3:3F:C8:BE:9F:C6:67:CA:6F:0A:08:F5:DE:20:2C:62:A0:E0:89:26:23:32:FB` |
 | Public CA | Expires 2036-06-19; SHA-256 `EB:98:A4:AF:38:CD:A5:50:D4:73:E5:65:9A:43:75:90:53:34:04:1F:AB:45:97:F3:9C:4F:19:1D:9E:6F:5E:1D` |
-| Validated TLS URL | VM-local `https://127.0.0.1:9200` passes with CA and hostname verification; Python 3.14 required clearing only `VERIFY_X509_STRICT` for the older CA while retaining `CERT_REQUIRED` and hostname verification. Proposed Windows `https://127.0.0.1:19200` tunnel is not yet configured. |
+| Validated TLS URL | VM-local `https://127.0.0.1:9200` passes with CA and hostname verification. Python 3.14 compatibility testing disabled `VERIFY_X509_STRICT` wholesale after the older CA's missing key-usage extension triggered rejection; `CERT_REQUIRED` and hostname verification remained enabled. Proposed Windows `https://127.0.0.1:19200` tunnel is not yet configured. |
 | Alert indices | 25 open/green `wazuh-alerts-4.x-*` indices; 35,992 documents; no aliases |
 | Cluster health | Yellow, one node, 132 active primaries; four unassigned replica shards belong to OpenDistro system indices |
 | Relevant composable templates | None for `wazuh-alerts-*` |
@@ -436,19 +439,25 @@ before transport:
 - `assistant-svc` could search/get one DLS-visible agent-002 alert, saw zero of
   the `11,816` current agent-000 documents visible to admin, and was denied
   cluster-health, Security-index and Dashboard-index reads; and
-- fail-safe `_create`, non-upserting `_update` and DELETE attempts all returned
-  `403`/`security_exception`; the original canonical source hash was unchanged
-  and both random IDs remained absent.
+- both random IDs returned `404`, not `403`, in the same positively read
+  concrete index before the write attempts, proving index read access and
+  isolating the later action denials; fail-safe `_create`, non-upserting
+  `_update` and DELETE attempts all returned `403`/`security_exception`, the
+  original canonical source hash was unchanged and both random IDs remained
+  absent.
 
 No concrete `wazuh-archives-*` index existed. The archive wildcard's empty
 `200` had zero shards and zero hits and is therefore vacuous, not evidence of
 access. A literal archive-namespace control returned `403`; rerun against a
 concrete archive index if one later exists. Do not create one for this test.
 
-The Python 3.14 evidence harness cleared only `VERIFY_X509_STRICT` to accept the
-older Wazuh CA lacking a key-usage extension. It retained the configured CA,
-`CERT_REQUIRED` and hostname verification. The later client must preserve
-those properties; unverified TLS remains prohibited.
+The Python 3.14 evidence harness disabled `VERIFY_X509_STRICT` wholesale after
+the older Wazuh CA's missing key-usage extension triggered rejection. The flag
+gates a broader bundle of strict RFC 5280 checks; this was not a targeted
+key-usage exception. It retained the configured CA, `CERT_REQUIRED` and
+hostname verification. The later client must preserve those properties and
+prefer a reviewed certificate-chain replacement; unverified TLS remains
+prohibited.
 
 The complete sanitized result, identifiers and hashes are in
 [`evidence/rbac/phase1b-indexer-enforcement-proof.md`](../../evidence/rbac/phase1b-indexer-enforcement-proof.md).

@@ -395,14 +395,17 @@ root CA. Do not ship `verify=False`, suppress certificate warnings or copy any
 private Indexer key.
 
 Python 3.13+ enables `VERIFY_X509_STRICT` in its default SSL context. The live
-Wazuh CA lacks a key-usage extension and Python 3.14 therefore rejected it
-under that additional strictness. The VM evidence harness cleared only
-`VERIFY_X509_STRICT`; it retained the configured CA, `CERT_REQUIRED` and
-hostname verification, and the authenticated endpoint still rejected an
+Wazuh CA triggered a Python 3.14 rejection because it lacks a key-usage
+extension. The VM evidence harness disabled `VERIFY_X509_STRICT` wholesale,
+not as a targeted exception: the flag gates a broader bundle of strict RFC
+5280 checks, including CA basic constraints, key-usage consistency and
+duplicate or malformed extensions. The harness retained the configured CA,
+`CERT_REQUIRED` and hostname verification, and the endpoint still rejected an
 unauthenticated request with `401`. Before implementing the Windows client,
-either use an independently reviewed compatibility context with those same
-verification properties or replace the certificate chain in a separate
-infrastructure cycle. Never substitute an unverified context.
+prefer replacing the certificate chain in a separate infrastructure cycle. A
+reviewed compatibility context must preserve those verification properties
+and explicitly accept the broader strictness reduction; never substitute an
+unverified context.
 
 SSH is currently inactive. Its reviewed Phase 1 configuration must:
 
@@ -812,8 +815,8 @@ mocks. Live integration proof runs manually in the isolated lab.
 | both new Indexer users, before and after project mapping | Read-only search of the corresponding username-named index | 403; no index is created |
 | `assistant-svc` | `GET _plugins/_security/authinfo` plus admin readback of its role/mappings | Only expected service identity/role; no `own_index`, cluster, tenant or write grant |
 | `assistant-svc` | `_create` with an already-existing, positively read document ID | 403; accidental allow can only conflict, never overwrite |
-| `assistant-svc` | `_update` a random nonexistent ID, with no `upsert` field | 403; ID remains absent |
-| `assistant-svc` | DELETE a second random nonexistent document ID | 403; ID remains absent |
+| `assistant-svc` | In the same positively read concrete index, `_update` a random nonexistent ID with no `upsert` field | Precheck 404 proves index read access; write returns 403 and ID remains absent |
+| `assistant-svc` | In the same positively read concrete index, DELETE a second random nonexistent document ID | Precheck 404 proves index read access; write returns 403 and ID remains absent |
 | `assistant-svc` credentials | Authenticate to Server API `:55000` | Rejected; no Server API identity |
 | SSH tunnel key | Request shell or any forward except `127.0.0.1:9200` | Rejected |
 | browser/session tamper | Change role, index, query or endpoint | Server-side denial/validation |
@@ -839,11 +842,14 @@ cryptographically random, literal nonexistent IDs:
 2. Attempt `_create` on the same concrete index with the already-existing
    `_id`. Expected: 403. If write permission was accidentally granted,
    create-only semantics return conflict and cannot overwrite the document.
-3. Attempt `_update` on a random nonexistent `_id` with only a `doc` body and
-   `doc_as_upsert:false`. The body must contain **no `upsert` field**. Expected:
-   403; an accidental allow returns not found and cannot create a document.
-4. Attempt document DELETE on a second random nonexistent literal `_id`.
-   Expected: 403; an accidental allow returns not found.
+3. In the same positively read concrete index, GET the first random
+   nonexistent `_id` and require 404, not 403, proving index read access. Then
+   attempt `_update` with only a `doc` body and `doc_as_upsert:false`. The body
+   must contain **no `upsert` field**. Expected: 403; an accidental allow
+   returns not found and cannot create a document.
+4. In that same index, GET the second random nonexistent literal `_id` and
+   require 404, not 403. Then attempt document DELETE. Expected: 403; an
+   accidental allow returns not found.
 5. Re-GET and re-hash the original document, then GET both random IDs to prove
    zero state change.
 

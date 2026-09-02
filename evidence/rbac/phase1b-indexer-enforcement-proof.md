@@ -105,23 +105,28 @@ for all three write attempts:
 | Operation | Safe target | Result |
 |---|---|---|
 | `_create` | Existing concrete index and existing document ID | `403`, `security_exception` |
-| `_update` with `doc_as_upsert:false` and no `upsert` | Proven-absent random ID `alertmind-denial-update-02c95c541aabd4c4bbb28fea5b96b74681d9435d5401ce3c` | `403`, `security_exception` |
-| DELETE | Different proven-absent random ID `alertmind-denial-delete-4dd94c365f74979d0294b4846c54f81430462faef9d0b2f1` | `403`, `security_exception` |
+| `_update` with `doc_as_upsert:false` and no `upsert` | Same positively read concrete index; proven-absent random ID `alertmind-denial-update-02c95c541aabd4c4bbb28fea5b96b74681d9435d5401ce3c` | `403`, `security_exception` |
+| DELETE | Same positively read concrete index; different proven-absent random ID `alertmind-denial-delete-4dd94c365f74979d0294b4846c54f81430462faef9d0b2f1` | `403`, `security_exception` |
 
-The original document hash was identical before and after all denials. Both
-random IDs returned `404` before and after. These checks prove zero visible
-state change without creating a probe index, sentinel or expected-success
-write.
+Both random IDs returned `404`, not `403`, in the same positively read concrete
+index before the write attempts. That proves the service identity could read
+the containing index, so the later `403` results isolate denied write actions
+rather than an out-of-scope index boundary. The original document hash was
+identical before and after all denials. Both random IDs remained `404` after
+the attempts. These checks prove zero visible state change without creating a
+probe index, sentinel or expected-success write.
 
 ## TLS verification note
 
 The Wazuh CA and the node certificate's `IP:127.0.0.1` SAN validated with
 curl. Python 3.14's default context additionally enabled
-`VERIFY_X509_STRICT`, which rejected the existing Wazuh CA because it lacks a
-key-usage extension. The evidence harness cleared only that compatibility
-flag. It retained `CERT_REQUIRED`, hostname verification and the configured
-CA; the verified handshake passed and an unauthenticated request returned
-`401`.
+`VERIFY_X509_STRICT`; the observed rejection said the existing Wazuh CA lacks
+a key-usage extension. The evidence harness disabled `VERIFY_X509_STRICT`
+wholesale. That flag gates a broader bundle of strict RFC 5280 checks,
+including CA basic constraints, key-usage consistency and duplicate or
+malformed extensions; this was not a targeted key-usage exception. The
+harness retained `CERT_REQUIRED`, hostname verification and the configured CA;
+the verified handshake passed and an unauthenticated request returned `401`.
 
 This is not authority to disable TLS verification. The later Windows client
 must either use an independently reviewed compatibility context with those
