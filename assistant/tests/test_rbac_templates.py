@@ -220,10 +220,15 @@ class RbacTemplateContractTests(unittest.TestCase):
 
     def test_denial_matrix_is_zero_state_change_and_prohibits_index_delete(self):
         matrix = (RBAC_DIR / "negative-test-matrix.md").read_text(encoding="utf-8")
+        normalized = " ".join(matrix.split())
         for required in (
             "existing concrete index and existing ID",
+            "same positively read concrete index",
+            "require `404`, not `403`",
             "doc_as_upsert:false",
             "no** `upsert` field",
+            "isolates the denied update action",
+            "isolates the denied delete action",
             "Original hash unchanged",
             "both random IDs remain absent",
             "Do not create or delete an index",
@@ -232,8 +237,40 @@ class RbacTemplateContractTests(unittest.TestCase):
             "`own_index` is absent",
             "unexpected",
             "effective role",
+            "empty wildcard `200` with zero shards and zero hits is vacuous",
+            "Do not create an archive index",
         ):
-            self.assertIn(required, matrix)
+            self.assertIn(required, normalized)
+
+    def test_live_enforcement_evidence_records_boundary_and_caveats(self):
+        evidence = (
+            REPO_ROOT / "evidence" / "rbac" /
+            "phase1b-indexer-enforcement-proof.md"
+        ).read_text(encoding="utf-8")
+        normalized = " ".join(evidence.split())
+        for required in (
+            "indices:data/write/bulk",
+            "indices:data/write/reindex",
+            "11,816",
+            "security_exception",
+            "zero visible state change",
+            "No concrete `wazuh-archives-*` index existed",
+            "that result is vacuous",
+            "Future reruns must use a concrete archive index when one exists",
+            "did not demonstrate that alert content had been copied or that DLS had been bypassed",
+            "returned `404`, not `403`, in the same positively read concrete index",
+            "isolate denied write actions rather than an out-of-scope index boundary",
+            "The original document hash was identical before and after all denials",
+            "VERIFY_X509_STRICT",
+            "disabled `VERIFY_X509_STRICT` wholesale",
+            "this was not a targeted key-usage exception",
+            "CERT_REQUIRED",
+            "hostname verification",
+            "This is not authority to disable TLS verification",
+            "SSH remains disabled",
+            "application integration remain unimplemented",
+        ):
+            self.assertIn(required, normalized)
 
     def test_runbook_orders_inherited_role_gate_before_project_mappings(self):
         runbook = (

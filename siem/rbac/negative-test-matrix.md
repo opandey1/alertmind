@@ -1,13 +1,36 @@
 # Phase 1 fail-safe Wazuh denial matrix
 
-**Status:** Pre-registered; do not execute until the inherited `own_index`
-grant has been removed from both new identities and both AlertMind role
-mappings have then been applied from independently approved templates.
+**Status:** Executed by the owner on 2 September 2026 after the inherited
+`own_index` grant was removed and both independently approved AlertMind role
+mappings were applied. All required write attempts returned `403`; the
+original hash was unchanged and both random IDs remained absent. Sanitized
+results are recorded in
+`evidence/rbac/phase1b-indexer-enforcement-proof.md`. Retain this matrix as the
+normative procedure for reruns.
 
 This matrix proves the effective `assistant-svc` boundary without creating a
 probe index, sentinel document or any expected-success write. It must be run
 with the same `assistant-svc` credential used for the positive read. Never use
 the administrator credential for a denial row.
+
+## Read-scope controls
+
+Before the write matrix, prove a positive bounded search and concrete GET for
+one DLS-visible document. Require `403` for cluster health and for existing
+restricted Security/Dashboard indices.
+
+For `wazuh-archives-*`, first enumerate concrete archive indices as
+administrator without retrieving document bodies:
+
+- if one exists, search a concrete archive index as `assistant-svc` and require
+  `403`;
+- if none exists, record that denial against live archive data is not
+  testable. An empty wildcard `200` with zero shards and zero hits is vacuous,
+  not proof of a grant or denial. Use a cryptographically random literal name
+  in the `wazuh-archives-4.x-*` namespace for a read-only `403` control, and
+  repeat the concrete-index test when archive data exists.
+
+Do not create an archive index merely to make this row testable.
 
 ## Preconditions
 
@@ -29,8 +52,10 @@ the administrator credential for a denial row.
 - Select one real DLS-visible document using a bounded search. Record only its
   concrete index, document ID and a SHA-256 of canonicalized `_source` in the
   private operator worksheet; do not commit the raw alert.
-- Generate two different cryptographically random document IDs and first GET
-  each one to prove both are absent.
+- Generate two different cryptographically random document IDs for the same
+  positively read concrete index. First GET each one and require `404`, not
+  `403`: this proves read access to the containing index while proving both IDs
+  are absent.
 
 ## Inherited-role check
 
@@ -47,13 +72,21 @@ survives outside the approved alert namespace.
 |---|---|---|---|
 | 1 | Search, then GET the selected existing document by concrete index and ID | `200` and the same document | Makes later denials non-vacuous for authentication, index scope and DLS. |
 | 2 | `_create` using that existing concrete index and existing ID | `403` | If write were accidentally allowed, create-only semantics conflict and cannot overwrite. |
-| 3 | `_update` the first proven-absent random ID with a `doc` body, `doc_as_upsert:false`, and **no** `upsert` field | `403` | If accidentally allowed, update returns not found and cannot create. |
-| 4 | DELETE the second proven-absent random document ID | `403` | If accidentally allowed, deleting an absent ID changes no document. |
+| 3 | In the same positively read concrete index, `_update` the first proven-absent random ID with a `doc` body, `doc_as_upsert:false`, and **no** `upsert` field | `403` | The precheck's `404`, rather than `403`, proves index read access; this result therefore isolates the denied update action. If accidentally allowed, update returns not found and cannot create. |
+| 4 | In the same positively read concrete index, DELETE the second proven-absent random document ID | `403` | The precheck's `404`, rather than `403`, proves index read access; this result therefore isolates the denied delete action. If accidentally allowed, deleting an absent ID changes no document. |
 | 5 | Re-GET and re-hash the original; GET both random IDs | Original hash unchanged; both random IDs remain absent | Explicitly proves zero state change. |
 
 Stop immediately if any request in steps 2–4 returns anything other than
 `403`. Preserve only sanitized status, correlation and hash evidence, disable
 the service role mapping, and review the role before continuing.
+
+The 2 September execution used create-only semantics on the positively read
+document, a non-upserting update against one proven-absent random ID and DELETE
+against a different proven-absent ID, all in the same positively read concrete
+index. Both random-ID prechecks returned `404`, not `403`, establishing index
+read access before the action-level denials. Each write returned `403` with a
+`security_exception`; the original canonical `_source` hash matched before and
+after, and both random IDs returned `404` after the attempts.
 
 ## Prohibited checks
 

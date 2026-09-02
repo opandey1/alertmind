@@ -2,10 +2,11 @@
 
 **Captured:** 2 September 2026 (owner-executed on `wazuh-siem`)
 
-**Status:** Sanitized pre-correction evidence. The custom roles and internal
-users exist, but no AlertMind direct-user mapping, SSH transport or live
-assistant integration has been applied. The repository correction requires
-independent review before any further live mutation.
+**Status:** Historical sanitized pre-correction evidence. At capture time the
+custom roles and internal users existed, but no AlertMind direct-user mapping,
+SSH transport or live assistant integration had been applied. The correction
+and direct mappings were subsequently approved and executed; see
+[`phase1b-indexer-enforcement-proof.md`](phase1b-indexer-enforcement-proof.md).
 
 ## Successful live steps
 
@@ -70,7 +71,7 @@ but Wazuh Dashboard configuration had multitenancy disabled and only
 not mitigate the Indexer write grant. Later proof must still show that
 `assistant-svc` cannot use Dashboard.
 
-## Gated correction
+## Gated correction design
 
 The repository package narrows only the editable `own_index` mapping's
 `users` selector. Before applying it, the operator must re-verify the exact
@@ -84,6 +85,16 @@ The wildcard rollback is unsafe while either new identity can authenticate.
 Both project mappings and both new identities must first be revoked or deleted,
 and both credentials must fail authentication, before rollback can restore the
 historical wildcard.
+
+## Subsequent resolution
+
+The live action-group readback later confirmed that
+`cluster_composite_ops` included bulk and reindex writes and that
+`indices_all` expanded to `indices:*`. The reviewed patch removed both new
+identities from the wildcard mapping before either project mapping was applied.
+Post-correction authinfo, username-index denials, DLS/read controls and the
+fail-safe write matrix passed as recorded in the linked enforcement proof. No
+claim is made that alert data was copied during the pre-correction interval.
 
 ## Secret and state boundary
 

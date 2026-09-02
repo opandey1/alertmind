@@ -1,18 +1,20 @@
 # Runbook — RBAC and read-only Wazuh integration
 
-**Status:** Phase 0 and the Phase 1A repository package are independently
-approved and merged. The two custom Indexer roles and two internal users now
-exist on VM loopback, but the AlertMind direct-user mappings were withheld
-after both users inherited the wildcard `own_index` role. The Phase 1B
-correction is repository-only and awaits review. SSH, network, identity-
-provider and application configuration remain unchanged.
+**Status:** Phase 0, the Phase 1A package and the inherited-role correction are
+independently approved and merged. The owner has now applied the live
+`own_index` correction and both direct-user mappings, then completed the
+Indexer declarative, DLS/read-scope and fail-safe write-denial checks. The
+sanitized proof awaits independent review. SSH, network, Wazuh
+Server/Dashboard, identity-provider and application configuration remain
+unchanged.
 
 **Applies to:** the post-v1 local-first analyst profile described in
 [`docs/rbac-wazuh-read-only-implementation-plan.md`](../rbac-wazuh-read-only-implementation-plan.md).
 
-**Safety boundary:** Do not apply the `own_index` correction, either AlertMind
-mapping, any behavioral request, SSH change or later integration step until
-the Phase 1B correction package receives independent approval.
+**Safety boundary:** Do not begin the SSH transport or any later integration
+step until the completed Phase 1B Indexer enforcement proof receives
+independent approval. Do not repeat a write-denial request unless this matrix
+is still fail-safe and the role/mapping preconditions are rechecked.
 
 ---
 
@@ -36,8 +38,8 @@ the Phase 1B correction package receives independent approval.
 Phase 0 closed when Claude approved `882c465`; the owner subsequently merged
 it to `main` at `de4b6a5`. The Phase 1A identity package was subsequently
 approved and merged at `76246e8`; its custom roles and users were created as
-recorded in Section 8. The current stop point is the independently review-gated
-`own_index` correction, not the earlier Phase 1A package.
+recorded in Section 8. The current stop point is independent review of the
+completed Indexer enforcement proof before the SSH transport gate.
 
 ## 2. Rules for collecting inventory
 
@@ -53,6 +55,14 @@ recorded in Section 8. The current stop point is the independently review-gated
   acceptable later alternative; do not relax `/etc/wazuh-indexer/certs`.
 - Never point `openssl x509` at a file whose name contains `key`.
 - Do not add `-k`/`--insecure` or suppress certificate verification.
+- Python 3.13+ may reject this lab's older Wazuh CA under its newly enabled
+  `VERIFY_X509_STRICT` default because the CA lacks a key-usage extension.
+  Disabling that flag relaxes a broader bundle of strict RFC 5280 checks; it is
+  not a targeted exception for one missing extension. Prefer a reviewed
+  certificate-chain replacement. Any compatibility context must explicitly
+  accept that broader reduction while retaining the configured CA,
+  `CERT_REQUIRED` and hostname verification. Never use an unverified context
+  or `verify=False`.
 - Stop if any command would mutate state or unexpectedly returns credentials or
   raw alert bodies.
 
@@ -257,7 +267,7 @@ and guaranteed-nonexistent literal IDs.
 | Submitted-v1 version | Wazuh 4.14.5; preserved separately and not retro-edited |
 | Node certificate | SAN `IP:127.0.0.1`; expires 2036-06-19; SHA-256 `BC:90:AA:A9:18:88:39:41:65:A3:3F:C8:BE:9F:C6:67:CA:6F:0A:08:F5:DE:20:2C:62:A0:E0:89:26:23:32:FB` |
 | Public CA | Expires 2036-06-19; SHA-256 `EB:98:A4:AF:38:CD:A5:50:D4:73:E5:65:9A:43:75:90:53:34:04:1F:AB:45:97:F3:9C:4F:19:1D:9E:6F:5E:1D` |
-| Validated TLS URL | VM-local `https://127.0.0.1:9200` passes; proposed Windows `https://127.0.0.1:19200` tunnel is not yet configured |
+| Validated TLS URL | VM-local `https://127.0.0.1:9200` passes with CA and hostname verification. Python 3.14 compatibility testing disabled `VERIFY_X509_STRICT` wholesale after the older CA's missing key-usage extension triggered rejection; `CERT_REQUIRED` and hostname verification remained enabled. Proposed Windows `https://127.0.0.1:19200` tunnel is not yet configured. |
 | Alert indices | 25 open/green `wazuh-alerts-4.x-*` indices; 35,992 documents; no aliases |
 | Cluster health | Yellow, one node, 132 active primaries; four unassigned replica shards belong to OpenDistro system indices |
 | Relevant composable templates | None for `wazuh-alerts-*` |
@@ -270,11 +280,14 @@ and guaranteed-nonexistent literal IDs.
 | Preferred transport | Reviewed design: host-only, key-restricted SSH local forward; not implemented |
 | `action.destructive_requires_name` | Effective default `false`; optional index-level DELETE proof prohibited |
 
-Phase 1B delta on 2 September 2026: both custom roles and both internal users
-now exist; the project mappings do not. Sanitized pre-mapping authinfo exposed
-the inherited wildcard `own_index` role, so work stopped before transport or a
-behavioral request. See
-[`evidence/rbac/phase1b-inherited-access-check.md`](../../evidence/rbac/phase1b-inherited-access-check.md).
+Phase 1B delta on 2 September 2026: sanitized pre-mapping authinfo exposed the
+inherited wildcard `own_index` role, so work first stopped before project
+mappings. After independent approval, the owner applied the scoped correction,
+proved both users had no effective role, applied both direct-user mappings and
+completed the Indexer allow/deny matrix. See the historical finding in
+[`evidence/rbac/phase1b-inherited-access-check.md`](../../evidence/rbac/phase1b-inherited-access-check.md)
+and the completed live result in
+[`evidence/rbac/phase1b-indexer-enforcement-proof.md`](../../evidence/rbac/phase1b-indexer-enforcement-proof.md).
 
 Unset the convenience variables when finished:
 
@@ -297,7 +310,7 @@ Phase 0 passes only when:
 If any condition fails, leave the offline profile unchanged and do not begin
 RBAC or SSH configuration.
 
-## 8. Phase 1 identity package and inherited-role gate — partial live state
+## 8. Phase 1 identity package and inherited-role gate — live Indexer gate complete
 
 The normative files are:
 
@@ -317,7 +330,7 @@ the existing editable `own_index` mapping. The scope contract pins all six
 executable payloads to the approved inventory and distinguishes the normal
 correction from the rollback-only wildcard restore.
 
-Live work completed before this gate:
+Live work completed before the inherited-role correction:
 
 - both enrollment fingerprints and all four original payload hashes matched;
 - `alertmind_socanalyst_ro` and `alertmind_assistant_alerts_ro` were created
@@ -325,7 +338,7 @@ Live work completed before this gate:
 - `socanalyst` and `assistant-svc` were created with owner-entered passwords;
   sanitized user readback showed no backend role, direct security role or
   attribute; and
-- no AlertMind project mapping was applied.
+- no AlertMind project mapping had yet been applied.
 
 The pre-mapping authinfo check then showed `own_index` as the sole effective
 role for both users. Its reserved/static role grants `cluster_composite_ops`
@@ -408,7 +421,48 @@ evidence captured as `socanalyst` must be labelled **DLS-scoped**; its counts
 will exclude the inventoried agent-000 documents and need not match admin
 screenshots.
 
-### 8.3 Rollback-only wildcard restore
+### 8.3 Executed Indexer enforcement result
+
+The owner executed the approved sequence on 2 September 2026 and stopped
+before transport:
+
+- the live action-group expansion confirmed that `cluster_composite_ops`
+  included `indices:data/write/bulk` and `indices:data/write/reindex`, while
+  `indices_all` expanded to `indices:*`; this enumerates the prevented
+  inherited write path without claiming that alert data was copied;
+- the scoped patch left exactly the seven preserved users in the `own_index`
+  mapping and left every alternate selector empty;
+- before direct mapping, both new users had no effective role and their
+  username-index searches returned `403`;
+- after direct mapping, each user had only its intended AlertMind role and both
+  username-index searches still returned `403`;
+- `assistant-svc` could search/get one DLS-visible agent-002 alert, saw zero of
+  the `11,816` current agent-000 documents visible to admin, and was denied
+  cluster-health, Security-index and Dashboard-index reads; and
+- both random IDs returned `404`, not `403`, in the same positively read
+  concrete index before the write attempts, proving index read access and
+  isolating the later action denials; fail-safe `_create`, non-upserting
+  `_update` and DELETE attempts all returned `403`/`security_exception`, the
+  original canonical source hash was unchanged and both random IDs remained
+  absent.
+
+No concrete `wazuh-archives-*` index existed. The archive wildcard's empty
+`200` had zero shards and zero hits and is therefore vacuous, not evidence of
+access. A literal archive-namespace control returned `403`; rerun against a
+concrete archive index if one later exists. Do not create one for this test.
+
+The Python 3.14 evidence harness disabled `VERIFY_X509_STRICT` wholesale after
+the older Wazuh CA's missing key-usage extension triggered rejection. The flag
+gates a broader bundle of strict RFC 5280 checks; this was not a targeted
+key-usage exception. It retained the configured CA, `CERT_REQUIRED` and
+hostname verification. The later client must preserve those properties and
+prefer a reviewed certificate-chain replacement; unverified TLS remains
+prohibited.
+
+The complete sanitized result, identifiers and hashes are in
+[`evidence/rbac/phase1b-indexer-enforcement-proof.md`](../../evidence/rbac/phase1b-indexer-enforcement-proof.md).
+
+### 8.4 Rollback-only wildcard restore
 
 The rollback patch is **Rollback-only** and is unsafe while either new
 identity can authenticate. Before restoring `users: ["*"]`:

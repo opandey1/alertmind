@@ -3,13 +3,14 @@
 This directory is the secret-free source location for the post-v1 human and
 machine read-only Wazuh role templates.
 
-**Current status:** Phase 0 and the Phase 1A repository package are
-independently approved and merged. On 2 September 2026 the two custom Indexer
-roles and the two internal users were created on VM loopback, but the AlertMind
-direct-user mappings were deliberately withheld. Readback found that both new
-users inherited the reserved `own_index` role through its editable wildcard
-mapping. The correction in this directory is repository-only and must receive
-independent approval before any further live RBAC or SSH change.
+**Current status:** Phase 0, the Phase 1A package and the inherited-role
+correction are independently approved and merged. On 2 September 2026 the
+owner narrowed the live `own_index` mapping, proved both new identities had no
+remaining inherited role, applied the two reviewed direct-user mappings and
+completed the fail-safe Indexer read/write matrix. Sanitized results are in
+`evidence/rbac/phase1b-indexer-enforcement-proof.md` and await independent
+review. SSH, Wazuh Server/Dashboard, OIDC and application integration remain
+unimplemented.
 
 Planned identities:
 
@@ -37,17 +38,18 @@ Committed Phase 1A artifacts and the Phase 1B correction package:
   Patch that restores the wildcard after both new identities are revoked;
 - `SHA256SUMS` — LF-stable transfer hashes for all six executable payloads;
   and
-- `negative-test-matrix.md` — pre-registered zero-state-change proof.
+- `negative-test-matrix.md` — executed and reusable zero-state-change proof.
 
 ## Inherited `own_index` correction
 
-The live `own_index` role is reserved/static and grants
+Before correction, the live `own_index` role was reserved/static and granted
 `cluster_composite_ops` plus `indices_all` on `${user_name}`. Its separate role
-mapping is editable (`reserved: false`) and matched every user through
+mapping was editable (`reserved: false`) and matched every user through
 `users: ["*"]`. OpenSearch permissions are additive, so applying the narrower
 AlertMind mappings would not have removed that write path.
 
-The normal-path patch changes only the mapping's `users` selector. It preserves
+The applied normal-path patch changed only the mapping's `users` selector. It
+now preserves
 `own_index` for the seven internal users that existed before this feature—
 `admin`, `anomalyadmin`, `kibanaro`, `kibanaserver`, `logstash`, `readall` and
 `snapshotrestore`—while excluding `socanalyst` and `assistant-svc`. It also
@@ -79,9 +81,9 @@ The same DLS also filters human dashboards: `socanalyst` sees only agent IDs
 labelled **DLS-scoped** and must not be compared to an administrator screenshot
 as though their totals should match.
 
-No disposable alert/probe index or sentinel may be created. Live denial proof
-uses the fail-safe matrix in `negative-test-matrix.md`; the optional
-index-level DELETE test is prohibited in this lab.
+No disposable alert/probe index or sentinel may be created. The completed live
+denial proof follows the fail-safe matrix in `negative-test-matrix.md`; the
+optional index-level DELETE test remains prohibited in this lab.
 
 Passwords, password hashes, tokens, private keys, authorization headers and
 raw alert documents must never be committed. Internal-user passwords are

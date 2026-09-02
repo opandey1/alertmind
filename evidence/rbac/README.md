@@ -5,12 +5,15 @@ Wazuh integration.
 
 **Current status:** The sanitized Phase 0 owner checklist and enrollment
 fingerprints in [`phase0-owner-checklist.md`](phase0-owner-checklist.md) were
-independently approved and merged. The owner then created the two reviewed
-custom roles and two internal users on VM loopback. The pre-mapping check in
+independently approved and merged. The pre-mapping check in
 [`phase1b-inherited-access-check.md`](phase1b-inherited-access-check.md)
-identified an inherited `own_index` write grant, so the project mappings were
-withheld. The correction is awaiting independent review; the feature must
-still be described as planned.
+identified an inherited `own_index` write grant. The owner subsequently
+applied the reviewed correction and both direct-user mappings, then completed
+the declarative, read-scope and fail-safe write-denial checks recorded in
+[`phase1b-indexer-enforcement-proof.md`](phase1b-indexer-enforcement-proof.md).
+That live proof is awaiting independent review. It closes only the Indexer
+gate; SSH, Wazuh Server/Dashboard, OIDC and application integration remain
+unimplemented, so the complete feature must still be described as planned.
 
 Accepted evidence may include:
 
