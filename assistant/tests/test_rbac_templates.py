@@ -312,7 +312,6 @@ class RbacTemplateContractTests(unittest.TestCase):
             "user=notroot,host=wazuh-siem,addr=192.168.56.1",
             "user=root,host=wazuh-siem,addr=192.168.56.1",
             "allowtcpforwarding local",
-            "allowtcpforwarding yes",
             "STOP POINT: do not unmask or enable SSH",
             "ssh.socket remains masked",
             "expected exactly one ED25519 host key",
@@ -325,6 +324,25 @@ class RbacTemplateContractTests(unittest.TestCase):
             "packages remain inert",
         ):
             self.assertIn(required, normalized)
+        self.assertNotIn("allowtcpforwarding yes", normalized)
+
+        control_start = runbook.index(
+            "echo 'PASS host-key policy: exactly one effective ED25519 key'"
+        )
+        control_end = runbook.index(
+            "if grep -Fxq 'allowtcpforwarding local' \"$CONTROL\"",
+            control_start,
+        )
+        control_proof = runbook[control_start:control_end]
+        for denial in (
+            "allowtcpforwarding no",
+            "permitopen none",
+            "maxsessions 0",
+            "permittty no",
+            "forcecommand /bin/false",
+        ):
+            self.assertIn(f"'{denial}'", control_proof)
+        self.assertIn('require_line "$CONTROL" "$line"', control_proof)
 
         simulation = runbook.index(
             "apt-get --simulate install --no-install-recommends"
