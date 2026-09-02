@@ -13,3 +13,6 @@ measurement/timing-log.csv    text eol=lf
 # platform-dependent payload hashes without renormalising historical files.
 siem/rbac/*.json              text eol=lf
 siem/rbac/SHA256SUMS          text eol=lf
+siem/rbac/sshd-alertmind.conf text eol=lf
+siem/rbac/ssh-authorized-key-options.txt text eol=lf
+siem/rbac/SSH-SHA256SUMS      text eol=lf

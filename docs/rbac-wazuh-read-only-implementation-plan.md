@@ -1,11 +1,13 @@
 # AlertMind — RBAC and read-only Wazuh integration
 
-**Document status:** Phase 0, the Phase 1A package and the inherited-role
-correction are approved and merged. The owner applied the scoped correction,
-both direct-user mappings and the fail-safe Indexer enforcement matrix on VM
-loopback; its sanitized proof awaits independent review. SSH transport, Wazuh
-Server/Dashboard configuration, OIDC and application integration remain
-unimplemented.
+**Document status:** Phase 0 and the Phase 1A/1B Indexer identity and
+enforcement gates are independently approved and merged through PR #10. The
+owner removed an unrelated broken, unused Postfix package after a separate
+simulation/approval gate; package consistency and Wazuh health remain intact.
+This branch prepares the exact Phase 1C SSH installation, configuration,
+pre-enable proof and rollback package. It is not authority to execute that
+package before independent review. SSH transport, Wazuh Server/Dashboard
+configuration, OIDC and application integration remain unimplemented.
 
 **Date:** 1 September 2026
 
@@ -75,7 +77,8 @@ The plan is based on the current repository rather than the earlier
   created on VM loopback. A pre-mapping check exposed inherited `own_index`
   access; after independent review, the owner narrowed that mapping, applied
   both direct-user mappings and completed the fail-safe Indexer matrix. That
-  proof awaits review. SSH transport and live ingestion remain incomplete.
+  proof is independently approved and merged in PR #10. SSH transport and live
+  ingestion remain incomplete.
 - The pre-feature regression baseline was 78 assistant tests plus the frozen-
   evidence verifier. Phase 0 adds eight characterization tests, bringing the
   branch to 86 tests without changing prompts, views, redaction, schema,
@@ -677,14 +680,16 @@ Phase 0 is closed. The approved commit is merged to `main` at `de4b6a5`.
 3. **Done and approved:** add the scoped `own_index` JSON Patch, rollback-only
    patch, transfer hashes, sanitized finding evidence and drift tests. Recheck
    every mapping selector and authentication domain before applying it.
-4. **Owner-executed; evidence awaiting review:** narrow the wildcard mapping,
+4. **Done, approved and merged in PR #10:** narrow the wildcard mapping,
    prove `own_index` and every unexpected role absent for both users, require
    `403` on both username-named read-only searches, then apply the two project
    mappings and repeat authinfo and username-index checks.
-5. **Next gate:** configure and verify the host-only, key-restricted SSH local
-   forward while leaving Indexer on loopback. Capture both context-aware
-   `sshd -T -C` outputs before enabling SSH.
-6. **Owner-executed on VM loopback; evidence awaiting review:** execute the
+5. **Current package gate:** independently review
+   `docs/runbooks/rbac-wazuh-ssh-transport.md`, the secret-free SSH payloads,
+   prerequisite evidence and contract tests. Only after approval may the owner
+   install OpenSSH with both activation paths masked, capture both
+   context-aware `sshd -T -C` outputs and stop before enabling SSH.
+6. **Done, approved and merged in PR #10:** execute the
    fail-safe document-level allow/deny sequence in Section 10.2 and
    `siem/rbac/negative-test-matrix.md`; the optional index-level test remains
    prohibited.
