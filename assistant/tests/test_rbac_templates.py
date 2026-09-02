@@ -29,6 +29,15 @@ EXPECTED_BINDINGS = [
         ),
     },
 ]
+EXPECTED_OWN_INDEX_USERS = [
+    "admin",
+    "anomalyadmin",
+    "kibanaro",
+    "kibanaserver",
+    "logstash",
+    "readall",
+    "snapshotrestore",
+]
 
 
 def load_json(name):
@@ -44,9 +53,15 @@ class RbacTemplateContractTests(unittest.TestCase):
         self.assistant_mapping = load_json(
             "indexer-role-mapping_assistant_alerts_ro.json"
         )
+        self.own_index_scoped_patch = load_json(
+            "indexer-role-mapping_own_index_scoped.patch.json"
+        )
+        self.own_index_rollback_patch = load_json(
+            "indexer-role-mapping_own_index_rollback.patch.json"
+        )
 
     def test_scope_contract_pins_inventory_and_principal_names(self):
-        self.assertEqual(self.contract["schema_version"], 1)
+        self.assertEqual(self.contract["schema_version"], 2)
         self.assertEqual(self.contract["index_pattern"], INDEX_PATTERN)
         self.assertEqual(self.contract["dls_query"], DLS_QUERY)
         self.assertEqual(self.contract["agent_bindings"], EXPECTED_BINDINGS)
@@ -63,6 +78,27 @@ class RbacTemplateContractTests(unittest.TestCase):
                     "wazuh_server_identity": False,
                     "dashboard_tenant": False,
                 },
+            },
+        )
+        self.assertEqual(
+            self.contract["inherited_role_hardening"],
+            {
+                "mapping_name": "own_index",
+                "expected_pre_apply_selectors": {
+                    "users": ["*"],
+                    "backend_roles": [],
+                    "and_backend_roles": [],
+                    "hosts": [],
+                },
+                "preserved_users": EXPECTED_OWN_INDEX_USERS,
+                "excluded_principals": ["socanalyst", "assistant-svc"],
+                "apply_payload": (
+                    "indexer-role-mapping_own_index_scoped.patch.json"
+                ),
+                "rollback_payload": (
+                    "indexer-role-mapping_own_index_rollback.patch.json"
+                ),
+                "rollback_requires_excluded_principals_revoked": True,
             },
         )
 
@@ -109,12 +145,41 @@ class RbacTemplateContractTests(unittest.TestCase):
             {"backend_roles": [], "hosts": [], "users": ["assistant-svc"]},
         )
 
+    def test_own_index_forward_patch_preserves_only_preexisting_users(self):
+        self.assertEqual(
+            self.own_index_scoped_patch,
+            [{
+                "op": "replace",
+                "path": "/users",
+                "value": EXPECTED_OWN_INDEX_USERS,
+            }],
+        )
+        self.assertEqual(
+            len(self.own_index_scoped_patch[0]["value"]),
+            len(set(self.own_index_scoped_patch[0]["value"])),
+        )
+        self.assertNotIn("*", self.own_index_scoped_patch[0]["value"])
+        self.assertNotIn("socanalyst", self.own_index_scoped_patch[0]["value"])
+        self.assertNotIn("assistant-svc", self.own_index_scoped_patch[0]["value"])
+
+    def test_own_index_rollback_patch_is_wildcard_restore_only(self):
+        self.assertEqual(
+            self.own_index_rollback_patch,
+            [{"op": "replace", "path": "/users", "value": ["*"]}],
+        )
+        self.assertNotEqual(
+            self.own_index_rollback_patch,
+            self.own_index_scoped_patch,
+        )
+
     def test_transfer_manifest_matches_exact_executable_payload_bytes(self):
         expected_names = {
             "indexer-role_socanalyst_ro.json",
             "indexer-role_assistant_alerts_ro.json",
             "indexer-role-mapping_socanalyst_ro.json",
             "indexer-role-mapping_assistant_alerts_ro.json",
+            "indexer-role-mapping_own_index_scoped.patch.json",
+            "indexer-role-mapping_own_index_rollback.patch.json",
         }
         recorded = {}
         for line in (RBAC_DIR / "SHA256SUMS").read_text(encoding="ascii").splitlines():
@@ -133,6 +198,8 @@ class RbacTemplateContractTests(unittest.TestCase):
             self.assistant_role,
             self.soc_mapping,
             self.assistant_mapping,
+            self.own_index_scoped_patch,
+            self.own_index_rollback_patch,
         ]
         serialized = json.dumps(payloads).lower()
         for forbidden in (
@@ -161,8 +228,34 @@ class RbacTemplateContractTests(unittest.TestCase):
             "both random IDs remain absent",
             "Do not create or delete an index",
             "action.destructive_requires_name=false",
+            "username-named index",
+            "`own_index` is absent",
+            "unexpected",
+            "effective role",
         ):
             self.assertIn(required, matrix)
+
+    def test_runbook_orders_inherited_role_gate_before_project_mappings(self):
+        runbook = (
+            REPO_ROOT / "docs" / "runbooks" /
+            "rbac-wazuh-read-only-setup.md"
+        ).read_text(encoding="utf-8")
+        correction = runbook.index(
+            "Apply the reviewed `own_index` mapping correction"
+        )
+        project_mappings = runbook.index(
+            "Apply the two AlertMind direct-user mappings"
+        )
+        self.assertLess(correction, project_mappings)
+        for required in (
+            "only basic internal HTTP authentication is enabled",
+            "every other",
+            "`own_index` selector is empty",
+            "both credentials fail authentication",
+            "Rollback-only",
+            "DLS-scoped",
+        ):
+            self.assertIn(required, runbook)
 
 
 if __name__ == "__main__":

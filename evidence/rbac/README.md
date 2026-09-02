@@ -5,9 +5,12 @@ Wazuh integration.
 
 **Current status:** The sanitized Phase 0 owner checklist and enrollment
 fingerprints in [`phase0-owner-checklist.md`](phase0-owner-checklist.md) were
-independently approved and merged. Phase 1A contains secret-free templates
-only. No live RBAC proof has been captured, and the feature must still be
-described as planned.
+independently approved and merged. The owner then created the two reviewed
+custom roles and two internal users on VM loopback. The pre-mapping check in
+[`phase1b-inherited-access-check.md`](phase1b-inherited-access-check.md)
+identified an inherited `own_index` write grant, so the project mappings were
+withheld. The correction is awaiting independent review; the feature must
+still be described as planned.
 
 Accepted evidence may include:
 
@@ -19,6 +22,10 @@ Accepted evidence may include:
   reviewed enrollment state;
 - `assistant-svc` declarative `authinfo`/role readback and search/get success
   in the approved `wazuh-alerts-4.x-*` scope;
+- complete inherited-role/mapping readback proving that `own_index` and every
+  unexpected effective role are absent before and after project mappings;
+- read-only `403` results for both username-named indices, without creating a
+  probe index or issuing a write request;
 - fail-safe `_create`, `_update` and DELETE denials using one positively read
   existing document and random nonexistent literal IDs, plus hashes/lookups
   proving zero state change;
@@ -28,6 +35,10 @@ Accepted evidence may include:
 - one sanitized live alert reaching a schema-valid DRAFT through the shared
   guarded path; and
 - rollback/revocation and post-rollback service health.
+
+Dashboard evidence captured as `socanalyst` must be labelled **DLS-scoped**:
+the approved `agent.id` 001/002 filter excludes agent 000, so those totals are
+not expected to match administrator screenshots.
 
 Do not commit credentials, enrollment keys, client secrets, HMAC keys, SSH or
 Indexer private keys,

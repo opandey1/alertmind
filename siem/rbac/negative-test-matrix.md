@@ -1,7 +1,8 @@
 # Phase 1 fail-safe Wazuh denial matrix
 
-**Status:** Pre-registered; do not execute until both Indexer identities and
-role mappings have been applied from the independently approved templates.
+**Status:** Pre-registered; do not execute until the inherited `own_index`
+grant has been removed from both new identities and both AlertMind role
+mappings have then been applied from independently approved templates.
 
 This matrix proves the effective `assistant-svc` boundary without creating a
 probe index, sentinel document or any expected-success write. It must be run
@@ -12,6 +13,14 @@ the administrator credential for a denial row.
 
 - Recompute the enrollment fingerprints for agents `001` and `002` and match
   them to [`scope-contract.json`](scope-contract.json).
+- Read back the complete `own_index` mapping. Require its `users` selector to
+  equal the seven preserved pre-existing users in the scope contract; require
+  `backend_roles`, `and_backend_roles` and `hosts` to be empty. The wildcard,
+  `socanalyst` and `assistant-svc` must all be absent.
+- Authenticate separately as `socanalyst` and `assistant-svc`. Confirm
+  `own_index` is absent and that each identity has only its expected AlertMind
+  role, with no backend role, direct internal-user security role or unexpected
+  effective role.
 - Read back `alertmind_assistant_alerts_ro`, its role mapping and
   `_plugins/_security/authinfo`; sanitize the output before committing it.
 - Confirm the role has no cluster permission, no Dashboard tenant, the exact
@@ -22,6 +31,15 @@ the administrator credential for a denial row.
   private operator worksheet; do not commit the raw alert.
 - Generate two different cryptographically random document IDs and first GET
   each one to prove both are absent.
+
+## Inherited-role check
+
+Before step 1, perform a read-only search against each username-named index:
+`GET /socanalyst/_search` and `GET /assistant-svc/_search`. Both must return
+`403`. Do not issue a write request and do not create either index. This check
+must pass once before the project mappings are applied and again after they are
+applied; it proves that neither the old `own_index` grant nor a sibling mapping
+survives outside the approved alert namespace.
 
 ## Required sequence
 

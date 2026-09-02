@@ -1,8 +1,10 @@
 # AlertMind — RBAC and read-only Wazuh integration
 
-**Document status:** Phase 0 independently approved and merged; Phase 1A
-secret-free identity/role package in implementation; no live Wazuh or SSH
-state changed
+**Document status:** Phase 0 and the Phase 1A repository package are approved
+and merged. Both custom Indexer roles and internal users exist on VM loopback,
+but project mappings were withheld after an inherited `own_index` write grant
+was found. The Phase 1B correction awaits review; SSH and live integration
+remain unimplemented.
 
 **Date:** 1 September 2026
 
@@ -65,9 +67,11 @@ The plan is based on the current repository rather than the earlier
 - The submitted v1 used an all-in-one Wazuh 4.14.5 deployment. The current live
   Indexer package is 4.14.7-1 with OpenSearch/OpenSearch Security 2.19.5; this
   is post-v1 lab drift and does not retroactively change the v1 evidence. The
-  Indexer remains localhost-only. Canonical planned roles, mappings and users
-  all returned 404, so `socanalyst`, `assistant-svc` and live ingestion remain
-  unimplemented.
+  Indexer remains localhost-only. The Phase 0 baseline found the canonical
+  roles, mappings and users absent. The two custom roles and users have since
+  been created on VM loopback, but the project mappings were withheld after
+  both users inherited `own_index` through its wildcard mapping. RBAC proof,
+  SSH transport and live ingestion remain incomplete.
 - The pre-feature regression baseline was 78 assistant tests plus the frozen-
   evidence verifier. Phase 0 adds eight characterization tests, bringing the
   branch to 86 tests without changing prompts, views, redaction, schema,
@@ -230,8 +234,11 @@ Before editing Wazuh:
 
 1. Snapshot the `wazuh-siem` VM and record Wazuh Dashboard, Server and Indexer
    versions.
-2. Export or capture current internal users, Indexer roles/mappings, Server API
-   roles/mappings and relevant security configuration.
+2. Export or capture current internal users, every effective Indexer role and
+   role mapping (including reserved roles and wildcard/backend/host selectors),
+   Server API roles/mappings and relevant security configuration. Authenticate
+   as each new identity before project mapping and treat any inherited role as
+   a blocker until its source is resolved.
 3. Record `network.host`, the Indexer certificate subject/SAN, the host-only
    adapter address, firewall state and the actual alert index pattern.
 4. Enumerate composable and legacy index templates, aliases and ISM
@@ -274,6 +281,12 @@ The 1 September 2026 inventory established the following design inputs:
 - OpenSearch Security is 2.19.5.0. Its versioned permissions documentation does
   not provide the newer `perform_permission_check` facility, so this plan does
   not attempt to feature-detect it with a request that might mutate data.
+- The pre-mapping Phase 1 check found that both new internal users inherited
+  reserved role `own_index` through an editable mapping with `users: ["*"]`.
+  That role grants `cluster_composite_ops` and `indices_all` on
+  `${user_name}`. Permissions are additive, so direct project mappings cannot
+  compensate for it. The mapping must be narrowed and effective authinfo must
+  be clean before either project mapping is applied.
 
 ### 6.2 `socanalyst` human role
 
@@ -291,6 +304,11 @@ Create a Wazuh internal user `socanalyst` and map it to:
 Do not use the Wazuh documentation's general `*` index example. Add
 `wazuh-monitoring-*` only if a specific required dashboard fails without it
 and the need is recorded.
+
+The DLS scope deliberately excludes agent ID 000. Based on the live inventory,
+`socanalyst` sees about 24,557 of 35,992 alert documents and excludes about
+11,445 server-local documents. Dashboard evidence captured under this role is
+**DLS-scoped** and its totals are not expected to match admin screenshots.
 
 ### 6.3 `assistant-svc` machine role
 
@@ -325,7 +343,35 @@ artifact record the enrollment fingerprints that were current when IDs `001`
 and `002` were approved. A changed fingerprint or re-enrolled agent closes
 live access until the mapping and DLS scope are reviewed again.
 
-### 6.4 Network and TLS
+### 6.4 Inherited-role gate
+
+The `own_index` role itself is reserved/static and remains unchanged. Its
+separate mapping is editable and historically matched all internal users. The
+normal correction uses one JSON Patch operation to replace only `/users` with
+the seven users that existed before this feature: `admin`, `anomalyadmin`,
+`kibanaro`, `kibanaserver`, `logstash`, `readall` and `snapshotrestore`.
+`socanalyst`, `assistant-svc` and the wildcard are excluded. This preserves
+observed existing-user behavior while deliberately preventing future users
+from receiving an automatic write index.
+
+Before applying the patch, require an exact internal-user inventory, empty
+backend/direct roles on both new identities, only basic internal HTTP auth,
+the unchanged `own_index` role and a mapping whose only non-empty selector is
+`users: ["*"]`. After the patch and before project mappings, require both
+identities to have no effective role and receive `403` for a read-only search
+of their username-named index. Repeat both checks after project mappings,
+requiring only the intended AlertMind role for each user.
+
+The wildcard rollback is not a normal inverse operation: it recreates the
+vulnerability while either new identity can authenticate. Remove project
+mappings, revoke or delete both new users, prove both credentials fail, and
+obtain separate approval before restoring `users: ["*"]`.
+
+Security-plugin private-tenant metadata does not mitigate Indexer permissions.
+Dashboard multitenancy is disabled in the live configuration; later proof must
+still show that `assistant-svc` has no usable Dashboard path.
+
+### 6.5 Network and TLS
 
 The preferred lab path keeps Indexer HTTPS bound to VM loopback and uses a
 restricted SSH local forward over the VirtualBox host-only network:
@@ -518,8 +564,9 @@ old or new key in Git or the audit database.
 ## 8. Configuration and committed artifacts
 
 Add sanitized, secret-free templates and runbooks. The `siem/rbac/*.json`
-payloads and `negative-test-matrix.md` are the current Phase 1A package; the
-authentication, Keycloak and proof paths below are later-phase artifacts:
+payloads, JSON Patch documents and `negative-test-matrix.md` form the current
+Phase 1 identity/correction package; the authentication, Keycloak and proof
+paths below are later-phase artifacts:
 
 ```text
 docs/rbac-wazuh-read-only-implementation-plan.md
@@ -533,12 +580,18 @@ siem/rbac/indexer-role_socanalyst_ro.json
 siem/rbac/indexer-role_assistant_alerts_ro.json
 siem/rbac/indexer-role-mapping_socanalyst_ro.json
 siem/rbac/indexer-role-mapping_assistant_alerts_ro.json
+siem/rbac/indexer-role-mapping_own_index_scoped.patch.json
+siem/rbac/indexer-role-mapping_own_index_rollback.patch.json
 siem/rbac/negative-test-matrix.md
 evidence/rbac/README.md
+evidence/rbac/phase1b-inherited-access-check.md
 evidence/rbac/rbac-proof.md
 ```
 
-The JSON role and mapping files are exact OpenSearch Security REST payloads.
+The JSON role and project-mapping files are exact OpenSearch Security REST
+payloads; the two `.patch.json` files target only the existing `own_index`
+mapping's `/users` selector. The wildcard restore is rollback-only and unsafe
+until both new identities are revoked.
 There is no custom Wazuh Server role template: `socanalyst` uses the built-in
 `readonly` role after its broader read scope is disclosed and tested, while
 `assistant-svc` receives no Server API identity. No password-bearing internal
@@ -595,29 +648,36 @@ Phase 0 is closed. The approved commit is merged to `main` at `de4b6a5`.
 
 ### Phase 1 — Wazuh RBAC and transport
 
-1. Add and independently approve the secret-free scope contract, exact
-   Indexer role payloads, direct-user mappings and pre-registered denial
-   matrix. Seven offline contract tests bring the suite from 86 to 93 tests and
-   fail if scope or permissions drift. No live state changes in this review
-   cycle.
-2. On VM loopback, create `socanalyst` and machine-only `assistant-svc`,
-   apply the exact `wazuh-alerts-4.x-*` pattern and `agent.id` 001/002 DLS,
-   then capture declarative role/mapping/authentication readback. Passwords
-   are entered interactively by the human and never committed or pasted.
-3. Configure and verify the host-only, key-restricted SSH local forward while
+1. **Done and approved:** add the secret-free scope contract, exact Indexer
+   role payloads, direct-user mappings and pre-registered denial matrix. Seven
+   offline contract tests brought the suite from 86 to 93 tests.
+2. **Partial live state:** on VM loopback, create the two custom roles and the
+   internal users `socanalyst` and `assistant-svc` with human-entered passwords.
+   Stop before project mappings because pre-mapping authinfo exposed inherited
+   `own_index` access.
+3. Add and independently approve the scoped `own_index` JSON Patch,
+   rollback-only patch, transfer hashes, sanitized finding evidence and drift
+   tests. Recheck every mapping selector and authentication domain before
+   applying it.
+4. Narrow the wildcard mapping, prove `own_index` and every unexpected role
+   absent for both users, and require `403` on both username-named read-only
+   searches. Only then apply the two project mappings and repeat authinfo and
+   username-index checks.
+5. Configure and verify the host-only, key-restricted SSH local forward while
    leaving Indexer on loopback. Capture both context-aware `sshd -T -C`
    outputs before enabling SSH.
-4. Execute the fail-safe document-level allow/deny sequence in Section 10.2
+6. Execute the fail-safe document-level allow/deny sequence in Section 10.2
    and `siem/rbac/negative-test-matrix.md`; the optional index-level test
    remains prohibited.
-5. Verify `socanalyst` Dashboard read access and Wazuh write,
+7. Verify `socanalyst` Dashboard read access and Wazuh write,
    administration and active-response denials. If built-in `readonly` is
-   used, disclose its broader read scope in the proof.
+   used, disclose its broader read scope in the proof. Label dashboard evidence
+   DLS-scoped because agent ID 000 is excluded.
 
 **Gate:** both identities can perform their intended reads; writes and
-management operations fail at Wazuh before any app integration begins; the
-tunnel key cannot open a shell or reach any destination except
-`127.0.0.1:9200`.
+management operations fail at Wazuh before any app integration begins;
+`own_index` and every unexpected effective role are absent; the tunnel key
+cannot open a shell or reach any destination except `127.0.0.1:9200`.
 
 ### Phase 2 — Streamlit authentication and authorization
 
@@ -731,7 +791,9 @@ mocks. Live integration proof runs manually in the isolated lab.
 | `socanalyst` | Change rules, agents, RBAC or run active response | Wazuh denial |
 | `assistant-svc` | Search/get in-scope `wazuh-alerts-4.x-*` documents for agent IDs 001/002 | Allowed |
 | `assistant-svc` | Read `wazuh-archives-*`, security or unrelated indices | 403 |
-| `assistant-svc` | `GET _plugins/_security/authinfo` plus admin readback of its role | Expected service identity/role and no write grant |
+| both new Indexer users, before project mapping | Authinfo after scoped `own_index` patch | Correct username; no backend/direct role; no effective role; no `own_index` |
+| both new Indexer users, before and after project mapping | Read-only search of the corresponding username-named index | 403; no index is created |
+| `assistant-svc` | `GET _plugins/_security/authinfo` plus admin readback of its role/mappings | Only expected service identity/role; no `own_index`, cluster, tenant or write grant |
 | `assistant-svc` | `_create` with an already-existing, positively read document ID | 403; accidental allow can only conflict, never overwrite |
 | `assistant-svc` | `_update` a random nonexistent ID, with no `upsert` field | 403; ID remains absent |
 | `assistant-svc` | DELETE a second random nonexistent document ID | 403; ID remains absent |
@@ -776,9 +838,11 @@ not return 403, stop, preserve sanitized evidence, disable live access and
 repair the role; the chosen fallback outcomes must still leave state unchanged.
 
 Pair behavioral evidence with declarative readback: capture sanitized
-`GET _plugins/_security/authinfo` output as `assistant-svc` and admin
-`GET _plugins/_security/api/roles/alertmind_assistant_alerts_ro` output. This
-combination shows both the configured grant and the enforced boundary.
+`GET _plugins/_security/authinfo` output for both identities before and after
+project mapping; admin readback of the complete `own_index` mapping and both
+AlertMind roles/mappings; and read-only username-index denials. This combination
+shows both the configured grant and the enforced boundary. Stop on any
+wildcard, alternate selector, backend/direct role or unexpected effective role.
 
 ---
 
@@ -798,8 +862,15 @@ combination shows both the configured grant and the enforced boundary.
 - [ ] `socanalyst` can investigate but cannot alter Wazuh state.
 - [ ] `assistant-svc` has only tested search/get access to the approved alert
       scope, has no Dashboard tenant and has no Server API identity.
+- [ ] The editable `own_index` mapping contains exactly the seven preserved
+      pre-existing users, no wildcard and no alternate selector; neither new
+      identity inherits `own_index` or any unexpected effective role.
+- [ ] Both username-named index searches return 403 before and after project
+      mappings without creating an index or issuing a write request.
 - [ ] DLS uses `agent.id` 001/002, the corresponding non-secret enrollment
       fingerprints are recorded, and scope is re-verified after re-enrollment.
+- [ ] Dashboard evidence captured as `socanalyst` is labelled DLS-scoped and
+      does not present its agent-001/002 totals as equivalent to admin totals.
 - [ ] The same `assistant-svc` principal positively reads one real DLS-visible
       document and is then denied the fail-safe create/update/delete requests;
       the original hash is unchanged and both random IDs remain absent.
@@ -840,18 +911,22 @@ combination shows both the configured grant and the enforced boundary.
    remains available.
 2. Stop and disable the SSH tunnel/listener, remove its restricted public-key
    entry and revoke/rotate the local SSH private key.
-3. Revoke/rotate `assistant-svc` and remove its role mapping.
-4. Remove or disable the `socanalyst` mappings if they caused a Dashboard
-   regression.
-5. Restore the saved SSH configuration or VM snapshot if required; Indexer
+3. Remove both AlertMind Indexer mappings, then revoke or delete
+   `assistant-svc` and `socanalyst`; prove both credentials fail authentication.
+4. Keep the scoped `own_index` mapping by default. Restoring its wildcard is a
+   separately reviewed compatibility rollback and is prohibited until step 3
+   passes; restoring it earlier recreates the inherited write grant.
+5. Remove or disable the later Wazuh Server/Dashboard `socanalyst` mappings if
+   they caused a Dashboard regression.
+6. Restore the saved SSH configuration or VM snapshot if required; Indexer
    should still be loopback-only and should not require a bind/certificate
    rollback on the preferred path.
-6. Revoke/rotate the OIDC client secret and
+7. Revoke/rotate the OIDC client secret and
    `ALERTMIND_AUDIT_SUBJECT_HMAC_KEY` if exposure is suspected or the rollback
    drill calls for rotation. Record only the new HMAC key identifier and note
    that it begins a new subject-correlation epoch.
-7. Verify Wazuh Indexer, Manager, Filebeat and Dashboard health in order.
-8. Preserve sanitized failure evidence; do not alter frozen corpus or run
+8. Verify Wazuh Indexer, Manager, Filebeat and Dashboard health in order.
+9. Preserve sanitized failure evidence; do not alter frozen corpus or run
    artifacts.
 
 Rollback does not require a model rerun because no accepted model artifact is
@@ -871,14 +946,16 @@ part of the live integration state.
    corrections.
 5. **Done — `882c465`:**
    `evidence(rbac): record phase0 owner safety gate`
-6. **Current Phase 1A cycle:**
+6. **Done and approved — `da86617`:**
    `chore(rbac): add secret-free identity and role templates`
-7. `feat(auth): add OIDC profiles and server-side authorization`
-8. `feat(wazuh): add constrained read-only alert client`
-9. `feat(assistant): triage live Wazuh alerts through guarded pipeline`
-10. `test(rbac): cover identity, reader, audit and denial boundaries`
-11. `evidence(rbac): record least-privilege integration proof`
-12. `docs(architecture): publish implemented read-only Wazuh path`
+7. **Current Phase 1B correction:**
+   `fix(rbac): remove inherited write grant before identity mapping`
+8. `feat(auth): add OIDC profiles and server-side authorization`
+9. `feat(wazuh): add constrained read-only alert client`
+10. `feat(assistant): triage live Wazuh alerts through guarded pipeline`
+11. `test(rbac): cover identity, reader, audit and denial boundaries`
+12. `evidence(rbac): record least-privilege integration proof`
+13. `docs(architecture): publish implemented read-only Wazuh path`
 
 Each commit stages explicit paths only. Never use `git add -A` in this
 repository because of the known line-ending churn risk.

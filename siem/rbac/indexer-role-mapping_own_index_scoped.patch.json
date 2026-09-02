@@ -1,0 +1,15 @@
+[
+  {
+    "op": "replace",
+    "path": "/users",
+    "value": [
+      "admin",
+      "anomalyadmin",
+      "kibanaro",
+      "kibanaserver",
+      "logstash",
+      "readall",
+      "snapshotrestore"
+    ]
+  }
+]
