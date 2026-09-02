@@ -3,10 +3,13 @@
 This directory is the secret-free source location for the post-v1 human and
 machine read-only Wazuh role templates.
 
-**Current status:** Phase 0 is independently approved and merged. Phase 1A
-defines the exact, secret-free Indexer role and direct-user mapping payloads
-for independent review. No role, user or mapping has been created in Wazuh
-yet; live application remains blocked until this package is approved.
+**Current status:** Phase 0 and the Phase 1A repository package are
+independently approved and merged. On 2 September 2026 the two custom Indexer
+roles and the two internal users were created on VM loopback, but the AlertMind
+direct-user mappings were deliberately withheld. Readback found that both new
+users inherited the reserved `own_index` role through its editable wildcard
+mapping. The correction in this directory is repository-only and must receive
+independent approval before any further live RBAC or SSH change.
 
 Planned identities:
 
@@ -21,22 +24,60 @@ approved index namespace, DLS query, canonical principal/role names and the
 non-secret enrollment fingerprints current when agent IDs `001` and `002`
 were approved. Re-enrollment invalidates that binding until reviewed again.
 
-Committed Phase 1A artifacts:
+Committed Phase 1A artifacts and the Phase 1B correction package:
 
 - `scope-contract.json` — non-executable source of approved names and scope;
 - `indexer-role_socanalyst_ro.json` — exact OpenSearch role API payload;
 - `indexer-role_assistant_alerts_ro.json` — exact OpenSearch role API payload;
 - `indexer-role-mapping_socanalyst_ro.json` — direct-user mapping;
 - `indexer-role-mapping_assistant_alerts_ro.json` — direct-user mapping;
-- `SHA256SUMS` — LF-stable transfer hashes for the four executable payloads;
+- `indexer-role-mapping_own_index_scoped.patch.json` — normal-path JSON Patch
+  that replaces the inherited wildcard with the seven pre-existing users;
+- `indexer-role-mapping_own_index_rollback.patch.json` — rollback-only JSON
+  Patch that restores the wildcard after both new identities are revoked;
+- `SHA256SUMS` — LF-stable transfer hashes for all six executable payloads;
   and
 - `negative-test-matrix.md` — pre-registered zero-state-change proof.
+
+## Inherited `own_index` correction
+
+The live `own_index` role is reserved/static and grants
+`cluster_composite_ops` plus `indices_all` on `${user_name}`. Its separate role
+mapping is editable (`reserved: false`) and matched every user through
+`users: ["*"]`. OpenSearch permissions are additive, so applying the narrower
+AlertMind mappings would not have removed that write path.
+
+The normal-path patch changes only the mapping's `users` selector. It preserves
+`own_index` for the seven internal users that existed before this feature—
+`admin`, `anomalyadmin`, `kibanaro`, `kibanaserver`, `logstash`, `readall` and
+`snapshotrestore`—while excluding `socanalyst` and `assistant-svc`. It also
+deliberately stops future internal users from receiving an automatic private
+write index. The pre-apply gate must prove that all other selectors are empty,
+only basic internal HTTP authentication is enabled and both new user records
+carry no backend or direct security roles.
+
+The rollback patch is not part of normal application. Restoring `users: ["*"]`
+while either new identity can authenticate recreates the vulnerability. First
+remove the AlertMind mappings, revoke or delete both new identities and prove
+both credentials fail authentication; only then may a separately reviewed
+rollback restore the historical wildcard behavior.
+
+Security-plugin authinfo may still report private-tenant metadata. That does
+not mitigate Indexer permissions, and the live Wazuh Dashboard configuration
+currently has multitenancy disabled. Later evidence must still prove that
+`assistant-svc` cannot use Dashboard.
 
 There is intentionally no custom Wazuh Server role payload. The human
 `socanalyst` is planned to use Wazuh's built-in `readonly` Server role,
 whose broader read scope must be disclosed and whose write/active-response
 denials must be tested. `assistant-svc` must not receive any Wazuh Server API
 identity or Dashboard tenant.
+
+The same DLS also filters human dashboards: `socanalyst` sees only agent IDs
+001/002 (about 24,557 of 35,992 inventoried alert documents), excluding about
+11,445 agent-000 documents. Any dashboard capture under this role must be
+labelled **DLS-scoped** and must not be compared to an administrator screenshot
+as though their totals should match.
 
 No disposable alert/probe index or sentinel may be created. Live denial proof
 uses the fail-safe matrix in `negative-test-matrix.md`; the optional

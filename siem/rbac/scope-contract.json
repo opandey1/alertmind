@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "captured_at": "2026-09-02",
   "index_pattern": "wazuh-alerts-4.x-*",
   "dls_query": {
@@ -32,5 +32,32 @@
       "wazuh_server_identity": false,
       "dashboard_tenant": false
     }
+  },
+  "inherited_role_hardening": {
+    "mapping_name": "own_index",
+    "expected_pre_apply_selectors": {
+      "users": [
+        "*"
+      ],
+      "backend_roles": [],
+      "and_backend_roles": [],
+      "hosts": []
+    },
+    "preserved_users": [
+      "admin",
+      "anomalyadmin",
+      "kibanaro",
+      "kibanaserver",
+      "logstash",
+      "readall",
+      "snapshotrestore"
+    ],
+    "excluded_principals": [
+      "socanalyst",
+      "assistant-svc"
+    ],
+    "apply_payload": "indexer-role-mapping_own_index_scoped.patch.json",
+    "rollback_payload": "indexer-role-mapping_own_index_rollback.patch.json",
+    "rollback_requires_excluded_principals_revoked": true
   }
 }
