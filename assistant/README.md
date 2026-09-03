@@ -67,10 +67,11 @@ assistant/
 ├── audit.py             # shared audit-record contract + idempotent JSONL append
 ├── ui_helpers.py        # side-effect-free presentation helpers
 │
-├── requirements.txt · .env.example
+├── requirements.txt · .env.example       # flexible user-install specification
+├── requirements-ci.lock                  # hash-pinned Python 3.12 linux set used by offline CI
 ├── README.md · DESIGN_AND_CHANGELOG.md   # design decisions, review log, Q&A
 │
-├── tests/               # 78 unittest methods across 12 files
+├── tests/               # 102 unittest methods across 14 files
 │   ├── test_redact.py            # redaction proof (plants secrets, asserts none leak)
 │   ├── test_redaction_trace.py   # trace masks values; proof and production paths cannot diverge
 │   ├── test_injection.py         # recorded injection scenario (mock + real provider)
@@ -82,7 +83,9 @@ assistant/
 │   ├── test_llm_providers.py     # offline endpoint/payload regression tests
 │   ├── test_schema.py            # runtime/formal schema alignment and query bounds
 │   ├── test_rebuild_from_audit.py# non-destructive rebuild and ground-truth path handling
-│   └── test_runner_selection.py   # explicit subset selection; unknown IDs fail closed
+│   ├── test_runner_selection.py   # explicit subset selection; unknown IDs fail closed
+│   ├── test_phase0_characterization.py  # pins current pipeline/provider behaviour before the RBAC refactor
+│   └── test_rbac_templates.py     # offline contract for the committed RBAC/SSH templates and operator proofs
 │
 └── outputs/
     ├── redaction_proof.md · injection_proof.md
@@ -96,7 +99,7 @@ assistant/
 ```bash
 cd assistant
 pip install -r requirements.txt
-python -m unittest discover -s tests -p "test_*.py"   # full suite — 78 tests
+python -m unittest discover -s tests -p "test_*.py"   # full suite — 102 tests
 python tests/test_redact.py                       # redaction proof (non-zero exit if a secret leaks)
 python tests/test_injection.py                    # recorded injection scenario (mock)
 python runner.py --provider mock --view operational
