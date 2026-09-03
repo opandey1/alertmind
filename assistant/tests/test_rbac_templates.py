@@ -325,7 +325,14 @@ class RbacTemplateContractTests(unittest.TestCase):
             "127.0.0.1:19200:127.0.0.1:9200",
             "--ssl-revoke-best-effort",
             "expected hostname mismatch exit 60",
-            "PASS TLS hostname mismatch rejected with curl exit 60",
+            "Curl exit 60 is a generic peer-certificate authentication failure",
+            "negative leg alone does not isolate hostname verification",
+            "same tunnel, CA and revocation policy",
+            "PASS TLS negative leg: peer authentication rejected with curl exit 60",
+            "PASS TLS positive leg: correct certificate identity 127.0.0.1 accepted",
+            "Only when both PASS lines are present",
+            "accepts unknown revocation status on every use for the life of the chain",
+            "not a transient outage",
             "Never substitute `--ssl-no-revoke`, `--insecure` or `-k`",
             "administratively prohibited",
             "authentication failure as a forwarding-policy proof",
@@ -337,7 +344,7 @@ class RbacTemplateContractTests(unittest.TestCase):
 
         mismatch_start = runbook.index("$MismatchOutput = @(")
         mismatch_end = runbook.index(
-            "'PASS TLS hostname mismatch rejected with curl exit 60'",
+            "'PASS TLS negative leg: peer authentication rejected with curl exit 60'",
             mismatch_start,
         )
         mismatch_proof = runbook[mismatch_start:mismatch_end]
@@ -362,6 +369,22 @@ class RbacTemplateContractTests(unittest.TestCase):
         self.assertIn("$Metadata.hits.total.value", positive_proof)
         self.assertIn("$FailedShards -ne 0", positive_proof)
         self.assertNotIn("2>&1", positive_proof)
+        self.assertNotIn(
+            "PASS TLS hostname mismatch rejected with curl exit 60",
+            runbook,
+        )
+
+        plan = (
+            REPO_ROOT / "docs" / "rbac-wazuh-read-only-implementation-plan.md"
+        ).read_text(encoding="utf-8")
+        plan_normalized = " ".join(plan.split())
+        for required in (
+            "permanent for this chain rather than a transient outage",
+            "accepts unknown revocation status on every use for the life of the chain",
+            "revocation check provides no protection here",
+            "does not settle the later application's certificate-chain or Python-context decision",
+        ):
+            self.assertIn(required, plan_normalized)
 
         self.assertEqual(runbook.count("KexAlgorithms=curve25519-sha256"), 4)
         self.assertEqual(runbook.count("HostKeyAlgorithms=ssh-ed25519"), 4)

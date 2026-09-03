@@ -611,13 +611,21 @@ Information Access. Windows curl 8.21 uses Schannel, whose default revocation
 check therefore stops with `CERT_TRUST_REVOCATION_STATUS_UNKNOWN`. For this
 Phase 1C transport proof only, use `--ssl-revoke-best-effort`: curl documents
 that this ignores revocation failures caused by missing or offline distribution
-points. It does not disable peer or hostname verification. Never substitute
-`--ssl-no-revoke`, `--insecure` or `-k`; the final application TLS context still
-requires its own reviewed certificate-chain or compatibility decision.
+points. It does not disable peer or hostname verification. For this chain the
+missing revocation locations are not a transient outage: best-effort accepts
+unknown revocation status on every use for the life of the chain unless it is
+replaced, so the revocation check provides no protection for this chain. Never
+substitute `--ssl-no-revoke`, `--insecure` or `-k`; the final application TLS
+context still requires its own reviewed certificate-chain or compatibility
+decision.
 
-First prove hostname checking remains active by connecting the tunnel to a
-deliberately wrong HTTPS name. This must fail with curl exit 60 before any HTTP
-request or credential is sent:
+First run the negative leg by connecting the tunnel to a deliberately wrong
+HTTPS name. Curl exit 60 is a generic peer-certificate authentication failure;
+the negative leg alone does not isolate hostname verification from another CA
+or chain failure. It must be paired with the immediately following positive leg,
+which uses the same tunnel, CA and revocation policy with the correct certificate
+identity. This negative leg must fail before any HTTP request or credential is
+sent:
 
 ```powershell
 $Ca = Join-Path (Get-Location) '.certs\root-ca.pem'
@@ -634,7 +642,7 @@ $MismatchExit = $LASTEXITCODE
 if ($MismatchExit -ne 60) {
     throw "STOP: expected hostname mismatch exit 60; got $MismatchExit"
 }
-'PASS TLS hostname mismatch rejected with curl exit 60'
+'PASS TLS negative leg: peer authentication rejected with curl exit 60'
 ```
 
 Then issue a bounded, body-free search through the tunnel. Curl prompts for
@@ -676,11 +684,17 @@ if ($FailedShards -ne 0) {
 if ($VisibleHits -lt 0 -or $HitRelation -notin @('eq', 'gte')) {
     throw 'STOP: tunneled search returned unexpected hit-count metadata'
 }
-"PASS tunneled TLS/read: failed_shards=$FailedShards; visible_hits=$VisibleHits; relation=$HitRelation"
+"PASS TLS positive leg: correct certificate identity 127.0.0.1 accepted; failed_shards=$FailedShards; visible_hits=$VisibleHits; relation=$HitRelation"
 ```
 
 The response may contain only shard-failure and hit-count metadata. Do not
 request or paste `_source`.
+
+Only when both PASS lines are present from the unchanged tunnel, CA and
+revocation-policy setup may the pair be recorded as evidence that the wrong
+hostname was rejected while the correct certificate identity was accepted. If
+the negative leg returns 60 but the positive leg fails, hostname verification
+has not been isolated.
 
 After that positive authentication/forwarding proof, define the same identity
 and pinned host-key options in the second PowerShell window:

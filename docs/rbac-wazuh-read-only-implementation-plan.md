@@ -403,8 +403,12 @@ default revocation check therefore cannot produce a status. A separately
 reviewed proof-only compatibility path may use curl's
 `--ssl-revoke-best-effort` together with a required hostname-mismatch negative
 control, while retaining the pinned CA and hostname verification. This is not
-authority to use `--ssl-no-revoke`, `--insecure` or `-k`, and it does not settle
-the later application's certificate-chain or Python-context decision.
+authority to use `--ssl-no-revoke`, `--insecure` or `-k`. The missing
+revocation locations are permanent for this chain rather than a transient
+outage: best-effort accepts unknown revocation status on every use for the life
+of the chain unless it is replaced, so its revocation check provides no
+protection here. This proof does not settle the later application's
+certificate-chain or Python-context decision.
 
 Python 3.13+ enables `VERIFY_X509_STRICT` in its default SSL context. The live
 Wazuh CA triggered a Python 3.14 rejection because it lacks a key-usage
