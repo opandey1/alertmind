@@ -331,6 +331,7 @@ class RbacTemplateContractTests(unittest.TestCase):
             "PASS TLS negative leg: peer authentication rejected with curl exit 60",
             "PASS TLS positive leg: correct certificate identity 127.0.0.1 accepted",
             "Only when both PASS lines are present",
+            "If the negative leg returns 60 but the positive leg fails, hostname verification has not been isolated.",
             "accepts unknown revocation status on every use for the life of the chain",
             "not a transient outage",
             "Never substitute `--ssl-no-revoke`, `--insecure` or `-k`",
