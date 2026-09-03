@@ -410,6 +410,41 @@ of the chain unless it is replaced, so its revocation check provides no
 protection here. This proof does not settle the later application's
 certificate-chain or Python-context decision.
 
+The first post-merge proof also characterized two Windows PowerShell 5.1
+behaviours that the operator runbook must handle explicitly. A single
+`Get-NetTCPConnection` result is normalized with `@(...)` before its count is
+checked. JSON is never supplied to native curl as an inline argument: PowerShell
+removed the field-name quotes and OpenSearch returned HTTP 400 with a
+`json_parse_exception` at column 2. The fixed, non-secret `size:0` query is
+written as UTF-8 without a byte-order mark, passed with curl's `@file` form and
+removed in `finally`. Each listener, CA and TLS proof is one invoked script
+block with terminating-error behaviour so a `STOP` cannot fall through to a
+later PASS when commands are pasted interactively.
+
+The expected-failure TLS leg also leaves native stderr unmerged: under Windows
+PowerShell 5.1, `2>&1` converts native stderr into an error record and the
+terminating-error policy can abort the block before `$LASTEXITCODE` is checked.
+The proof therefore observes curl's native exit code directly.
+
+The CA fingerprint proof follows the same native-command boundary. It retains
+terminating-error behaviour for PowerShell failures but leaves OpenSSL native
+stderr unmerged, captures only fingerprint stdout and checks `$LASTEXITCODE`
+before parsing that output. This keeps OpenSSL's diagnostic visible while
+ensuring the runbook's explicit STOP remains reachable on native failure.
+
+The atomic-block rule applies to every PowerShell sequence that can throw and
+then continue, including key generation, host-key pinning and every SSH denial
+or denial precondition. Wrappers that intentionally capture native SSH/scanner
+stderr with `2>&1` or `2>$null` do not set
+`$ErrorActionPreference = 'Stop'`; an explicit `throw` still terminates the
+invoked block without converting expected native diagnostics into terminating
+error records. The alternate-destination verifier preserves its diagnostic log
+when the denial marker is absent and removes it before emitting PASS only after
+the marker is found. Its verifier independently recomputes the fixed ignored
+log path because variables from the foreground invoked block do not persist in
+the caller's scope. The operator must paste each invoked PowerShell fence as one
+complete unit and must not re-enter remainder statements after a STOP.
+
 Python 3.13+ enables `VERIFY_X509_STRICT` in its default SSL context. The live
 Wazuh CA triggered a Python 3.14 rejection because it lacks a key-usage
 extension. The VM evidence harness disabled `VERIFY_X509_STRICT` wholesale,

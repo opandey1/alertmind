@@ -42,6 +42,11 @@ Committed, secret-free inputs:
 Never commit the generated public-key line, private key, copied Wazuh CA,
 password, SSH verbose log or local runtime file.
 
+Paste every PowerShell fence that starts with `& {` as one complete unit. The
+interactive console buffers the statements until the closing brace; any
+`throw` then exits that unit before later actions or PASS lines can run. Never
+re-enter statements from the remainder of a block after a STOP.
+
 ## 2. Preconditions
 
 Before any mutation, confirm all of the following:
@@ -69,36 +74,38 @@ Run from a fresh PowerShell at the repository root. The command moves into
 `assistant/` and prompts for a passphrase; do not leave it blank.
 
 ```powershell
-Set-Location .\assistant
+& {
+    Set-Location .\assistant -ErrorAction Stop
 
-$Secrets = Join-Path (Get-Location) '.secrets'
-$PrivateKey = Join-Path $Secrets 'wazuh-indexer-tunnel_ed25519'
-$PublicKey = "$PrivateKey.pub"
-$Identity = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
+    $Secrets = Join-Path (Get-Location) '.secrets'
+    $PrivateKey = Join-Path $Secrets 'wazuh-indexer-tunnel_ed25519'
+    $PublicKey = "$PrivateKey.pub"
+    $Identity = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
 
-if ((Test-Path -LiteralPath $PrivateKey) -or
-    (Test-Path -LiteralPath $PublicKey)) {
-    throw "STOP: dedicated tunnel key already exists: $PrivateKey"
+    if ((Test-Path -LiteralPath $PrivateKey) -or
+        (Test-Path -LiteralPath $PublicKey)) {
+        throw "STOP: dedicated tunnel key already exists: $PrivateKey"
+    }
+
+    New-Item -ItemType Directory -Path $Secrets -Force -ErrorAction Stop | Out-Null
+    & ssh-keygen.exe -t ed25519 -a 100 -f $PrivateKey `
+      -C 'alertmind-wazuh-indexer-tunnel-2026-09-02'
+    if ($LASTEXITCODE -ne 0) { throw 'STOP: ssh-keygen failed' }
+
+    & icacls.exe $Secrets /inheritance:r | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw 'STOP: secrets-directory ACL reset failed' }
+    & icacls.exe $Secrets /grant:r `
+      "${Identity}:(OI)(CI)F" 'SYSTEM:(OI)(CI)F' | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw 'STOP: secrets-directory ACL grant failed' }
+    & icacls.exe $PrivateKey /inheritance:r | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw 'STOP: private-key ACL reset failed' }
+    & icacls.exe $PrivateKey /grant:r "${Identity}:F" 'SYSTEM:F' | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw 'STOP: private-key ACL grant failed' }
+
+    $Fingerprint = (& ssh-keygen.exe -lf $PublicKey -E sha256)
+    if ($LASTEXITCODE -ne 0) { throw 'STOP: public-key fingerprint failed' }
+    $Fingerprint
 }
-
-New-Item -ItemType Directory -Path $Secrets -Force | Out-Null
-& ssh-keygen.exe -t ed25519 -a 100 -f $PrivateKey `
-  -C 'alertmind-wazuh-indexer-tunnel-2026-09-02'
-if ($LASTEXITCODE -ne 0) { throw 'STOP: ssh-keygen failed' }
-
-& icacls.exe $Secrets /inheritance:r | Out-Null
-if ($LASTEXITCODE -ne 0) { throw 'STOP: secrets-directory ACL reset failed' }
-& icacls.exe $Secrets /grant:r `
-  "${Identity}:(OI)(CI)F" 'SYSTEM:(OI)(CI)F' | Out-Null
-if ($LASTEXITCODE -ne 0) { throw 'STOP: secrets-directory ACL grant failed' }
-& icacls.exe $PrivateKey /inheritance:r | Out-Null
-if ($LASTEXITCODE -ne 0) { throw 'STOP: private-key ACL reset failed' }
-& icacls.exe $PrivateKey /grant:r "${Identity}:F" 'SYSTEM:F' | Out-Null
-if ($LASTEXITCODE -ne 0) { throw 'STOP: private-key ACL grant failed' }
-
-$Fingerprint = (& ssh-keygen.exe -lf $PublicKey -E sha256)
-if ($LASTEXITCODE -ne 0) { throw 'STOP: public-key fingerprint failed' }
-$Fingerprint
 ```
 
 Record only the `SHA256:...` public-key fingerprint. At the VM-console prompt
@@ -511,43 +518,49 @@ dedicated known-hosts file only on an exact match. In the characterized Windows
 host, the inbox OpenSSH 9.5 `ssh-keyscan.exe` reaches OpenSSH 10.2 but aborts
 after the server selects `sntrup761x25519-sha512@openssh.com`. Use the already
 installed Git for Windows OpenSSH 10.2 scanner in quiet mode; do not change the
-server KEX list to accommodate the older scanner:
+server KEX list to accommodate the older scanner. The wrapper deliberately
+does not set `$ErrorActionPreference = 'Stop'` because the scanner's native
+stderr is redirected; an explicit `throw` still exits the complete block:
 
 ```powershell
-$Secrets = Join-Path (Get-Location) '.secrets'
-$Candidate = Join-Path $Secrets 'wazuh-siem_known_hosts.candidate'
-$KnownHosts = Join-Path $Secrets 'wazuh-siem_known_hosts'
-$Keyscan = 'C:\Program Files\Git\usr\bin\ssh-keyscan.exe'
-$Keygen = 'C:\Program Files\Git\usr\bin\ssh-keygen.exe'
+& {
+    $Secrets = Join-Path (Get-Location) '.secrets'
+    $Candidate = Join-Path $Secrets 'wazuh-siem_known_hosts.candidate'
+    $KnownHosts = Join-Path $Secrets 'wazuh-siem_known_hosts'
+    $Keyscan = 'C:\Program Files\Git\usr\bin\ssh-keyscan.exe'
+    $Keygen = 'C:\Program Files\Git\usr\bin\ssh-keygen.exe'
 
-if (-not (Test-Path -LiteralPath $Keyscan -PathType Leaf) -or
-    -not (Test-Path -LiteralPath $Keygen -PathType Leaf)) {
-    throw 'STOP: compatible Git for Windows OpenSSH 10.2 tools are absent'
-}
-if ((Test-Path -LiteralPath $Candidate) -or
-    (Test-Path -LiteralPath $KnownHosts)) {
-    throw "STOP: known-hosts file already exists: $KnownHosts"
-}
+    if (-not (Test-Path -LiteralPath $Keyscan -PathType Leaf) -or
+        -not (Test-Path -LiteralPath $Keygen -PathType Leaf)) {
+        throw 'STOP: compatible Git for Windows OpenSSH 10.2 tools are absent'
+    }
+    if ((Test-Path -LiteralPath $Candidate) -or
+        (Test-Path -LiteralPath $KnownHosts)) {
+        throw "STOP: known-hosts file already exists: $KnownHosts"
+    }
 
-$ScanOutput = @(
-    & $Keyscan -q -T 10 -p 22 -t ed25519 192.168.56.102 2>$null
-)
-$ScanExit = $LASTEXITCODE
-$CandidateLines = @($ScanOutput | Where-Object { $_.Trim().Length -gt 0 })
-if ($ScanExit -ne 0 -or $CandidateLines.Count -ne 1) {
-    throw "STOP: expected exactly one ED25519 key record; got $($CandidateLines.Count)"
+    $ScanOutput = @(
+        & $Keyscan -q -T 10 -p 22 -t ed25519 192.168.56.102 2>$null
+    )
+    $ScanExit = $LASTEXITCODE
+    $CandidateLines = @($ScanOutput | Where-Object { $_.Trim().Length -gt 0 })
+    if ($ScanExit -ne 0 -or $CandidateLines.Count -ne 1) {
+        throw "STOP: expected exactly one ED25519 key record; got $($CandidateLines.Count)"
+    }
+    $KeyPattern = '^(?:192\.168\.56\.102|\[192\.168\.56\.102\]:22)\s+ssh-ed25519\s+\S+'
+    if ($CandidateLines[0] -notmatch $KeyPattern) {
+        throw 'STOP: scanner returned an unexpected host-key record'
+    }
+    $CandidateLines | Set-Content -LiteralPath $Candidate -Encoding ascii `
+      -ErrorAction Stop
+    $Observed = ((& $Keygen -lf $Candidate -E sha256) -split '\s+')[1]
+    if ($Observed -ne 'SHA256:vfpeVCeBJ6AVO0lcvoN0bpIUwXkX6N2n7hZ7asBJ1Ag') {
+        throw "STOP: SSH host-key mismatch: $Observed"
+    }
+    Move-Item -LiteralPath $Candidate -Destination $KnownHosts `
+      -ErrorAction Stop
+    "PASS SSH host key: $Observed"
 }
-$KeyPattern = '^(?:192\.168\.56\.102|\[192\.168\.56\.102\]:22)\s+ssh-ed25519\s+\S+'
-if ($CandidateLines[0] -notmatch $KeyPattern) {
-    throw 'STOP: scanner returned an unexpected host-key record'
-}
-$CandidateLines | Set-Content -LiteralPath $Candidate -Encoding ascii
-$Observed = ((& $Keygen -lf $Candidate -E sha256) -split '\s+')[1]
-if ($Observed -ne 'SHA256:vfpeVCeBJ6AVO0lcvoN0bpIUwXkX6N2n7hZ7asBJ1Ag') {
-    throw "STOP: SSH host-key mismatch: $Observed"
-}
-Move-Item -LiteralPath $Candidate -Destination $KnownHosts
-"PASS SSH host key: $Observed"
 ```
 
 In the first PowerShell window, start the tunnel in the foreground and leave
@@ -574,36 +587,54 @@ $SshExe = 'C:\Windows\System32\OpenSSH\ssh.exe'
 ```
 
 The terminal should remain open silently after the key passphrase is entered.
-In a second PowerShell window, prove the local listener is loopback-only:
+In a second PowerShell window, prove the local listener is loopback-only.
+Windows PowerShell 5.1 returns a single matching CIM instance as a scalar, so
+the command must normalize the result with `@(...)` before checking `Count`.
+Paste the complete invoked script block as one unit; a `STOP` invalidates the
+proof and the trailing PASS must not be entered separately:
 
 ```powershell
-$Listener = Get-NetTCPConnection -State Listen -LocalPort 19200
-if ($Listener.Count -ne 1 -or $Listener.LocalAddress -ne '127.0.0.1') {
-    throw "STOP: unexpected tunnel listener: $($Listener | Out-String)"
+& {
+    $ErrorActionPreference = 'Stop'
+    $Listener = @(
+        Get-NetTCPConnection -State Listen -LocalPort 19200
+    )
+    if ($Listener.Count -ne 1 -or $Listener.LocalAddress -ne '127.0.0.1') {
+        throw "STOP: unexpected tunnel listener: $($Listener | Out-String)"
+    }
+    'PASS Windows tunnel listener: 127.0.0.1:19200 only'
 }
-'PASS Windows tunnel listener: 127.0.0.1:19200 only'
 ```
 
 ## 10. TLS/read proof and transport denials
 
 Copy only the public Wazuh root CA to ignored
 `assistant/.certs/root-ca.pem`. Never copy an Indexer private key. Verify its
-DER SHA-256 fingerprint with the installed Git for Windows OpenSSL before use:
+DER SHA-256 fingerprint with the installed Git for Windows OpenSSL before use.
+The block keeps terminating-error behaviour for PowerShell failures but leaves
+OpenSSL's native stderr unmerged, so its diagnostic remains visible and the
+explicit native exit-code check remains reachable:
 
 ```powershell
-$Ca = Join-Path (Get-Location) '.certs\root-ca.pem'
-$Expected = 'EB98A4AF38CDA550D473E5659A4375905334041FAB4597F39C4F191D9E6F5E1D'
-$OpenSsl = 'C:\Program Files\Git\usr\bin\openssl.exe'
-$Fingerprint = (& $OpenSsl x509 -in $Ca -noout -fingerprint -sha256 2>&1) -join ''
-if ($LASTEXITCODE -ne 0 -or
-    $Fingerprint -notmatch 'Fingerprint=([0-9A-Fa-f:]+)') {
-    throw "STOP: Wazuh CA fingerprint calculation failed: $Fingerprint"
+& {
+    $ErrorActionPreference = 'Stop'
+    $Ca = Join-Path (Get-Location) '.certs\root-ca.pem'
+    $Expected = 'EB98A4AF38CDA550D473E5659A4375905334041FAB4597F39C4F191D9E6F5E1D'
+    $OpenSsl = 'C:\Program Files\Git\usr\bin\openssl.exe'
+    $Fingerprint = (& $OpenSsl x509 -in $Ca -noout -fingerprint -sha256) -join ''
+    $OpenSslExit = $LASTEXITCODE
+    if ($OpenSslExit -ne 0) {
+        throw "STOP: Wazuh CA fingerprint calculation failed with OpenSSL exit $OpenSslExit; see native diagnostic above"
+    }
+    if ($Fingerprint -notmatch 'Fingerprint=([0-9A-Fa-f:]+)') {
+        throw "STOP: Wazuh CA fingerprint output was not recognized: $Fingerprint"
+    }
+    $Actual = ($Matches[1] -replace ':', '').ToUpperInvariant()
+    if ($Actual -ne $Expected) {
+        throw "STOP: Wazuh CA fingerprint mismatch: $Actual"
+    }
+    "PASS Wazuh CA SHA-256: $Actual"
 }
-$Actual = ($Matches[1] -replace ':', '').ToUpperInvariant()
-if ($Actual -ne $Expected) {
-    throw "STOP: Wazuh CA fingerprint mismatch: $Actual"
-}
-"PASS Wazuh CA SHA-256: $Actual"
 ```
 
 The characterized CA publishes neither a CRL distribution point nor Authority
@@ -625,66 +656,99 @@ the negative leg alone does not isolate hostname verification from another CA
 or chain failure. It must be paired with the immediately following positive leg,
 which uses the same tunnel, CA and revocation policy with the correct certificate
 identity. This negative leg must fail before any HTTP request or credential is
-sent:
+sent. Do not merge native stderr into the success stream with `2>&1`: Windows
+PowerShell 5.1 converts redirected native stderr into an error record, which
+would terminate this invoked block before it can inspect curl's expected exit
+code:
 
 ```powershell
-$Ca = Join-Path (Get-Location) '.certs\root-ca.pem'
-$Curl = 'C:\Windows\System32\curl.exe'
-$MismatchOutput = @(
-  & $Curl --silent --show-error `
-    --connect-timeout 5 --max-time 10 `
-    --cacert $Ca --ssl-revoke-best-effort `
-    --noproxy '*' `
-    --resolve 'alertmind-hostname-check.invalid:19200:127.0.0.1' `
-    'https://alertmind-hostname-check.invalid:19200/' 2>&1
-)
-$MismatchExit = $LASTEXITCODE
-if ($MismatchExit -ne 60) {
-    throw "STOP: expected hostname mismatch exit 60; got $MismatchExit"
+& {
+    $ErrorActionPreference = 'Stop'
+    $Ca = Join-Path (Get-Location) '.certs\root-ca.pem'
+    $Curl = 'C:\Windows\System32\curl.exe'
+    & $Curl --silent --show-error `
+      --connect-timeout 5 --max-time 10 `
+      --cacert $Ca --ssl-revoke-best-effort `
+      --noproxy '*' `
+      --resolve 'alertmind-hostname-check.invalid:19200:127.0.0.1' `
+      'https://alertmind-hostname-check.invalid:19200/'
+    $MismatchExit = $LASTEXITCODE
+    if ($MismatchExit -ne 60) {
+        throw "STOP: expected hostname mismatch exit 60; got $MismatchExit"
+    }
+    'PASS TLS negative leg: peer authentication rejected with curl exit 60'
 }
-'PASS TLS negative leg: peer authentication rejected with curl exit 60'
 ```
 
 Then issue a bounded, body-free search through the tunnel. Curl prompts for
 the `assistant-svc` password; do not place it in the command or environment.
+The first post-merge attempt on Windows PowerShell 5.1 passed the JSON literal
+as an inline native-command argument. PowerShell removed its embedded field-name
+quotes, and OpenSearch rejected the resulting `{size...}` body with an HTTP 400
+`json_parse_exception` at column 2. Write the fixed, non-secret query to a
+temporary UTF-8 file without a byte-order mark and pass curl an `@file`
+argument instead. The `finally` block removes that file on both success and
+failure. Paste and execute this entire invoked script block as one unit:
 
 ```powershell
-$Ca = Join-Path (Get-Location) '.certs\root-ca.pem'
-$Curl = 'C:\Windows\System32\curl.exe'
-$ResponseText = @(
-  & $Curl --silent --show-error --fail-with-body `
-    --connect-timeout 5 --max-time 30 `
-    --cacert $Ca --ssl-revoke-best-effort `
-    --noproxy '*' --user assistant-svc `
-    --header 'Content-Type: application/json' `
-    --request POST `
-    --data-binary '{"size":0,"query":{"terms":{"agent.id":["001","002"]}}}' `
-    'https://127.0.0.1:19200/wazuh-alerts-4.x-*/_search?filter_path=_shards.failed,hits.total'
-) -join "`n"
-$CurlExit = $LASTEXITCODE
-if ($CurlExit -ne 0) {
-    throw "STOP: tunneled TLS/read proof failed with curl exit $CurlExit"
+& {
+    $ErrorActionPreference = 'Stop'
+    $Ca = Join-Path (Get-Location) '.certs\root-ca.pem'
+    $Curl = 'C:\Windows\System32\curl.exe'
+    $Runtime = Join-Path (Get-Location) '.runtime'
+    $QueryFile = Join-Path $Runtime 'wazuh-size0-query.json'
+    $QueryJson = '{"size":0,"query":{"terms":{"agent.id":["001","002"]}}}'
+
+    New-Item -ItemType Directory -Path $Runtime -Force -ErrorAction Stop | Out-Null
+    if (Test-Path -LiteralPath $QueryFile) {
+        throw "STOP: prior query file exists: $QueryFile"
+    }
+
+    try {
+        $Utf8NoBom = [System.Text.UTF8Encoding]::new($false)
+        [System.IO.File]::WriteAllText($QueryFile, $QueryJson, $Utf8NoBom)
+        $BodyArgument = "@$QueryFile"
+        $ResponseText = @(
+          & $Curl --silent --show-error --fail-with-body `
+            --connect-timeout 5 --max-time 30 `
+            --cacert $Ca --ssl-revoke-best-effort `
+            --noproxy '*' --user assistant-svc `
+            --header 'Content-Type: application/json' `
+            --request POST `
+            --data-binary $BodyArgument `
+            'https://127.0.0.1:19200/wazuh-alerts-4.x-*/_search?filter_path=_shards.failed,hits.total'
+        ) -join "`n"
+        $CurlExit = $LASTEXITCODE
+        if ($CurlExit -ne 0) {
+            throw "STOP: tunneled TLS/read proof failed with curl exit $CurlExit"
+        }
+    } finally {
+        if (Test-Path -LiteralPath $QueryFile) {
+            Remove-Item -LiteralPath $QueryFile -Force
+        }
+    }
+
+    try {
+        $Metadata = $ResponseText | ConvertFrom-Json -ErrorAction Stop
+    } catch {
+        throw 'STOP: tunneled TLS/read proof did not return valid JSON metadata'
+    }
+    if ($null -eq $Metadata._shards.failed -or
+        $null -eq $Metadata.hits.total.value -or
+        $null -eq $Metadata.hits.total.relation) {
+        throw 'STOP: tunneled TLS/read proof returned incomplete metadata'
+    }
+    $FailedShards = [int64]$Metadata._shards.failed
+    $VisibleHits = [int64]$Metadata.hits.total.value
+    $HitRelation = [string]$Metadata.hits.total.relation
+    if ($FailedShards -ne 0) {
+        throw "STOP: tunneled search reported $FailedShards failed shards"
+    }
+    if ($VisibleHits -lt 0 -or $HitRelation -notin @('eq', 'gte')) {
+        throw 'STOP: tunneled search returned unexpected hit-count metadata'
+    }
+    "PASS TLS positive leg: correct certificate identity 127.0.0.1 accepted; failed_shards=$FailedShards; visible_hits=$VisibleHits; relation=$HitRelation"
 }
-try {
-    $Metadata = $ResponseText | ConvertFrom-Json -ErrorAction Stop
-} catch {
-    throw 'STOP: tunneled TLS/read proof did not return valid JSON metadata'
-}
-if ($null -eq $Metadata._shards.failed -or
-    $null -eq $Metadata.hits.total.value -or
-    $null -eq $Metadata.hits.total.relation) {
-    throw 'STOP: tunneled TLS/read proof returned incomplete metadata'
-}
-$FailedShards = [int64]$Metadata._shards.failed
-$VisibleHits = [int64]$Metadata.hits.total.value
-$HitRelation = [string]$Metadata.hits.total.relation
-if ($FailedShards -ne 0) {
-    throw "STOP: tunneled search reported $FailedShards failed shards"
-}
-if ($VisibleHits -lt 0 -or $HitRelation -notin @('eq', 'gte')) {
-    throw 'STOP: tunneled search returned unexpected hit-count metadata'
-}
-"PASS TLS positive leg: correct certificate identity 127.0.0.1 accepted; failed_shards=$FailedShards; visible_hits=$VisibleHits; relation=$HitRelation"
 ```
 
 The response may contain only shard-failure and hit-count metadata. Do not
@@ -717,33 +781,39 @@ $Destination = 'notroot@192.168.56.102'
 
 Run the first three denials. Each may prompt for the dedicated key passphrase.
 They must fail after the earlier positive proof established that the same key
-can authenticate and open the approved local forward:
+can authenticate and open the approved local forward. These denial wrappers do
+not set `$ErrorActionPreference = 'Stop'`: their expected SSH diagnostics are
+captured with `2>&1`, which Windows PowerShell 5.1 represents as error records.
+An explicit `throw` still exits the complete invoked block and prevents every
+later denial or PASS in that block from running:
 
 ```powershell
-$Marker = 'ALERTMIND_SHELL_SHOULD_NOT_RUN'
-$ShellOutput = & $SshExe @SshOptions -T $Destination "echo $Marker" 2>&1
-$ShellExit = $LASTEXITCODE
-if ($ShellExit -eq 0 -or (($ShellOutput -join "`n") -match $Marker)) {
-    throw 'STOP: shell/command request was not denied'
-}
-"PASS denied shell/command: exit $ShellExit; marker absent"
+& {
+    $Marker = 'ALERTMIND_SHELL_SHOULD_NOT_RUN'
+    $ShellOutput = & $SshExe @SshOptions -T $Destination "echo $Marker" 2>&1
+    $ShellExit = $LASTEXITCODE
+    if ($ShellExit -eq 0 -or (($ShellOutput -join "`n") -match $Marker)) {
+        throw 'STOP: shell/command request was not denied'
+    }
+    "PASS denied shell/command: exit $ShellExit; marker absent"
 
-$PtyOutput = & $SshExe @SshOptions -tt $Destination "echo $Marker" 2>&1
-$PtyExit = $LASTEXITCODE
-if ($PtyExit -eq 0 -or (($PtyOutput -join "`n") -match $Marker)) {
-    throw 'STOP: PTY/session request was not denied'
-}
-"PASS denied PTY/session: exit $PtyExit; marker absent"
+    $PtyOutput = & $SshExe @SshOptions -tt $Destination "echo $Marker" 2>&1
+    $PtyExit = $LASTEXITCODE
+    if ($PtyExit -eq 0 -or (($PtyOutput -join "`n") -match $Marker)) {
+        throw 'STOP: PTY/session request was not denied'
+    }
+    "PASS denied PTY/session: exit $PtyExit; marker absent"
 
-$RemoteOutput = & $SshExe @SshOptions -N -T `
-    -o ExitOnForwardFailure=yes `
-    -R '127.0.0.1:19201:127.0.0.1:9200' `
-    $Destination 2>&1
-$RemoteExit = $LASTEXITCODE
-if ($RemoteExit -eq 0) {
-    throw 'STOP: remote-forward request was not denied'
+    $RemoteOutput = & $SshExe @SshOptions -N -T `
+        -o ExitOnForwardFailure=yes `
+        -R '127.0.0.1:19201:127.0.0.1:9200' `
+        $Destination 2>&1
+    $RemoteExit = $LASTEXITCODE
+    if ($RemoteExit -eq 0) {
+        throw 'STOP: remote-forward request was not denied'
+    }
+    "PASS denied remote forward: exit $RemoteExit"
 }
-"PASS denied remote forward: exit $RemoteExit"
 ```
 
 For the alternate local destination, first prove TCP 19201 is unused. Then run
@@ -751,31 +821,33 @@ this foreground command in a third PowerShell window; enter the key passphrase
 and leave it open:
 
 ```powershell
-$Secrets = Join-Path (Get-Location) '.secrets'
-$PrivateKey = Join-Path $Secrets 'wazuh-indexer-tunnel_ed25519'
-$KnownHosts = Join-Path $Secrets 'wazuh-siem_known_hosts'
-$SshExe = 'C:\Windows\System32\OpenSSH\ssh.exe'
-$SshOptions = @(
-    '-o', 'KexAlgorithms=curve25519-sha256',
-    '-o', 'HostKeyAlgorithms=ssh-ed25519',
-    '-o', 'IdentitiesOnly=yes',
-    '-o', 'StrictHostKeyChecking=yes',
-    '-o', "UserKnownHostsFile=$KnownHosts",
-    '-i', $PrivateKey
-)
-$Destination = 'notroot@192.168.56.102'
-if (Get-NetTCPConnection -State Listen -LocalPort 19201 -ErrorAction SilentlyContinue) {
-    throw 'STOP: diagnostic port 19201 is already in use'
+& {
+    $Secrets = Join-Path (Get-Location) '.secrets'
+    $PrivateKey = Join-Path $Secrets 'wazuh-indexer-tunnel_ed25519'
+    $KnownHosts = Join-Path $Secrets 'wazuh-siem_known_hosts'
+    $SshExe = 'C:\Windows\System32\OpenSSH\ssh.exe'
+    $SshOptions = @(
+        '-o', 'KexAlgorithms=curve25519-sha256',
+        '-o', 'HostKeyAlgorithms=ssh-ed25519',
+        '-o', 'IdentitiesOnly=yes',
+        '-o', 'StrictHostKeyChecking=yes',
+        '-o', "UserKnownHostsFile=$KnownHosts",
+        '-i', $PrivateKey
+    )
+    $Destination = 'notroot@192.168.56.102'
+    if (Get-NetTCPConnection -State Listen -LocalPort 19201 -ErrorAction SilentlyContinue) {
+        throw 'STOP: diagnostic port 19201 is already in use'
+    }
+    $Runtime = Join-Path (Get-Location) '.runtime'
+    New-Item -ItemType Directory -Path $Runtime -Force -ErrorAction Stop | Out-Null
+    $AltLog = Join-Path $Runtime 'ssh-alternate-destination.log'
+    if (Test-Path -LiteralPath $AltLog) {
+        throw "STOP: prior diagnostic log exists: $AltLog"
+    }
+    & $SshExe @SshOptions -vv -N -T `
+        -L '127.0.0.1:19201:127.0.0.1:443' `
+        $Destination 2>&1 | Tee-Object -LiteralPath $AltLog -ErrorAction Stop
 }
-$Runtime = Join-Path (Get-Location) '.runtime'
-New-Item -ItemType Directory -Path $Runtime -Force | Out-Null
-$AltLog = Join-Path $Runtime 'ssh-alternate-destination.log'
-if (Test-Path -LiteralPath $AltLog) {
-    throw "STOP: prior diagnostic log exists: $AltLog"
-}
-& $SshExe @SshOptions -vv -N -T `
-    -L '127.0.0.1:19201:127.0.0.1:443' `
-    $Destination 2>&1 | Tee-Object -LiteralPath $AltLog
 ```
 
 From the second window, make one connection to trigger the forwarding request:
@@ -786,38 +858,48 @@ curl.exe --silent --show-error --connect-timeout 5 --max-time 5 `
 ```
 
 Return to the third window, stop SSH with Ctrl+C, then verify and remove the
-local diagnostic log:
+local diagnostic log. The verifier recomputes the fixed ignored path because
+variables created inside the foreground wrapper do not escape its child scope:
 
 ```powershell
-$Denied = Select-String -LiteralPath $AltLog `
-    -SimpleMatch 'administratively prohibited'
-if (-not $Denied) {
-    throw 'STOP: alternate-destination denial was not observed'
+& {
+    $Runtime = Join-Path (Get-Location) '.runtime'
+    $AltLog = Join-Path $Runtime 'ssh-alternate-destination.log'
+    if (-not (Test-Path -LiteralPath $AltLog -PathType Leaf)) {
+        throw "STOP: alternate-destination diagnostic log is absent: $AltLog"
+    }
+    $Denied = Select-String -LiteralPath $AltLog `
+        -SimpleMatch 'administratively prohibited' -ErrorAction Stop
+    if (-not $Denied) {
+        throw 'STOP: alternate-destination denial was not observed'
+    }
+    Remove-Item -LiteralPath $AltLog -ErrorAction Stop
+    'PASS denied alternate local destination: 127.0.0.1:443; diagnostic log removed'
 }
-'PASS denied alternate local destination: 127.0.0.1:443'
-Remove-Item -LiteralPath $AltLog
 ```
 
 Finally prove that password-only authentication is unavailable, without
 allowing a password prompt:
 
 ```powershell
-$PasswordOptions = @(
-    '-o', 'KexAlgorithms=curve25519-sha256',
-    '-o', 'HostKeyAlgorithms=ssh-ed25519',
-    '-o', 'PubkeyAuthentication=no',
-    '-o', 'KbdInteractiveAuthentication=no',
-    '-o', 'PasswordAuthentication=yes',
-    '-o', 'NumberOfPasswordPrompts=0',
-    '-o', 'StrictHostKeyChecking=yes',
-    '-o', "UserKnownHostsFile=$KnownHosts"
-)
-$PasswordOutput = & $SshExe @PasswordOptions -T $Destination 'true' 2>&1
-$PasswordExit = $LASTEXITCODE
-if ($PasswordExit -eq 0) {
-    throw 'STOP: password-only authentication unexpectedly succeeded'
+& {
+    $PasswordOptions = @(
+        '-o', 'KexAlgorithms=curve25519-sha256',
+        '-o', 'HostKeyAlgorithms=ssh-ed25519',
+        '-o', 'PubkeyAuthentication=no',
+        '-o', 'KbdInteractiveAuthentication=no',
+        '-o', 'PasswordAuthentication=yes',
+        '-o', 'NumberOfPasswordPrompts=0',
+        '-o', 'StrictHostKeyChecking=yes',
+        '-o', "UserKnownHostsFile=$KnownHosts"
+    )
+    $PasswordOutput = & $SshExe @PasswordOptions -T $Destination 'true' 2>&1
+    $PasswordExit = $LASTEXITCODE
+    if ($PasswordExit -eq 0) {
+        throw 'STOP: password-only authentication unexpectedly succeeded'
+    }
+    "PASS denied password-only authentication: exit $PasswordExit"
 }
-"PASS denied password-only authentication: exit $PasswordExit"
 ```
 
 Every forwarding/session result is non-vacuous only because the same key first completed
