@@ -124,9 +124,13 @@ positive local forward were used for every denial:
 
 The `-1` values are recorded as the observed Windows process-wrapper results,
 not generalized as portable SSH exit codes. Marker absence is part of those
-two checks. Because the same key had already established the approved local
-forward and positive read, the matrix is not a vacuous authentication-failure
-test. All four Wazuh services remained active after the matrix.
+two checks. The difference between the observed `-1` and `255` results was not
+investigated. The conclusion does not rely on exit-code parity: marker absence
+establishes that no shell or PTY command ran, while the other checks each
+require their operation-specific denial condition. Because the same key had
+already established the approved local forward and positive read, the matrix
+is not a vacuous authentication-failure test. All four Wazuh services remained
+active after the matrix.
 
 ## Excluded and superseded attempts
 

@@ -606,8 +606,23 @@ class RbacTemplateContractTests(unittest.TestCase):
             "phase1c-ssh-transport-proof.md"
         ).read_text(encoding="utf-8")
         proof_normalized = " ".join(proof.split())
+
+        manifest_hashes = {}
+        for line in (RBAC_DIR / "SSH-SHA256SUMS").read_text(
+            encoding="ascii"
+        ).splitlines():
+            digest, name = line.split(maxsplit=1)
+            manifest_hashes[name] = digest
+        evidence_hashes = dict(re.findall(
+            r"^\| `([^`]+)` \| `([0-9a-f]{64})` \|$",
+            proof,
+            flags=re.MULTILINE,
+        ))
+        self.assertEqual(evidence_hashes, manifest_hashes)
+
         for required in (
             "Sanitized owner-executed live proof, awaiting independent review",
+            "it does not claim application integration or independent approval",
             "accepted final proof was run from merged `main` at `7d0d6dc`",
             "one IPv4 listener at `192.168.56.102:22`",
             "only `ssh.service` was unmasked and enabled; `ssh.socket` remained masked",
@@ -629,6 +644,9 @@ class RbacTemplateContractTests(unittest.TestCase):
             "Remote forwarding | denied; SSH exit `255`",
             "alternate destination `127.0.0.1:443` | denied",
             "Password-only authentication | denied; SSH exit `255`; zero password prompts allowed",
+            "The `-1` values are recorded as the observed Windows process-wrapper results, not generalized as portable SSH exit codes",
+            "The difference between the observed `-1` and `255` results was not investigated",
+            "The conclusion does not rely on exit-code parity",
             "matrix is not a vacuous authentication-failure test",
             "All four Wazuh services remained active after the matrix",
             "initial positive TLS request that returned HTTP `400`",
