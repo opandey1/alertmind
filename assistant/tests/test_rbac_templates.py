@@ -584,12 +584,12 @@ class RbacTemplateContractTests(unittest.TestCase):
         self.assertLess(target_proof, stop)
         self.assertLess(stop, enable)
 
-    def test_phase1c_prerequisite_records_clean_package_stop_point(self):
-        evidence = (
+    def test_phase1c_evidence_records_prerequisite_and_bounded_live_proof(self):
+        prerequisite = (
             REPO_ROOT / "evidence" / "rbac" /
             "phase1c-ssh-prerequisite-check.md"
         ).read_text(encoding="utf-8")
-        normalized = " ".join(evidence.split())
+        normalized = " ".join(prerequisite.split())
         for required in (
             "Postfix is absent",
             "without `autoremove`",
@@ -600,6 +600,52 @@ class RbacTemplateContractTests(unittest.TestCase):
             "No OpenSSH package, key, daemon configuration or listener has been installed or enabled",
         ):
             self.assertIn(required, normalized)
+
+        proof = (
+            REPO_ROOT / "evidence" / "rbac" /
+            "phase1c-ssh-transport-proof.md"
+        ).read_text(encoding="utf-8")
+        proof_normalized = " ".join(proof.split())
+        for required in (
+            "Sanitized owner-executed live proof, awaiting independent review",
+            "accepted final proof was run from merged `main` at `7d0d6dc`",
+            "one IPv4 listener at `192.168.56.102:22`",
+            "only `ssh.service` was unmasked and enabled; `ssh.socket` remained masked",
+            "SHA256:+DDAvCldN5xpP0spEP3ClVsmhnhhQtcvJpD3GRyTaDo",
+            "SHA256:vfpeVCeBJ6AVO0lcvoN0bpIUwXkX6N2n7hZ7asBJ1Ag",
+            "EB98A4AF38CDA550D473E5659A4375905334041FAB4597F39C4F191D9E6F5E1D",
+            "`127.0.0.1:19200` → host-only SSH → VM `127.0.0.1:9200`",
+            "`alertmind-hostname-check.invalid`",
+            "curl exit `60`",
+            "negative leg deliberately failed before HTTP and sent no credential or query",
+            "`failed_shards=0`, `visible_hits=10000`, `relation=gte`",
+            "`10000` is a lower bound, not an exact corpus or Indexer total",
+            "requested no `_source` and returned no raw alert",
+            "`--ssl-revoke-best-effort`",
+            "received no effective revocation protection",
+            "No `--ssl-no-revoke`, `--insecure` or `-k` bypass was used",
+            "Shell/command execution | denied; Windows wrapper exit `-1`; marker absent",
+            "PTY/session allocation | denied; Windows wrapper exit `-1`; marker absent",
+            "Remote forwarding | denied; SSH exit `255`",
+            "alternate destination `127.0.0.1:443` | denied",
+            "Password-only authentication | denied; SSH exit `255`; zero password prompts allowed",
+            "matrix is not a vacuous authentication-failure test",
+            "All four Wazuh services remained active after the matrix",
+            "initial positive TLS request that returned HTTP `400`",
+            "including all null-derived statements entered after that stop",
+            "does not yet close Phase 1C as reviewed evidence",
+            "No live alert was sent through the LLM assistant",
+        ):
+            self.assertIn(required, proof_normalized)
+
+        for forbidden in (
+            "BEGIN PRIVATE KEY",
+            "Authorization: Basic",
+            '"_source":',
+            "PID 41780",
+            "PID 17632",
+        ):
+            self.assertNotIn(forbidden, proof)
 
     def test_payloads_contain_no_secret_bearing_fields_or_broad_index_grants(self):
         payloads = [
