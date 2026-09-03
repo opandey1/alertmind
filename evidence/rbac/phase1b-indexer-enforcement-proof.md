@@ -2,11 +2,12 @@
 
 **Captured:** 2 September 2026 (owner-executed on `wazuh-siem`)
 
-**Status:** Sanitized live Indexer proof, awaiting independent review. The
-scoped `own_index` correction, both direct-user mappings and the
-`assistant-svc` read/write boundary were exercised successfully. This closes
-only the Indexer enforcement gate; SSH transport, the Wazuh Server/Dashboard
-role path, OIDC and application integration remain unimplemented.
+**Status:** Sanitized live Indexer proof, independently reviewed and merged
+through PR #10 at `f20800d`. The scoped `own_index` correction, both direct-user
+mappings and the `assistant-svc` read/write boundary were exercised
+successfully. This closes only the Indexer enforcement gate. The separately
+reviewed SSH transport followed later; the Wazuh Server/Dashboard role path,
+OIDC and application integration remain unimplemented.
 
 ## Preconditions and payload integrity
 

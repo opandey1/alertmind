@@ -296,7 +296,9 @@ class RbacTemplateContractTests(unittest.TestCase):
         ).read_text(encoding="utf-8")
         normalized = " ".join(runbook.split())
         for required in (
-            "do not execute until an independent reviewer approves",
+            "independently approved and merged through PR #16 at `0ebc665`",
+            "not authority to repeat or alter the transport without a new review",
+            "rollback/revocation drill remains pending",
             "Do not run `apt autoremove`",
             "openssh-server=1:10.2p1-2ubuntu3.5",
             "openssh-sftp-server=1:10.2p1-2ubuntu3.5",
@@ -621,8 +623,9 @@ class RbacTemplateContractTests(unittest.TestCase):
         self.assertEqual(evidence_hashes, manifest_hashes)
 
         for required in (
-            "Sanitized owner-executed live proof, awaiting independent review",
-            "it does not claim application integration or independent approval",
+            "Sanitized owner-executed live proof, independently reviewed",
+            "approved and merged through PR #16 at `0ebc665`",
+            "it does not claim application integration or completion of Phase 1C",
             "accepted final proof was run from merged `main` at `7d0d6dc`",
             "one IPv4 listener at `192.168.56.102:22`",
             "only `ssh.service` was unmasked and enabled; `ssh.socket` remained masked",
@@ -651,10 +654,77 @@ class RbacTemplateContractTests(unittest.TestCase):
             "All four Wazuh services remained active after the matrix",
             "initial positive TLS request that returned HTTP `400`",
             "including all null-derived statements entered after that stop",
-            "does not yet close Phase 1C as reviewed evidence",
+            "closes the transport evidence gate but does not complete Phase 1C",
+            "rollback/revocation drill remains pending",
             "No live alert was sent through the LLM assistant",
         ):
             self.assertIn(required, proof_normalized)
+
+        reader_status = {
+            "README.md": (REPO_ROOT / "README.md").read_text(encoding="utf-8"),
+            "assistant/README.md": (
+                REPO_ROOT / "assistant" / "README.md"
+            ).read_text(encoding="utf-8"),
+            "architecture/soc-architecture.md": (
+                REPO_ROOT / "architecture" / "soc-architecture.md"
+            ).read_text(encoding="utf-8"),
+            "evidence/rbac/README.md": (
+                REPO_ROOT / "evidence" / "rbac" / "README.md"
+            ).read_text(encoding="utf-8"),
+            "setup runbook": (
+                REPO_ROOT / "docs" / "runbooks" /
+                "rbac-wazuh-read-only-setup.md"
+            ).read_text(encoding="utf-8"),
+            "SSH runbook": (
+                REPO_ROOT / "docs" / "runbooks" /
+                "rbac-wazuh-ssh-transport.md"
+            ).read_text(encoding="utf-8"),
+            "implementation plan": (
+                REPO_ROOT / "docs" /
+                "rbac-wazuh-read-only-implementation-plan.md"
+            ).read_text(encoding="utf-8"),
+        }
+        normalized_status = {
+            name: " ".join(text.split())
+            for name, text in reader_status.items()
+        }
+        for name, text in normalized_status.items():
+            self.assertIn("PR #16", text, name)
+            self.assertIn("rollback/revocation drill", text, name)
+
+        self.assertIn(
+            "Implemented and independently reviewed — restricted transport",
+            reader_status["README.md"],
+        )
+        self.assertIn(
+            "Phase 0 inventory captured before the Phase 1C transport",
+            normalized_status["setup runbook"],
+        )
+        self.assertIn(
+            "Phase 1C transport package — executed and evidenced",
+            reader_status["setup runbook"],
+        )
+        self.assertIn(
+            "does not retrieve live Wazuh alerts",
+            normalized_status["assistant/README.md"],
+        )
+
+        stale_status = {
+            "README.md": (
+                "Live-proven, evidence review pending",
+                "sanitized evidence is not yet committed or independently reviewed",
+            ),
+            "assistant/README.md": ("only `admin` exists today",),
+            "setup runbook": (
+                "The Phase 1C SSH transport remains disabled",
+                "review of the unexecuted Phase 1C SSH package",
+                "Phase 1C transport package — not yet executed",
+            ),
+            "SSH runbook": ("do not execute until an independent reviewer",),
+        }
+        for name, phrases in stale_status.items():
+            for phrase in phrases:
+                self.assertNotIn(phrase, reader_status[name], name)
 
         for forbidden in (
             "BEGIN PRIVATE KEY",
@@ -723,6 +793,7 @@ class RbacTemplateContractTests(unittest.TestCase):
         ).read_text(encoding="utf-8")
         normalized = " ".join(evidence.split())
         for required in (
+            "independently reviewed and merged through PR #10 at `f20800d`",
             "indices:data/write/bulk",
             "indices:data/write/reindex",
             "11,816",

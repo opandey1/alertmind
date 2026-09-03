@@ -1,7 +1,7 @@
 # RBAC and read-only integration evidence
 
-This directory will contain sanitized proof for the post-v1 least-privilege
-Wazuh integration.
+This directory contains sanitized proof for the post-v1 least-privilege Wazuh
+integration.
 
 **Current status:** The sanitized Phase 0 owner checklist and enrollment
 fingerprints in [`phase0-owner-checklist.md`](phase0-owner-checklist.md) were
@@ -17,11 +17,12 @@ only the Indexer gate. The sanitized SSH package prerequisite is recorded in
 owner subsequently installed the reviewed restricted SSH configuration and
 completed the live transport, paired TLS/read and same-key denial checks now
 recorded in
-[`phase1c-ssh-transport-proof.md`](phase1c-ssh-transport-proof.md). That proof
-awaits independent review; it must not yet be described as reviewed evidence.
-Wazuh Server/Dashboard, OIDC/application authorization and the constrained
-reader/UI remain unimplemented, so the complete feature must still be
-described as planned.
+[`phase1c-ssh-transport-proof.md`](phase1c-ssh-transport-proof.md). Commits
+`af571b1` and `0767a89` were independently approved and merged through PR #16,
+closing the transport evidence gate. The rollback/revocation drill, Wazuh
+Server/Dashboard configuration, OIDC/application authorization and the
+constrained reader/UI remain unimplemented, so neither Phase 1C as a whole nor
+the complete feature is finished.
 
 Accepted evidence may include:
 

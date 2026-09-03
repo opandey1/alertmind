@@ -1,20 +1,19 @@
 # Runbook — RBAC and read-only Wazuh integration
 
 **Status:** Phase 0 and the Phase 1A/1B Indexer identity and enforcement gates
-are independently approved and merged through PR #10. The Phase 1C SSH
-transport remains disabled. Its exact package, pre-enable proof and rollback
-are prepared in
-[`rbac-wazuh-ssh-transport.md`](rbac-wazuh-ssh-transport.md) for independent
-review. Wazuh Server/Dashboard, identity-provider and application
-configuration remain unchanged.
+are independently approved and merged through PR #10. The restricted Phase 1C
+SSH transport was owner-executed, independently reviewed and merged through PR
+#16 at `0ebc665`; its rollback/revocation drill remains pending. Wazuh
+Server/Dashboard, identity-provider and application configuration remain
+unchanged.
 
 **Applies to:** the post-v1 local-first analyst profile described in
 [`docs/rbac-wazuh-read-only-implementation-plan.md`](../rbac-wazuh-read-only-implementation-plan.md).
 
-**Safety boundary:** Do not execute the SSH transport or any later integration
-step until the Phase 1C package receives independent approval. Do not repeat a
-write-denial request unless this matrix is still fail-safe and the role/mapping
-preconditions are rechecked.
+**Safety boundary:** Do not alter or repeat the SSH transport, and do not start
+a later integration mutation, without a newly reviewed exact procedure. Do not
+repeat a write-denial request unless its matrix is still fail-safe and the
+role/mapping preconditions are rechecked.
 
 ---
 
@@ -39,8 +38,11 @@ Phase 0 closed when Claude approved `882c465`; the owner subsequently merged
 it to `main` at `de4b6a5`. The Phase 1A identity package was subsequently
 approved and merged at `76246e8`; its custom roles and users were created as
 recorded in Section 8. The completed Indexer enforcement proof was approved and
-merged through PR #10 at `f20800d`. The current stop point is independent
-review of the unexecuted Phase 1C SSH package.
+merged through PR #10 at `f20800d`. The restricted transport and sanitized live
+proof were subsequently approved and merged through PR #16 at `0ebc665`. The
+current stop point is a separately reviewed design for the next Wazuh
+Server/Dashboard read-only gate; the rollback/revocation drill also remains
+pending.
 
 ## 2. Rules for collecting inventory
 
@@ -250,6 +252,11 @@ zero-state-change denial matrix in the implementation plan against existing
 and guaranteed-nonexistent literal IDs.
 
 ## 6. Sanitized inventory record
+
+This table preserves the Phase 0 inventory captured before the Phase 1C
+transport was installed. It is historical evidence, not the current
+post-Phase 1C state; subsequent changes are recorded in Sections 8 and 9 and
+under [`evidence/rbac/`](../../evidence/rbac/).
 
 | Field | Non-secret value |
 |---|---|
@@ -477,7 +484,13 @@ Only after all four conditions may the rollback patch be applied and read back.
 Restoring the wildcard first recreates the inherited write grant and is a
 security regression, not a rollback.
 
-## 9. Phase 1C transport package — not yet executed
+## 9. Phase 1C transport package — executed and evidenced
+
+The reviewed package below was owner-executed, and its sanitized live proof was
+independently approved and merged through PR #16 at `0ebc665`. The procedure is
+retained as a reproducibility and rollback reference, not as authority to
+repeat or alter the live transport. The rollback/revocation drill remains
+pending.
 
 The preferred transport keeps Indexer on VM loopback and forwards Windows
 `127.0.0.1:19200` over SSH on the host-only adapter to VM
