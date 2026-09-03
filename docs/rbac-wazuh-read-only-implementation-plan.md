@@ -426,6 +426,19 @@ PowerShell 5.1, `2>&1` converts native stderr into an error record and the
 terminating-error policy can abort the block before `$LASTEXITCODE` is checked.
 The proof therefore observes curl's native exit code directly.
 
+The atomic-block rule applies to every PowerShell sequence that can throw and
+then continue, including key generation, host-key pinning and every SSH denial
+or denial precondition. Wrappers that intentionally capture native SSH/scanner
+stderr with `2>&1` or `2>$null` do not set
+`$ErrorActionPreference = 'Stop'`; an explicit `throw` still terminates the
+invoked block without converting expected native diagnostics into terminating
+error records. The alternate-destination verifier preserves its diagnostic log
+when the denial marker is absent and removes it before emitting PASS only after
+the marker is found. Its verifier independently recomputes the fixed ignored
+log path because variables from the foreground invoked block do not persist in
+the caller's scope. The operator must paste each invoked PowerShell fence as one
+complete unit and must not re-enter remainder statements after a STOP.
+
 Python 3.13+ enables `VERIFY_X509_STRICT` in its default SSL context. The live
 Wazuh CA triggered a Python 3.14 rejection because it lacks a key-usage
 extension. The VM evidence harness disabled `VERIFY_X509_STRICT` wholesale,

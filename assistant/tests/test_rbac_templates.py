@@ -344,6 +344,14 @@ class RbacTemplateContractTests(unittest.TestCase):
             "Paste and execute this entire invoked script block as one unit",
             "Do not merge native stderr into the success stream with `2>&1`",
             "terminate this invoked block before it can inspect curl's expected exit code",
+            "The wrapper deliberately does not set `$ErrorActionPreference = 'Stop'`",
+            "These denial wrappers do not set `$ErrorActionPreference = 'Stop'`",
+            "An explicit `throw` still exits the complete invoked block",
+            "prevents every later denial or PASS in that block from running",
+            "diagnostic log removed",
+            "variables created inside the foreground wrapper do not escape its child scope",
+            "Paste every PowerShell fence that starts with `& {` as one complete unit",
+            "Never re-enter statements from the remainder of a block after a STOP",
             "accepts unknown revocation status on every use for the life of the chain",
             "not a transient outage",
             "Never substitute `--ssl-no-revoke`, `--insecure` or `-k`",
@@ -366,12 +374,29 @@ class RbacTemplateContractTests(unittest.TestCase):
             self.assertEqual(len(matches), 1, marker)
             return matches[0]
 
+        key_generation = proof_block("STOP: dedicated tunnel key already exists")
+        host_key_pinning = proof_block("$ScanExit = $LASTEXITCODE")
         listener_proof = proof_block(
             "Get-NetTCPConnection -State Listen -LocalPort 19200"
         )
         ca_proof = proof_block("$Fingerprint = (& $OpenSsl")
         mismatch_proof = proof_block("$MismatchExit = $LASTEXITCODE")
         positive_proof = proof_block("$ResponseText = @(")
+        denial_matrix = proof_block("$ShellExit = $LASTEXITCODE")
+        alternate_setup = proof_block("STOP: diagnostic port 19201 is already in use")
+        alternate_verifier = proof_block("$Denied = Select-String")
+        password_denial = proof_block("$PasswordExit = $LASTEXITCODE")
+
+        self.assertEqual(len(powershell_blocks), 13)
+        throwing_blocks = [
+            block for block in powershell_blocks
+            if re.search(r"(?m)^\s*throw ", block)
+        ]
+        self.assertEqual(len(throwing_blocks), 10)
+        for throwing_block in throwing_blocks:
+            self.assertTrue(throwing_block.startswith("& {\n"))
+            self.assertTrue(throwing_block.rstrip().endswith("}"))
+
         for atomic_proof in (
             listener_proof,
             ca_proof,
@@ -382,7 +407,40 @@ class RbacTemplateContractTests(unittest.TestCase):
             self.assertTrue(atomic_proof.rstrip().endswith("}"))
             self.assertIn("$ErrorActionPreference = 'Stop'", atomic_proof)
 
+        for additional_atomic_proof in (
+            key_generation,
+            host_key_pinning,
+            denial_matrix,
+            alternate_setup,
+            alternate_verifier,
+            password_denial,
+        ):
+            self.assertTrue(additional_atomic_proof.startswith("& {\n"))
+            self.assertTrue(additional_atomic_proof.rstrip().endswith("}"))
+
+        for stderr_compatible_proof in (
+            host_key_pinning,
+            denial_matrix,
+            alternate_setup,
+            password_denial,
+        ):
+            self.assertNotIn(
+                "$ErrorActionPreference = 'Stop'",
+                stderr_compatible_proof,
+            )
+
+        for pass_block in (
+            block for block in powershell_blocks if "PASS " in block
+        ):
+            self.assertTrue(pass_block.startswith("& {\n"))
+            self.assertTrue(pass_block.rstrip().endswith("}"))
+
         self.assertIn("$Listener = @(", listener_proof)
+        self.assertIn("Set-Location .\\assistant -ErrorAction Stop", key_generation)
+        self.assertIn("-Force -ErrorAction Stop | Out-Null", key_generation)
+        self.assertIn("Set-Content -LiteralPath $Candidate", host_key_pinning)
+        self.assertIn("Move-Item -LiteralPath $Candidate", host_key_pinning)
+        self.assertGreaterEqual(host_key_pinning.count("-ErrorAction Stop"), 2)
         for tls_proof in (mismatch_proof, positive_proof):
             self.assertIn("--cacert $Ca --ssl-revoke-best-effort", tls_proof)
             self.assertIn("--noproxy '*'", tls_proof)
@@ -418,6 +476,27 @@ class RbacTemplateContractTests(unittest.TestCase):
             positive_proof.index("$Metadata = $ResponseText"),
         )
         self.assertNotIn("2>&1", positive_proof)
+        self.assertIn("$ShellOutput", denial_matrix)
+        self.assertIn("$PtyOutput", denial_matrix)
+        self.assertIn("$RemoteOutput", denial_matrix)
+        self.assertEqual(denial_matrix.count("2>&1"), 3)
+        self.assertIn("STOP: diagnostic port 19201 is already in use", alternate_setup)
+        self.assertIn("STOP: prior diagnostic log exists", alternate_setup)
+        self.assertIn("-Force -ErrorAction Stop | Out-Null", alternate_setup)
+        self.assertIn("2>&1 | Tee-Object", alternate_setup)
+        self.assertIn("Tee-Object -LiteralPath $AltLog -ErrorAction Stop", alternate_setup)
+        self.assertIn("$Runtime = Join-Path (Get-Location) '.runtime'", alternate_verifier)
+        self.assertIn(
+            "$AltLog = Join-Path $Runtime 'ssh-alternate-destination.log'",
+            alternate_verifier,
+        )
+        self.assertIn("STOP: alternate-destination diagnostic log is absent", alternate_verifier)
+        self.assertGreaterEqual(alternate_verifier.count("-ErrorAction Stop"), 2)
+        self.assertLess(
+            alternate_verifier.index("Remove-Item -LiteralPath $AltLog"),
+            alternate_verifier.index("PASS denied alternate local destination"),
+        )
+        self.assertIn("2>&1", password_denial)
         self.assertNotIn(
             "PASS TLS hostname mismatch rejected with curl exit 60",
             runbook,
@@ -443,6 +522,16 @@ class RbacTemplateContractTests(unittest.TestCase):
             "leaves native stderr unmerged",
             "`2>&1` converts native stderr into an error record",
             "observes curl's native exit code directly",
+            "atomic-block rule applies to every PowerShell sequence that can throw and then continue",
+            "including key generation, host-key pinning and every SSH denial or denial precondition",
+            "do not set `$ErrorActionPreference = 'Stop'`",
+            "an explicit `throw` still terminates the invoked block",
+            "preserves its diagnostic log when the denial marker is absent",
+            "removes it before emitting PASS",
+            "verifier independently recomputes the fixed ignored log path",
+            "variables from the foreground invoked block do not persist",
+            "paste each invoked PowerShell fence as one complete unit",
+            "must not re-enter remainder statements after a STOP",
         ):
             self.assertIn(required, plan_normalized)
 
