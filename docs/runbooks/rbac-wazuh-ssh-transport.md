@@ -610,7 +610,10 @@ proof and the trailing PASS must not be entered separately:
 
 Copy only the public Wazuh root CA to ignored
 `assistant/.certs/root-ca.pem`. Never copy an Indexer private key. Verify its
-DER SHA-256 fingerprint with the installed Git for Windows OpenSSL before use:
+DER SHA-256 fingerprint with the installed Git for Windows OpenSSL before use.
+The block keeps terminating-error behaviour for PowerShell failures but leaves
+OpenSSL's native stderr unmerged, so its diagnostic remains visible and the
+explicit native exit-code check remains reachable:
 
 ```powershell
 & {
@@ -618,10 +621,13 @@ DER SHA-256 fingerprint with the installed Git for Windows OpenSSL before use:
     $Ca = Join-Path (Get-Location) '.certs\root-ca.pem'
     $Expected = 'EB98A4AF38CDA550D473E5659A4375905334041FAB4597F39C4F191D9E6F5E1D'
     $OpenSsl = 'C:\Program Files\Git\usr\bin\openssl.exe'
-    $Fingerprint = (& $OpenSsl x509 -in $Ca -noout -fingerprint -sha256 2>&1) -join ''
-    if ($LASTEXITCODE -ne 0 -or
-        $Fingerprint -notmatch 'Fingerprint=([0-9A-Fa-f:]+)') {
-        throw "STOP: Wazuh CA fingerprint calculation failed: $Fingerprint"
+    $Fingerprint = (& $OpenSsl x509 -in $Ca -noout -fingerprint -sha256) -join ''
+    $OpenSslExit = $LASTEXITCODE
+    if ($OpenSslExit -ne 0) {
+        throw "STOP: Wazuh CA fingerprint calculation failed with OpenSSL exit $OpenSslExit; see native diagnostic above"
+    }
+    if ($Fingerprint -notmatch 'Fingerprint=([0-9A-Fa-f:]+)') {
+        throw "STOP: Wazuh CA fingerprint output was not recognized: $Fingerprint"
     }
     $Actual = ($Matches[1] -replace ':', '').ToUpperInvariant()
     if ($Actual -ne $Expected) {

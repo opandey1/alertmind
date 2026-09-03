@@ -426,6 +426,12 @@ PowerShell 5.1, `2>&1` converts native stderr into an error record and the
 terminating-error policy can abort the block before `$LASTEXITCODE` is checked.
 The proof therefore observes curl's native exit code directly.
 
+The CA fingerprint proof follows the same native-command boundary. It retains
+terminating-error behaviour for PowerShell failures but leaves OpenSSL native
+stderr unmerged, captures only fingerprint stdout and checks `$LASTEXITCODE`
+before parsing that output. This keeps OpenSSL's diagnostic visible while
+ensuring the runbook's explicit STOP remains reachable on native failure.
+
 The atomic-block rule applies to every PowerShell sequence that can throw and
 then continue, including key generation, host-key pinning and every SSH denial
 or denial precondition. Wrappers that intentionally capture native SSH/scanner

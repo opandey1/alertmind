@@ -344,6 +344,8 @@ class RbacTemplateContractTests(unittest.TestCase):
             "Paste and execute this entire invoked script block as one unit",
             "Do not merge native stderr into the success stream with `2>&1`",
             "terminate this invoked block before it can inspect curl's expected exit code",
+            "leaves OpenSSL's native stderr unmerged",
+            "explicit native exit-code check remains reachable",
             "The wrapper deliberately does not set `$ErrorActionPreference = 'Stop'`",
             "These denial wrappers do not set `$ErrorActionPreference = 'Stop'`",
             "An explicit `throw` still exits the complete invoked block",
@@ -406,6 +408,8 @@ class RbacTemplateContractTests(unittest.TestCase):
             self.assertTrue(atomic_proof.startswith("& {\n"))
             self.assertTrue(atomic_proof.rstrip().endswith("}"))
             self.assertIn("$ErrorActionPreference = 'Stop'", atomic_proof)
+            self.assertNotIn("2>&1", atomic_proof)
+            self.assertNotIn("2>$null", atomic_proof)
 
         for additional_atomic_proof in (
             key_generation,
@@ -436,6 +440,13 @@ class RbacTemplateContractTests(unittest.TestCase):
             self.assertTrue(pass_block.rstrip().endswith("}"))
 
         self.assertIn("$Listener = @(", listener_proof)
+        self.assertIn("$OpenSslExit = $LASTEXITCODE", ca_proof)
+        self.assertIn("if ($OpenSslExit -ne 0)", ca_proof)
+        self.assertIn("see native diagnostic above", ca_proof)
+        self.assertLess(
+            ca_proof.index("if ($OpenSslExit -ne 0)"),
+            ca_proof.index("$Fingerprint -notmatch"),
+        )
         self.assertIn("Set-Location .\\assistant -ErrorAction Stop", key_generation)
         self.assertIn("-Force -ErrorAction Stop | Out-Null", key_generation)
         self.assertIn("Set-Content -LiteralPath $Candidate", host_key_pinning)
@@ -522,6 +533,9 @@ class RbacTemplateContractTests(unittest.TestCase):
             "leaves native stderr unmerged",
             "`2>&1` converts native stderr into an error record",
             "observes curl's native exit code directly",
+            "CA fingerprint proof follows the same native-command boundary",
+            "leaves OpenSSL native stderr unmerged",
+            "checks `$LASTEXITCODE` before parsing that output",
             "atomic-block rule applies to every PowerShell sequence that can throw and then continue",
             "including key generation, host-key pinning and every SSH denial or denial precondition",
             "do not set `$ErrorActionPreference = 'Stop'`",
