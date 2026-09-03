@@ -574,14 +574,23 @@ $SshExe = 'C:\Windows\System32\OpenSSH\ssh.exe'
 ```
 
 The terminal should remain open silently after the key passphrase is entered.
-In a second PowerShell window, prove the local listener is loopback-only:
+In a second PowerShell window, prove the local listener is loopback-only.
+Windows PowerShell 5.1 returns a single matching CIM instance as a scalar, so
+the command must normalize the result with `@(...)` before checking `Count`.
+Paste the complete invoked script block as one unit; a `STOP` invalidates the
+proof and the trailing PASS must not be entered separately:
 
 ```powershell
-$Listener = Get-NetTCPConnection -State Listen -LocalPort 19200
-if ($Listener.Count -ne 1 -or $Listener.LocalAddress -ne '127.0.0.1') {
-    throw "STOP: unexpected tunnel listener: $($Listener | Out-String)"
+& {
+    $ErrorActionPreference = 'Stop'
+    $Listener = @(
+        Get-NetTCPConnection -State Listen -LocalPort 19200
+    )
+    if ($Listener.Count -ne 1 -or $Listener.LocalAddress -ne '127.0.0.1') {
+        throw "STOP: unexpected tunnel listener: $($Listener | Out-String)"
+    }
+    'PASS Windows tunnel listener: 127.0.0.1:19200 only'
 }
-'PASS Windows tunnel listener: 127.0.0.1:19200 only'
 ```
 
 ## 10. TLS/read proof and transport denials
@@ -591,19 +600,22 @@ Copy only the public Wazuh root CA to ignored
 DER SHA-256 fingerprint with the installed Git for Windows OpenSSL before use:
 
 ```powershell
-$Ca = Join-Path (Get-Location) '.certs\root-ca.pem'
-$Expected = 'EB98A4AF38CDA550D473E5659A4375905334041FAB4597F39C4F191D9E6F5E1D'
-$OpenSsl = 'C:\Program Files\Git\usr\bin\openssl.exe'
-$Fingerprint = (& $OpenSsl x509 -in $Ca -noout -fingerprint -sha256 2>&1) -join ''
-if ($LASTEXITCODE -ne 0 -or
-    $Fingerprint -notmatch 'Fingerprint=([0-9A-Fa-f:]+)') {
-    throw "STOP: Wazuh CA fingerprint calculation failed: $Fingerprint"
+& {
+    $ErrorActionPreference = 'Stop'
+    $Ca = Join-Path (Get-Location) '.certs\root-ca.pem'
+    $Expected = 'EB98A4AF38CDA550D473E5659A4375905334041FAB4597F39C4F191D9E6F5E1D'
+    $OpenSsl = 'C:\Program Files\Git\usr\bin\openssl.exe'
+    $Fingerprint = (& $OpenSsl x509 -in $Ca -noout -fingerprint -sha256 2>&1) -join ''
+    if ($LASTEXITCODE -ne 0 -or
+        $Fingerprint -notmatch 'Fingerprint=([0-9A-Fa-f:]+)') {
+        throw "STOP: Wazuh CA fingerprint calculation failed: $Fingerprint"
+    }
+    $Actual = ($Matches[1] -replace ':', '').ToUpperInvariant()
+    if ($Actual -ne $Expected) {
+        throw "STOP: Wazuh CA fingerprint mismatch: $Actual"
+    }
+    "PASS Wazuh CA SHA-256: $Actual"
 }
-$Actual = ($Matches[1] -replace ':', '').ToUpperInvariant()
-if ($Actual -ne $Expected) {
-    throw "STOP: Wazuh CA fingerprint mismatch: $Actual"
-}
-"PASS Wazuh CA SHA-256: $Actual"
 ```
 
 The characterized CA publishes neither a CRL distribution point nor Authority
@@ -625,66 +637,99 @@ the negative leg alone does not isolate hostname verification from another CA
 or chain failure. It must be paired with the immediately following positive leg,
 which uses the same tunnel, CA and revocation policy with the correct certificate
 identity. This negative leg must fail before any HTTP request or credential is
-sent:
+sent. Do not merge native stderr into the success stream with `2>&1`: Windows
+PowerShell 5.1 converts redirected native stderr into an error record, which
+would terminate this invoked block before it can inspect curl's expected exit
+code:
 
 ```powershell
-$Ca = Join-Path (Get-Location) '.certs\root-ca.pem'
-$Curl = 'C:\Windows\System32\curl.exe'
-$MismatchOutput = @(
-  & $Curl --silent --show-error `
-    --connect-timeout 5 --max-time 10 `
-    --cacert $Ca --ssl-revoke-best-effort `
-    --noproxy '*' `
-    --resolve 'alertmind-hostname-check.invalid:19200:127.0.0.1' `
-    'https://alertmind-hostname-check.invalid:19200/' 2>&1
-)
-$MismatchExit = $LASTEXITCODE
-if ($MismatchExit -ne 60) {
-    throw "STOP: expected hostname mismatch exit 60; got $MismatchExit"
+& {
+    $ErrorActionPreference = 'Stop'
+    $Ca = Join-Path (Get-Location) '.certs\root-ca.pem'
+    $Curl = 'C:\Windows\System32\curl.exe'
+    & $Curl --silent --show-error `
+      --connect-timeout 5 --max-time 10 `
+      --cacert $Ca --ssl-revoke-best-effort `
+      --noproxy '*' `
+      --resolve 'alertmind-hostname-check.invalid:19200:127.0.0.1' `
+      'https://alertmind-hostname-check.invalid:19200/'
+    $MismatchExit = $LASTEXITCODE
+    if ($MismatchExit -ne 60) {
+        throw "STOP: expected hostname mismatch exit 60; got $MismatchExit"
+    }
+    'PASS TLS negative leg: peer authentication rejected with curl exit 60'
 }
-'PASS TLS negative leg: peer authentication rejected with curl exit 60'
 ```
 
 Then issue a bounded, body-free search through the tunnel. Curl prompts for
 the `assistant-svc` password; do not place it in the command or environment.
+The first post-merge attempt on Windows PowerShell 5.1 passed the JSON literal
+as an inline native-command argument. PowerShell removed its embedded field-name
+quotes, and OpenSearch rejected the resulting `{size...}` body with an HTTP 400
+`json_parse_exception` at column 2. Write the fixed, non-secret query to a
+temporary UTF-8 file without a byte-order mark and pass curl an `@file`
+argument instead. The `finally` block removes that file on both success and
+failure. Paste and execute this entire invoked script block as one unit:
 
 ```powershell
-$Ca = Join-Path (Get-Location) '.certs\root-ca.pem'
-$Curl = 'C:\Windows\System32\curl.exe'
-$ResponseText = @(
-  & $Curl --silent --show-error --fail-with-body `
-    --connect-timeout 5 --max-time 30 `
-    --cacert $Ca --ssl-revoke-best-effort `
-    --noproxy '*' --user assistant-svc `
-    --header 'Content-Type: application/json' `
-    --request POST `
-    --data-binary '{"size":0,"query":{"terms":{"agent.id":["001","002"]}}}' `
-    'https://127.0.0.1:19200/wazuh-alerts-4.x-*/_search?filter_path=_shards.failed,hits.total'
-) -join "`n"
-$CurlExit = $LASTEXITCODE
-if ($CurlExit -ne 0) {
-    throw "STOP: tunneled TLS/read proof failed with curl exit $CurlExit"
+& {
+    $ErrorActionPreference = 'Stop'
+    $Ca = Join-Path (Get-Location) '.certs\root-ca.pem'
+    $Curl = 'C:\Windows\System32\curl.exe'
+    $Runtime = Join-Path (Get-Location) '.runtime'
+    $QueryFile = Join-Path $Runtime 'wazuh-size0-query.json'
+    $QueryJson = '{"size":0,"query":{"terms":{"agent.id":["001","002"]}}}'
+
+    New-Item -ItemType Directory -Path $Runtime -Force | Out-Null
+    if (Test-Path -LiteralPath $QueryFile) {
+        throw "STOP: prior query file exists: $QueryFile"
+    }
+
+    try {
+        $Utf8NoBom = [System.Text.UTF8Encoding]::new($false)
+        [System.IO.File]::WriteAllText($QueryFile, $QueryJson, $Utf8NoBom)
+        $BodyArgument = "@$QueryFile"
+        $ResponseText = @(
+          & $Curl --silent --show-error --fail-with-body `
+            --connect-timeout 5 --max-time 30 `
+            --cacert $Ca --ssl-revoke-best-effort `
+            --noproxy '*' --user assistant-svc `
+            --header 'Content-Type: application/json' `
+            --request POST `
+            --data-binary $BodyArgument `
+            'https://127.0.0.1:19200/wazuh-alerts-4.x-*/_search?filter_path=_shards.failed,hits.total'
+        ) -join "`n"
+        $CurlExit = $LASTEXITCODE
+        if ($CurlExit -ne 0) {
+            throw "STOP: tunneled TLS/read proof failed with curl exit $CurlExit"
+        }
+    } finally {
+        if (Test-Path -LiteralPath $QueryFile) {
+            Remove-Item -LiteralPath $QueryFile -Force
+        }
+    }
+
+    try {
+        $Metadata = $ResponseText | ConvertFrom-Json -ErrorAction Stop
+    } catch {
+        throw 'STOP: tunneled TLS/read proof did not return valid JSON metadata'
+    }
+    if ($null -eq $Metadata._shards.failed -or
+        $null -eq $Metadata.hits.total.value -or
+        $null -eq $Metadata.hits.total.relation) {
+        throw 'STOP: tunneled TLS/read proof returned incomplete metadata'
+    }
+    $FailedShards = [int64]$Metadata._shards.failed
+    $VisibleHits = [int64]$Metadata.hits.total.value
+    $HitRelation = [string]$Metadata.hits.total.relation
+    if ($FailedShards -ne 0) {
+        throw "STOP: tunneled search reported $FailedShards failed shards"
+    }
+    if ($VisibleHits -lt 0 -or $HitRelation -notin @('eq', 'gte')) {
+        throw 'STOP: tunneled search returned unexpected hit-count metadata'
+    }
+    "PASS TLS positive leg: correct certificate identity 127.0.0.1 accepted; failed_shards=$FailedShards; visible_hits=$VisibleHits; relation=$HitRelation"
 }
-try {
-    $Metadata = $ResponseText | ConvertFrom-Json -ErrorAction Stop
-} catch {
-    throw 'STOP: tunneled TLS/read proof did not return valid JSON metadata'
-}
-if ($null -eq $Metadata._shards.failed -or
-    $null -eq $Metadata.hits.total.value -or
-    $null -eq $Metadata.hits.total.relation) {
-    throw 'STOP: tunneled TLS/read proof returned incomplete metadata'
-}
-$FailedShards = [int64]$Metadata._shards.failed
-$VisibleHits = [int64]$Metadata.hits.total.value
-$HitRelation = [string]$Metadata.hits.total.relation
-if ($FailedShards -ne 0) {
-    throw "STOP: tunneled search reported $FailedShards failed shards"
-}
-if ($VisibleHits -lt 0 -or $HitRelation -notin @('eq', 'gte')) {
-    throw 'STOP: tunneled search returned unexpected hit-count metadata'
-}
-"PASS TLS positive leg: correct certificate identity 127.0.0.1 accepted; failed_shards=$FailedShards; visible_hits=$VisibleHits; relation=$HitRelation"
 ```
 
 The response may contain only shard-failure and hit-count metadata. Do not

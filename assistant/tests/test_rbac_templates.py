@@ -2,6 +2,7 @@
 """Offline contract tests for the secret-free Phase 1 Wazuh RBAC package."""
 import hashlib
 import json
+import re
 import unittest
 from pathlib import Path
 
@@ -323,6 +324,9 @@ class RbacTemplateContractTests(unittest.TestCase):
             "StrictHostKeyChecking=yes",
             "UserKnownHostsFile=$KnownHosts",
             "127.0.0.1:19200:127.0.0.1:9200",
+            "Windows PowerShell 5.1 returns a single matching CIM instance as a scalar",
+            "normalize the result with `@(...)` before checking `Count`",
+            "a `STOP` invalidates the proof and the trailing PASS must not be entered separately",
             "--ssl-revoke-best-effort",
             "expected hostname mismatch exit 60",
             "Curl exit 60 is a generic peer-certificate authentication failure",
@@ -332,6 +336,14 @@ class RbacTemplateContractTests(unittest.TestCase):
             "PASS TLS positive leg: correct certificate identity 127.0.0.1 accepted",
             "Only when both PASS lines are present",
             "If the negative leg returns 60 but the positive leg fails, hostname verification has not been isolated.",
+            "PowerShell removed its embedded field-name quotes",
+            "HTTP 400 `json_parse_exception` at column 2",
+            "temporary UTF-8 file without a byte-order mark",
+            "pass curl an `@file` argument instead",
+            "The `finally` block removes that file on both success and failure",
+            "Paste and execute this entire invoked script block as one unit",
+            "Do not merge native stderr into the success stream with `2>&1`",
+            "terminate this invoked block before it can inspect curl's expected exit code",
             "accepts unknown revocation status on every use for the life of the chain",
             "not a transient outage",
             "Never substitute `--ssl-no-revoke`, `--insecure` or `-k`",
@@ -343,21 +355,34 @@ class RbacTemplateContractTests(unittest.TestCase):
             self.assertIn(required, normalized)
         self.assertNotIn("allowtcpforwarding yes", normalized)
 
-        mismatch_start = runbook.index("$MismatchOutput = @(")
-        mismatch_end = runbook.index(
-            "'PASS TLS negative leg: peer authentication rejected with curl exit 60'",
-            mismatch_start,
+        powershell_blocks = re.findall(
+            r"```powershell\n(.*?)\n```",
+            runbook,
+            flags=re.DOTALL,
         )
-        mismatch_proof = runbook[mismatch_start:mismatch_end]
-        positive_start = runbook.index(
-            "$ResponseText = @(",
-            mismatch_end,
+
+        def proof_block(marker):
+            matches = [block for block in powershell_blocks if marker in block]
+            self.assertEqual(len(matches), 1, marker)
+            return matches[0]
+
+        listener_proof = proof_block(
+            "Get-NetTCPConnection -State Listen -LocalPort 19200"
         )
-        positive_end = runbook.index(
-            "After that positive authentication/forwarding proof",
-            positive_start,
-        )
-        positive_proof = runbook[positive_start:positive_end]
+        ca_proof = proof_block("$Fingerprint = (& $OpenSsl")
+        mismatch_proof = proof_block("$MismatchExit = $LASTEXITCODE")
+        positive_proof = proof_block("$ResponseText = @(")
+        for atomic_proof in (
+            listener_proof,
+            ca_proof,
+            mismatch_proof,
+            positive_proof,
+        ):
+            self.assertTrue(atomic_proof.startswith("& {\n"))
+            self.assertTrue(atomic_proof.rstrip().endswith("}"))
+            self.assertIn("$ErrorActionPreference = 'Stop'", atomic_proof)
+
+        self.assertIn("$Listener = @(", listener_proof)
         for tls_proof in (mismatch_proof, positive_proof):
             self.assertIn("--cacert $Ca --ssl-revoke-best-effort", tls_proof)
             self.assertIn("--noproxy '*'", tls_proof)
@@ -365,10 +390,33 @@ class RbacTemplateContractTests(unittest.TestCase):
             self.assertNotIn("--insecure", tls_proof)
             self.assertNotIn(" -k", tls_proof)
         self.assertIn("$MismatchExit -ne 60", mismatch_proof)
+        self.assertNotIn("2>&1", mismatch_proof)
         self.assertIn("ConvertFrom-Json", positive_proof)
         self.assertIn("$Metadata._shards.failed", positive_proof)
         self.assertIn("$Metadata.hits.total.value", positive_proof)
         self.assertIn("$FailedShards -ne 0", positive_proof)
+        self.assertIn(
+            "$QueryJson = "
+            "'{\"size\":0,\"query\":{\"terms\":{\"agent.id\":[\"001\",\"002\"]}}}'",
+            positive_proof,
+        )
+        self.assertIn(
+            "$Utf8NoBom = [System.Text.UTF8Encoding]::new($false)",
+            positive_proof,
+        )
+        self.assertIn(
+            "[System.IO.File]::WriteAllText($QueryFile, $QueryJson, $Utf8NoBom)",
+            positive_proof,
+        )
+        self.assertIn('$BodyArgument = "@$QueryFile"', positive_proof)
+        self.assertIn("--data-binary $BodyArgument", positive_proof)
+        self.assertIn("} finally {", positive_proof)
+        self.assertIn("Remove-Item -LiteralPath $QueryFile -Force", positive_proof)
+        self.assertNotIn("--data-binary '{", positive_proof)
+        self.assertLess(
+            positive_proof.index("$CurlExit -ne 0"),
+            positive_proof.index("$Metadata = $ResponseText"),
+        )
         self.assertNotIn("2>&1", positive_proof)
         self.assertNotIn(
             "PASS TLS hostname mismatch rejected with curl exit 60",
@@ -384,6 +432,17 @@ class RbacTemplateContractTests(unittest.TestCase):
             "accepts unknown revocation status on every use for the life of the chain",
             "revocation check provides no protection here",
             "does not settle the later application's certificate-chain or Python-context decision",
+            "Windows PowerShell 5.1 behaviours",
+            "normalized with `@(...)` before its count is checked",
+            "JSON is never supplied to native curl as an inline argument",
+            "HTTP 400 with a `json_parse_exception` at column 2",
+            "written as UTF-8 without a byte-order mark",
+            "passed with curl's `@file` form and removed in `finally`",
+            "Each listener, CA and TLS proof is one invoked script block",
+            "a `STOP` cannot fall through to a later PASS",
+            "leaves native stderr unmerged",
+            "`2>&1` converts native stderr into an error record",
+            "observes curl's native exit code directly",
         ):
             self.assertIn(required, plan_normalized)
 
