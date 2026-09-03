@@ -239,14 +239,18 @@ Paste & inspect shares the batch path's redaction implementation and model bound
 ### 9.4 Planned Wazuh integration
 
 ```text
-Wazuh API :55000
-        │ target: alert-scoped read-only pull
-        │ identity: assistant-svc
+Wazuh Indexer API :9200  (wazuh-alerts-4.x-*)
+        │ target: alert-scoped read-only search/get
+        │ identity: assistant-svc  (DLS: agent.id 001, 002)
         ▼
 the same redaction and model boundary
 ```
 
 This connection is a target state only. No report result, live demonstration or no-action claim depends on it being implemented.
+
+**Correction to the submitted baseline.** The `v1.0` report and diagrams named the Wazuh Server API on `:55000` as this planned path. That was wrong in one respect: Wazuh stores alerts in `wazuh-alerts-*` on the Indexer, so alert retrieval belongs to the Indexer API on `:9200`. Port `:55000` is a management plane used for administration and validation, and the assistant is deliberately given no Server API identity at all. The submitted `v1.0` artifacts are preserved unedited; this section records the corrected target.
+
+**Post-v1 progress.** The `assistant-svc` and `socanalyst` identities named above now exist with least-privilege Indexer roles, and their read/write boundary has been verified against the live cluster — see `evidence/rbac/`. A restricted host-only SSH forward that keeps the Indexer bound to loopback has since been demonstrated end to end by the project owner; that run is owner-executed and its sanitized evidence is not yet committed or independently reviewed. The ingestion path itself remains unimplemented: there is no OIDC/application authentication or authorization, no constrained reader module and no live-alert UI, and no application code reads from Wazuh. SSH public-key authentication and the Indexer's own basic-auth identities are separate, lower layers and do exist. The live lab has also been upgraded to Wazuh 4.14.7 since the 4.14.5 submission baseline.
 
 ## 10. Security & operational considerations
 

@@ -6,7 +6,7 @@
 
 **Capstone:** PG Certificate in AI/GenAI Powered Cybersecurity — IIT Roorkee × Futurense, Cohort 1 · EC-Council SOC Essentials track · Project `CAP-SCE-3W` · Solo mode
 
-**Current status:** Complete and submitted. The SOC build, detections, dashboards, playbooks, 90-day Wazuh alert-retention policy, assistant, Paste & inspect, frozen-corpus evaluation, grounding review, technical report and defense presentation are all delivered. Live Wazuh-to-assistant integration and production RBAC remain documented target-state work, not completed features.
+**Current status:** Complete and submitted. The SOC build, detections, dashboards, playbooks, 90-day Wazuh alert-retention policy, assistant, Paste & inspect, frozen-corpus evaluation, grounding review, technical report and defense presentation are all delivered. Live Wazuh-to-assistant integration remains documented target-state work, not a completed feature. Post-v1 work has since implemented and evidenced the least-privilege Wazuh Indexer identities that path will use and demonstrated the restricted transport beneath it, while OIDC/application authentication and authorization, the constrained reader and the live-alert UI stay unbuilt — see [Post-v1 RBAC and read-only ingestion status](#post-v1-rbac-and-read-only-ingestion-status).
 
 For the complete methodology, evidence index, limitations and results, see the **[technical report](report.md)**. The **[defense presentation](docs/AlertMind_Defense.pdf)** summarises the build, the four measured findings and the deployment recommendation in 14 slides.
 
@@ -33,7 +33,7 @@ The lab VMs share an isolated VirtualBox NAT network (`LabNet`, `10.0.2.0/24`). 
 
 **Solid** lines are implemented flows, **dashed** lines are planned target state, and **dotted** lines are simulated adversary activity. Full architecture, log sources, retention and the RBAC model: **[`architecture/soc-architecture.md`](architecture/soc-architecture.md)** · editable diagram source [`architecture/diagram.drawio`](architecture/diagram.drawio) → [`architecture/diagram.png`](architecture/diagram.png).
 
-Current assistant inputs are the frozen corpus and analyst-pasted JSON or plain text. The dashed Wazuh API path is the production target and is **not yet implemented**. Correspondingly, the target identities `socanalyst` and `assistant-svc` remain planned; the lab currently uses `admin` for setup and validation.
+Current assistant inputs are the frozen corpus and analyst-pasted JSON or plain text. The dashed live-ingestion path is the production target and is **not yet implemented**: no application code retrieves alerts from Wazuh. Post-v1 work has since built the identity layer beneath that path — `socanalyst` and `assistant-svc` now exist as least-privilege Wazuh Indexer identities with enforcement verified live, and a restricted host-only SSH transport has been demonstrated (see [Post-v1 RBAC status](#post-v1-rbac-and-read-only-ingestion-status)) — while OIDC/application authentication and authorization, the constrained reader and the live-alert UI remain unbuilt. When that path is implemented it will read the Indexer alert API on `:9200` (`wazuh-alerts-4.x-*`), not the Wazuh Server API on `:55000`, which is a management plane the assistant holds no credential for.
 
 Alert retention is implemented separately in the Wazuh Indexer. The 90-day policy was configured on 29 Jul 2026 and verified attached to 21 daily alert indices, including indices created after the policy update. The evidence proves policy attachment and active transition evaluation; actual age-based deletion remains unobserved because no index had yet reached 90 days. See [`architecture/soc-architecture.md` §7](architecture/soc-architecture.md#7-data-retention), the [policy screenshot](evidence/week3/wazuh-alert-retention-policy-90d.png), and the [managed-index screenshot](evidence/week3/wazuh-alert-retention-managed-indices.png).
 
@@ -181,6 +181,18 @@ Paste & inspect is an operational demonstration and was excluded from the frozen
 - **Sanitized ad hoc evidence:** raw pasted input is not persisted; proof and audit records store sanitized data and a correlation hash. Optional trace correlation uses keyed HMAC via `ALERTMIND_TRACE_HMAC_KEY`.
 - **Auditability:** batch calls record model/configuration, prompt and redaction hashes, latency, parse status, usage and raw/parsed responses in non-overwriting run directories.
 
+## Post-v1 RBAC and read-only ingestion status
+
+Work after the submitted `v1.0` tag is building the least-privilege identity layer that a future live-ingestion path would sit on. It is deliberately partial, and the split matters when reading the repository:
+
+**Implemented and independently reviewed.** Two dedicated Wazuh Indexer identities exist and their boundary was exercised against the live cluster. `alertmind_assistant_alerts_ro` holds no cluster permission, no tenant permission and no Server API identity — only `indices:data/read/search` and `indices:data/read/get` on `wazuh-alerts-4.x-*`, with document-level security limited to `agent.id` `001` and `002`. Wazuh Dashboard multitenancy is disabled and the service identity has no configured Dashboard tenant; `authinfo` still reports private-tenant metadata, which is metadata rather than Indexer role authority. The live proof recorded a successful bounded read of an in-scope document alongside `403` denials for create, update and delete from the same principal, with the source document's hash unchanged before and after. Setup also found and closed an inherited `own_index` grant that would have given both new identities write access to a self-named index. Sanitized evidence, containing identifiers and hashes but no credentials or raw alerts, is under [`evidence/rbac/`](evidence/rbac/); the secret-free role, mapping and scope templates are under [`siem/rbac/`](siem/rbac/) and are pinned against drift by the offline contract tests.
+
+**Live-proven, evidence review pending.** The restricted host-only SSH transport has since been exercised end to end by the project owner: the VM listener bound only to the host-only address, the client forward bound only to Windows loopback, the pinned host-key fingerprint and CA digest checked, a paired TLS proof in which a wrong certificate identity was rejected and the correct one accepted, and denials observed for shell, PTY, remote forwarding, an alternate local destination and password-only authentication — with all four Wazuh services active before and after. That run is owner-executed and its sanitized evidence artifact is not yet committed or independently reviewed, so it is reported here as demonstrated rather than as reviewed evidence.
+
+**Not implemented.** There is no OIDC authentication, no application authorization, no constrained reader module, no live-alert UI and no audit integration. The assistant application still consumes only the frozen corpus and analyst-pasted input, exactly as in `v1.0`; nothing in it reads from Wazuh.
+
+**Claim discipline.** Nothing here changes a published measurement: live alerts are excluded from the frozen benchmark by design, and no model was re-run. The plan, work order, acceptance criteria and rollback are in [`docs/rbac-wazuh-read-only-implementation-plan.md`](docs/rbac-wazuh-read-only-implementation-plan.md), with operator procedures in [`docs/runbooks/rbac-wazuh-read-only-setup.md`](docs/runbooks/rbac-wazuh-read-only-setup.md) and [`docs/runbooks/rbac-wazuh-ssh-transport.md`](docs/runbooks/rbac-wazuh-ssh-transport.md). The `v1.0` tag and the submitted report and deck are preserved unedited; the lab has since been upgraded to Wazuh 4.14.7, so live-state notes are recorded separately from the 4.14.5 submission baseline.
+
 ## Repository map
 
 ```text
@@ -188,7 +200,11 @@ alertmind/
 ├── README.md                          # this file — repository landing page
 ├── report.md                          # final technical report and evidence index
 ├── WEEKLOG.md                         # week-by-week implementation chronology
-├── .gitignore                         # excludes .env, venvs and runtime ad hoc audit output
+├── .gitignore                         # excludes .env, venvs, local secrets/certs and runtime ad hoc audit output
+├── .gitattributes                     # pins hash-checked artifacts to LF so documented SHA-256 survives checkout
+│
+├── .github/workflows/
+│   └── offline-ci.yml                 # network-free regression + frozen-evidence CI
 │
 ├── architecture/
 │   ├── soc-architecture.md            # authoritative architecture: flows, retention, RBAC, trust boundary
@@ -209,7 +225,16 @@ alertmind/
 │
 ├── siem/
 │   ├── wazuh/local_rules.xml          # 24 deployed custom Wazuh rules
-│   └── dashboards/*.ndjson            # ATT&CK Heatmap · Daily SOC Briefing exports
+│   ├── dashboards/*.ndjson            # ATT&CK Heatmap · Daily SOC Briefing exports
+│   └── rbac/                          # secret-free least-privilege identity package
+│       ├── indexer-role_*.json        # socanalyst and assistant-svc Indexer roles
+│       ├── indexer-role-mapping_*.json        # direct-user mappings; no backend roles or hosts
+│       ├── indexer-role-mapping_own_index_*.patch.json  # scoped/rollback patches for the inherited own_index mapping
+│       ├── scope-contract.json        # pinned index pattern, DLS terms, principals, agent fingerprints
+│       ├── negative-test-matrix.md    # pre-registered fail-safe read/write denial sequence
+│       ├── sshd-alertmind.conf        # host-only, local-forward-only SSH drop-in
+│       ├── ssh-authorized-key-options.txt      # key-option prefix; contains no key material
+│       └── SHA256SUMS · SSH-SHA256SUMS         # transfer manifests for the payloads above
 │
 ├── attack/
 │   └── runbook.md                     # per-rule trigger commands, provenance and teardown
@@ -221,17 +246,26 @@ alertmind/
 │   ├── timing-log.csv                 # unassisted and assisted triage timings
 │   ├── assisted-timing-protocol.md    # timing protocol and its threats to validity
 │   ├── analysis.ipynb                 # re-runnable metric derivation
-│   └── grounding/                     # manual free-text review worksheets and rubric
+│   ├── verify_frozen_evidence.py      # offline assertions re-derived by CI
+│   ├── grounding/                     # manual free-text review worksheets and rubric
+│   └── run-manifests/                 # provenance, model capture and normalized audit hashes
+│
+├── deployment/
+│   └── oidc/keycloak/                 # reference local IdP notes; realm template deferred until Phase 2
 │
 ├── docs/
 │   ├── AlertMind_Defense.pdf          # defense presentation (14 slides)
 │   ├── rebuild-guide.md               # rebuild the lab from a clean clone
 │   ├── artifacts.md                   # artifact index
+│   ├── rbac-wazuh-read-only-implementation-plan.md   # post-v1 RBAC and read-only ingestion plan
 │   └── runbooks/
 │       ├── wazuh-recovery.md          # SIEM recovery after host failure
-│       └── wazuh-password-reset.md    # credential reset procedure
+│       ├── wazuh-password-reset.md    # credential reset procedure
+│       ├── rbac-wazuh-read-only-setup.md          # read-only inventory and identity setup
+│       └── rbac-wazuh-ssh-transport.md            # restricted host-only SSH transport gate
 │
 └── evidence/                          # screenshots and command-output evidence (EVID-* IDs)
+    └── rbac/                          # sanitized RBAC gate evidence (no credentials or raw alerts)
 ```
 
 ## Run the assistant
@@ -280,7 +314,7 @@ cd assistant
 python -m unittest discover -s tests -p "test_*.py"
 ```
 
-The current suite contains **78 tests** covering provider request construction, schema/error metadata, runtime/formal-schema alignment, non-destructive audit reconstruction, explicit corpus-subset selection, redaction, strict-view label leakage, injection markers, boundary blocking, consent, ad hoc audit semantics and Streamlit state handling.
+The current suite contains **102 tests** covering provider request construction, schema/error metadata, runtime/formal-schema alignment, non-destructive audit reconstruction, explicit corpus-subset selection, redaction, strict-view label leakage, injection markers, boundary blocking, consent, ad hoc audit semantics, Streamlit state handling, and the offline RBAC contract checks that pin the committed identity, role, DLS and transport templates against drift.
 
 Re-score a retained audit log without changing committed evidence:
 
@@ -291,7 +325,7 @@ python rebuild_from_audit.py outputs/runs/<run_id>/audit-log.jsonl --score-only
 
 Omitting `--score-only` writes derived files under `assistant/outputs/rebuilt/<run_id>/`, not beside the source audit log. Existing derived files require an explicit `--overwrite`, and the timing-log default is resolved from the repository rather than the caller's working directory.
 
-**Offline CI.** Every push to `main` and pull request targeting it runs the 78-test regression suite and re-derives the CI-protected assistant-evaluation findings from committed artifacts: frozen-corpus and timing-log SHA-256, canonical scoring for seven retained result-bearing runs, the §9.8 token/latency/hash findings, and the accepted Qwen pair's normalized audit hashes, manifests, model digest and effective request configuration. No live SIEM, model provider, credentials or repository secrets are required. The badge therefore shows that these specific committed measurements still reproduce without another model call. It does not cover MTTD, the assisted-timing study, human grounding verdicts, dashboards or detection counts, which are evidenced elsewhere in this repository. Workflow: [`.github/workflows/offline-ci.yml`](.github/workflows/offline-ci.yml); assertions: [`measurement/verify_frozen_evidence.py`](measurement/verify_frozen_evidence.py).
+**Offline CI.** Every push to `main` and pull request targeting it runs the 102-test regression suite and re-derives the CI-protected assistant-evaluation findings from committed artifacts: frozen-corpus and timing-log SHA-256, canonical scoring for seven retained result-bearing runs, the §9.8 token/latency/hash findings, and the accepted Qwen pair's normalized audit hashes, manifests, model digest and effective request configuration. No live SIEM, model provider, credentials or repository secrets are required. The badge therefore shows that these specific committed measurements still reproduce without another model call. It does not cover MTTD, the assisted-timing study, human grounding verdicts, dashboards or detection counts, which are evidenced elsewhere in this repository. Workflow: [`.github/workflows/offline-ci.yml`](.github/workflows/offline-ci.yml); assertions: [`measurement/verify_frozen_evidence.py`](measurement/verify_frozen_evidence.py).
 
 **Rebuilding the lab from a clean clone:** follow [`docs/rebuild-guide.md`](docs/rebuild-guide.md). Recovery and credential-reset procedures are in [`docs/runbooks/`](docs/runbooks/), and [`docs/artifacts.md`](docs/artifacts.md) indexes the produced artifacts.
 
@@ -329,7 +363,8 @@ The superseded Qwen pilots and pre-commit candidate pair remain committed for tr
 - One synthetic attack payload identifies itself as an AlertMind test after decoding, creating a documented construct-validity limitation.
 - Redaction does not guarantee removal of unknown or encoded secrets.
 - Prompt-injection markers provide detection and visibility; only reserved-boundary attempts are deterministically blocked. Semantic model influence remains possible.
-- RBAC identities `socanalyst` and `assistant-svc` and live read-only Wazuh API ingestion remain target-state work.
+- Least-privilege Wazuh Indexer identities `socanalyst` and `assistant-svc` are implemented with an independently reviewed read/write boundary, and the restricted host-only SSH transport has been demonstrated live but its evidence is not yet committed or reviewed. Live read-only ingestion is still not implemented: OIDC authentication, application authorization, the constrained reader and the live-alert UI all remain unbuilt, and no application code reads from Wazuh. See [Post-v1 RBAC and read-only ingestion status](#post-v1-rbac-and-read-only-ingestion-status).
+- The lab certificate chain publishes no CRL distribution point or Authority Information Access, so revocation cannot be evaluated for it; a reviewed certificate-chain replacement is the intended fix rather than relaxing verification.
 - High-confidence injection quarantine with an explicit audited override remains future work.
 - Live cloud ingestion is an optional stretch goal; the project uses the required Windows and Linux sources. A static cloud sample was demonstrated only.
 - The IR playbooks follow NIST SP 800-61r2, which was superseded by r3 in April 2025; migration to the r3 CSF-aligned structure is follow-on work.
