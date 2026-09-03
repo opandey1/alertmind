@@ -507,25 +507,42 @@ console. Do not troubleshoot by broadening `ListenAddress`, `AllowUsers`,
 
 From PowerShell in `assistant/`, obtain only the advertised ED25519 public host
 key, compare it to the console-established fingerprint, and promote it to the
-dedicated known-hosts file only on an exact match:
+dedicated known-hosts file only on an exact match. In the characterized Windows
+host, the inbox OpenSSH 9.5 `ssh-keyscan.exe` reaches OpenSSH 10.2 but aborts
+after the server selects `sntrup761x25519-sha512@openssh.com`. Use the already
+installed Git for Windows OpenSSH 10.2 scanner in quiet mode; do not change the
+server KEX list to accommodate the older scanner:
 
 ```powershell
 $Secrets = Join-Path (Get-Location) '.secrets'
 $Candidate = Join-Path $Secrets 'wazuh-siem_known_hosts.candidate'
 $KnownHosts = Join-Path $Secrets 'wazuh-siem_known_hosts'
+$Keyscan = 'C:\Program Files\Git\usr\bin\ssh-keyscan.exe'
+$Keygen = 'C:\Program Files\Git\usr\bin\ssh-keygen.exe'
 
-if (Test-Path -LiteralPath $KnownHosts) {
+if (-not (Test-Path -LiteralPath $Keyscan -PathType Leaf) -or
+    -not (Test-Path -LiteralPath $Keygen -PathType Leaf)) {
+    throw 'STOP: compatible Git for Windows OpenSSH 10.2 tools are absent'
+}
+if ((Test-Path -LiteralPath $Candidate) -or
+    (Test-Path -LiteralPath $KnownHosts)) {
     throw "STOP: known-hosts file already exists: $KnownHosts"
 }
 
-& ssh-keyscan.exe -T 5 -t ed25519 192.168.56.102 2>$null |
-    Set-Content -LiteralPath $Candidate -Encoding ascii
-$CandidateLines = @(Get-Content -LiteralPath $Candidate |
-    Where-Object { $_.Trim().Length -gt 0 })
-if ($LASTEXITCODE -ne 0 -or $CandidateLines.Count -ne 1) {
-    throw "STOP: expected exactly one ED25519 host key; got $($CandidateLines.Count)"
+$ScanOutput = @(
+    & $Keyscan -q -T 10 -p 22 -t ed25519 192.168.56.102 2>$null
+)
+$ScanExit = $LASTEXITCODE
+$CandidateLines = @($ScanOutput | Where-Object { $_.Trim().Length -gt 0 })
+if ($ScanExit -ne 0 -or $CandidateLines.Count -ne 1) {
+    throw "STOP: expected exactly one ED25519 key record; got $($CandidateLines.Count)"
 }
-$Observed = ((& ssh-keygen.exe -lf $Candidate -E sha256) -split '\s+')[1]
+$KeyPattern = '^(?:192\.168\.56\.102|\[192\.168\.56\.102\]:22)\s+ssh-ed25519\s+\S+'
+if ($CandidateLines[0] -notmatch $KeyPattern) {
+    throw 'STOP: scanner returned an unexpected host-key record'
+}
+$CandidateLines | Set-Content -LiteralPath $Candidate -Encoding ascii
+$Observed = ((& $Keygen -lf $Candidate -E sha256) -split '\s+')[1]
 if ($Observed -ne 'SHA256:vfpeVCeBJ6AVO0lcvoN0bpIUwXkX6N2n7hZ7asBJ1Ag') {
     throw "STOP: SSH host-key mismatch: $Observed"
 }
@@ -540,8 +557,11 @@ that window open:
 $Secrets = Join-Path (Get-Location) '.secrets'
 $PrivateKey = Join-Path $Secrets 'wazuh-indexer-tunnel_ed25519'
 $KnownHosts = Join-Path $Secrets 'wazuh-siem_known_hosts'
+$SshExe = 'C:\Windows\System32\OpenSSH\ssh.exe'
 
-& ssh.exe -N -T `
+& $SshExe -N -T `
+  -o KexAlgorithms=curve25519-sha256 `
+  -o HostKeyAlgorithms=ssh-ed25519 `
   -o ExitOnForwardFailure=yes `
   -o IdentitiesOnly=yes `
   -o StrictHostKeyChecking=yes `
@@ -568,34 +588,113 @@ if ($Listener.Count -ne 1 -or $Listener.LocalAddress -ne '127.0.0.1') {
 
 Copy only the public Wazuh root CA to ignored
 `assistant/.certs/root-ca.pem`. Never copy an Indexer private key. Verify its
-DER SHA-256 fingerprint with the installed Python before use:
+DER SHA-256 fingerprint with the installed Git for Windows OpenSSL before use:
 
 ```powershell
 $Ca = Join-Path (Get-Location) '.certs\root-ca.pem'
 $Expected = 'EB98A4AF38CDA550D473E5659A4375905334041FAB4597F39C4F191D9E6F5E1D'
-$Actual = python -c "import hashlib,ssl,sys; print(hashlib.sha256(ssl.PEM_cert_to_DER_cert(open(sys.argv[1], encoding='ascii').read())).hexdigest().upper())" $Ca
-if ($LASTEXITCODE -ne 0 -or $Actual -ne $Expected) {
+$OpenSsl = 'C:\Program Files\Git\usr\bin\openssl.exe'
+$Fingerprint = (& $OpenSsl x509 -in $Ca -noout -fingerprint -sha256 2>&1) -join ''
+if ($LASTEXITCODE -ne 0 -or
+    $Fingerprint -notmatch 'Fingerprint=([0-9A-Fa-f:]+)') {
+    throw "STOP: Wazuh CA fingerprint calculation failed: $Fingerprint"
+}
+$Actual = ($Matches[1] -replace ':', '').ToUpperInvariant()
+if ($Actual -ne $Expected) {
     throw "STOP: Wazuh CA fingerprint mismatch: $Actual"
 }
 "PASS Wazuh CA SHA-256: $Actual"
+```
+
+The characterized CA publishes neither a CRL distribution point nor Authority
+Information Access. Windows curl 8.21 uses Schannel, whose default revocation
+check therefore stops with `CERT_TRUST_REVOCATION_STATUS_UNKNOWN`. For this
+Phase 1C transport proof only, use `--ssl-revoke-best-effort`: curl documents
+that this ignores revocation failures caused by missing or offline distribution
+points. It does not disable peer or hostname verification. For this chain the
+missing revocation locations are not a transient outage: best-effort accepts
+unknown revocation status on every use for the life of the chain unless it is
+replaced, so the revocation check provides no protection for this chain. Never
+substitute `--ssl-no-revoke`, `--insecure` or `-k`; the final application TLS
+context still requires its own reviewed certificate-chain or compatibility
+decision.
+
+First run the negative leg by connecting the tunnel to a deliberately wrong
+HTTPS name. Curl exit 60 is a generic peer-certificate authentication failure;
+the negative leg alone does not isolate hostname verification from another CA
+or chain failure. It must be paired with the immediately following positive leg,
+which uses the same tunnel, CA and revocation policy with the correct certificate
+identity. This negative leg must fail before any HTTP request or credential is
+sent:
+
+```powershell
+$Ca = Join-Path (Get-Location) '.certs\root-ca.pem'
+$Curl = 'C:\Windows\System32\curl.exe'
+$MismatchOutput = @(
+  & $Curl --silent --show-error `
+    --connect-timeout 5 --max-time 10 `
+    --cacert $Ca --ssl-revoke-best-effort `
+    --noproxy '*' `
+    --resolve 'alertmind-hostname-check.invalid:19200:127.0.0.1' `
+    'https://alertmind-hostname-check.invalid:19200/' 2>&1
+)
+$MismatchExit = $LASTEXITCODE
+if ($MismatchExit -ne 60) {
+    throw "STOP: expected hostname mismatch exit 60; got $MismatchExit"
+}
+'PASS TLS negative leg: peer authentication rejected with curl exit 60'
 ```
 
 Then issue a bounded, body-free search through the tunnel. Curl prompts for
 the `assistant-svc` password; do not place it in the command or environment.
 
 ```powershell
-curl.exe --silent --show-error --fail-with-body `
-  --connect-timeout 5 --max-time 30 `
-  --cacert $Ca --user assistant-svc `
-  --header 'Content-Type: application/json' `
-  --request POST `
-  --data-binary '{"size":0,"query":{"terms":{"agent.id":["001","002"]}}}' `
-  'https://127.0.0.1:19200/wazuh-alerts-4.x-*/_search?filter_path=_shards.failed,hits.total'
-if ($LASTEXITCODE -ne 0) { throw 'STOP: tunneled TLS/read proof failed' }
+$Ca = Join-Path (Get-Location) '.certs\root-ca.pem'
+$Curl = 'C:\Windows\System32\curl.exe'
+$ResponseText = @(
+  & $Curl --silent --show-error --fail-with-body `
+    --connect-timeout 5 --max-time 30 `
+    --cacert $Ca --ssl-revoke-best-effort `
+    --noproxy '*' --user assistant-svc `
+    --header 'Content-Type: application/json' `
+    --request POST `
+    --data-binary '{"size":0,"query":{"terms":{"agent.id":["001","002"]}}}' `
+    'https://127.0.0.1:19200/wazuh-alerts-4.x-*/_search?filter_path=_shards.failed,hits.total'
+) -join "`n"
+$CurlExit = $LASTEXITCODE
+if ($CurlExit -ne 0) {
+    throw "STOP: tunneled TLS/read proof failed with curl exit $CurlExit"
+}
+try {
+    $Metadata = $ResponseText | ConvertFrom-Json -ErrorAction Stop
+} catch {
+    throw 'STOP: tunneled TLS/read proof did not return valid JSON metadata'
+}
+if ($null -eq $Metadata._shards.failed -or
+    $null -eq $Metadata.hits.total.value -or
+    $null -eq $Metadata.hits.total.relation) {
+    throw 'STOP: tunneled TLS/read proof returned incomplete metadata'
+}
+$FailedShards = [int64]$Metadata._shards.failed
+$VisibleHits = [int64]$Metadata.hits.total.value
+$HitRelation = [string]$Metadata.hits.total.relation
+if ($FailedShards -ne 0) {
+    throw "STOP: tunneled search reported $FailedShards failed shards"
+}
+if ($VisibleHits -lt 0 -or $HitRelation -notin @('eq', 'gte')) {
+    throw 'STOP: tunneled search returned unexpected hit-count metadata'
+}
+"PASS TLS positive leg: correct certificate identity 127.0.0.1 accepted; failed_shards=$FailedShards; visible_hits=$VisibleHits; relation=$HitRelation"
 ```
 
 The response may contain only shard-failure and hit-count metadata. Do not
 request or paste `_source`.
+
+Only when both PASS lines are present from the unchanged tunnel, CA and
+revocation-policy setup may the pair be recorded as evidence that the wrong
+hostname was rejected while the correct certificate identity was accepted. If
+the negative leg returns 60 but the positive leg fails, hostname verification
+has not been isolated.
 
 After that positive authentication/forwarding proof, define the same identity
 and pinned host-key options in the second PowerShell window:
@@ -604,7 +703,10 @@ and pinned host-key options in the second PowerShell window:
 $Secrets = Join-Path (Get-Location) '.secrets'
 $PrivateKey = Join-Path $Secrets 'wazuh-indexer-tunnel_ed25519'
 $KnownHosts = Join-Path $Secrets 'wazuh-siem_known_hosts'
+$SshExe = 'C:\Windows\System32\OpenSSH\ssh.exe'
 $SshOptions = @(
+    '-o', 'KexAlgorithms=curve25519-sha256',
+    '-o', 'HostKeyAlgorithms=ssh-ed25519',
     '-o', 'IdentitiesOnly=yes',
     '-o', 'StrictHostKeyChecking=yes',
     '-o', "UserKnownHostsFile=$KnownHosts",
@@ -619,21 +721,21 @@ can authenticate and open the approved local forward:
 
 ```powershell
 $Marker = 'ALERTMIND_SHELL_SHOULD_NOT_RUN'
-$ShellOutput = & ssh.exe @SshOptions -T $Destination "echo $Marker" 2>&1
+$ShellOutput = & $SshExe @SshOptions -T $Destination "echo $Marker" 2>&1
 $ShellExit = $LASTEXITCODE
 if ($ShellExit -eq 0 -or (($ShellOutput -join "`n") -match $Marker)) {
     throw 'STOP: shell/command request was not denied'
 }
 "PASS denied shell/command: exit $ShellExit; marker absent"
 
-$PtyOutput = & ssh.exe @SshOptions -tt $Destination "echo $Marker" 2>&1
+$PtyOutput = & $SshExe @SshOptions -tt $Destination "echo $Marker" 2>&1
 $PtyExit = $LASTEXITCODE
 if ($PtyExit -eq 0 -or (($PtyOutput -join "`n") -match $Marker)) {
     throw 'STOP: PTY/session request was not denied'
 }
 "PASS denied PTY/session: exit $PtyExit; marker absent"
 
-$RemoteOutput = & ssh.exe @SshOptions -N -T `
+$RemoteOutput = & $SshExe @SshOptions -N -T `
     -o ExitOnForwardFailure=yes `
     -R '127.0.0.1:19201:127.0.0.1:9200' `
     $Destination 2>&1
@@ -652,7 +754,10 @@ and leave it open:
 $Secrets = Join-Path (Get-Location) '.secrets'
 $PrivateKey = Join-Path $Secrets 'wazuh-indexer-tunnel_ed25519'
 $KnownHosts = Join-Path $Secrets 'wazuh-siem_known_hosts'
+$SshExe = 'C:\Windows\System32\OpenSSH\ssh.exe'
 $SshOptions = @(
+    '-o', 'KexAlgorithms=curve25519-sha256',
+    '-o', 'HostKeyAlgorithms=ssh-ed25519',
     '-o', 'IdentitiesOnly=yes',
     '-o', 'StrictHostKeyChecking=yes',
     '-o', "UserKnownHostsFile=$KnownHosts",
@@ -668,7 +773,7 @@ $AltLog = Join-Path $Runtime 'ssh-alternate-destination.log'
 if (Test-Path -LiteralPath $AltLog) {
     throw "STOP: prior diagnostic log exists: $AltLog"
 }
-& ssh.exe @SshOptions -vv -N -T `
+& $SshExe @SshOptions -vv -N -T `
     -L '127.0.0.1:19201:127.0.0.1:443' `
     $Destination 2>&1 | Tee-Object -LiteralPath $AltLog
 ```
@@ -698,6 +803,8 @@ allowing a password prompt:
 
 ```powershell
 $PasswordOptions = @(
+    '-o', 'KexAlgorithms=curve25519-sha256',
+    '-o', 'HostKeyAlgorithms=ssh-ed25519',
     '-o', 'PubkeyAuthentication=no',
     '-o', 'KbdInteractiveAuthentication=no',
     '-o', 'PasswordAuthentication=yes',
@@ -705,7 +812,7 @@ $PasswordOptions = @(
     '-o', 'StrictHostKeyChecking=yes',
     '-o', "UserKnownHostsFile=$KnownHosts"
 )
-$PasswordOutput = & ssh.exe @PasswordOptions -T $Destination 'true' 2>&1
+$PasswordOutput = & $SshExe @PasswordOptions -T $Destination 'true' 2>&1
 $PasswordExit = $LASTEXITCODE
 if ($PasswordExit -eq 0) {
     throw 'STOP: password-only authentication unexpectedly succeeded'
@@ -787,3 +894,4 @@ author/reviewer cycle.
 - [OpenSSH `authorized_keys` format](https://man.openbsd.org/sshd.8#AUTHORIZED_KEYS_FILE_FORMAT)
 - [Ubuntu OpenSSH socket activation](https://discourse.ubuntu.com/t/sshd-now-uses-socket-based-activation-ubuntu-22-10-and-later/30189/5)
 - [Ubuntu 26.04 `openssh-server` package files](https://packages.ubuntu.com/resolute-updates/amd64/openssh-server/filelist)
+- [curl `--ssl-revoke-best-effort`](https://curl.se/docs/manpage.html#--ssl-revoke-best-effort)
