@@ -314,10 +314,19 @@ class RbacTemplateContractTests(unittest.TestCase):
             "allowtcpforwarding local",
             "STOP POINT: do not unmask or enable SSH",
             "ssh.socket remains masked",
-            "expected exactly one ED25519 host key",
+            "expected exactly one ED25519 key record",
+            "Git for Windows OpenSSH 10.2 scanner",
+            "ssh-keyscan.exe",
+            "-q -T 10 -p 22 -t ed25519",
+            "KexAlgorithms=curve25519-sha256",
+            "HostKeyAlgorithms=ssh-ed25519",
             "StrictHostKeyChecking=yes",
             "UserKnownHostsFile=$KnownHosts",
             "127.0.0.1:19200:127.0.0.1:9200",
+            "--ssl-revoke-best-effort",
+            "expected hostname mismatch exit 60",
+            "PASS TLS hostname mismatch rejected with curl exit 60",
+            "Never substitute `--ssl-no-revoke`, `--insecure` or `-k`",
             "administratively prohibited",
             "authentication failure as a forwarding-policy proof",
             "Immediate rollback",
@@ -325,6 +334,37 @@ class RbacTemplateContractTests(unittest.TestCase):
         ):
             self.assertIn(required, normalized)
         self.assertNotIn("allowtcpforwarding yes", normalized)
+
+        mismatch_start = runbook.index("$MismatchOutput = @(")
+        mismatch_end = runbook.index(
+            "'PASS TLS hostname mismatch rejected with curl exit 60'",
+            mismatch_start,
+        )
+        mismatch_proof = runbook[mismatch_start:mismatch_end]
+        positive_start = runbook.index(
+            "$ResponseText = @(",
+            mismatch_end,
+        )
+        positive_end = runbook.index(
+            "After that positive authentication/forwarding proof",
+            positive_start,
+        )
+        positive_proof = runbook[positive_start:positive_end]
+        for tls_proof in (mismatch_proof, positive_proof):
+            self.assertIn("--cacert $Ca --ssl-revoke-best-effort", tls_proof)
+            self.assertIn("--noproxy '*'", tls_proof)
+            self.assertNotIn("--ssl-no-revoke", tls_proof)
+            self.assertNotIn("--insecure", tls_proof)
+            self.assertNotIn(" -k", tls_proof)
+        self.assertIn("$MismatchExit -ne 60", mismatch_proof)
+        self.assertIn("ConvertFrom-Json", positive_proof)
+        self.assertIn("$Metadata._shards.failed", positive_proof)
+        self.assertIn("$Metadata.hits.total.value", positive_proof)
+        self.assertIn("$FailedShards -ne 0", positive_proof)
+        self.assertNotIn("2>&1", positive_proof)
+
+        self.assertEqual(runbook.count("KexAlgorithms=curve25519-sha256"), 4)
+        self.assertEqual(runbook.count("HostKeyAlgorithms=ssh-ed25519"), 4)
 
         control_start = runbook.index(
             "echo 'PASS host-key policy: exactly one effective ED25519 key'"

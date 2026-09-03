@@ -397,6 +397,15 @@ The Windows client validates `https://127.0.0.1:19200` with a copied public
 root CA. Do not ship `verify=False`, suppress certificate warnings or copy any
 private Indexer key.
 
+The Phase 1C Windows transport proof found that the current private CA exposes
+neither a CRL distribution point nor Authority Information Access. Schannel's
+default revocation check therefore cannot produce a status. A separately
+reviewed proof-only compatibility path may use curl's
+`--ssl-revoke-best-effort` together with a required hostname-mismatch negative
+control, while retaining the pinned CA and hostname verification. This is not
+authority to use `--ssl-no-revoke`, `--insecure` or `-k`, and it does not settle
+the later application's certificate-chain or Python-context decision.
+
 Python 3.13+ enables `VERIFY_X509_STRICT` in its default SSL context. The live
 Wazuh CA triggered a Python 3.14 rejection because it lacks a key-usage
 extension. The VM evidence harness disabled `VERIFY_X509_STRICT` wholesale,
