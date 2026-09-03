@@ -13,10 +13,15 @@ the declarative, read-scope and fail-safe write-denial checks recorded in
 [`phase1b-indexer-enforcement-proof.md`](phase1b-indexer-enforcement-proof.md).
 That live proof is independently approved and merged through PR #10. It closes
 only the Indexer gate. The sanitized SSH package prerequisite is recorded in
-[`phase1c-ssh-prerequisite-check.md`](phase1c-ssh-prerequisite-check.md), but
-OpenSSH remains uninstalled and no transport proof exists yet. Wazuh
-Server/Dashboard, OIDC and application integration remain unimplemented, so
-the complete feature must still be described as planned.
+[`phase1c-ssh-prerequisite-check.md`](phase1c-ssh-prerequisite-check.md). The
+owner subsequently installed the reviewed restricted SSH configuration and
+completed the live transport, paired TLS/read and same-key denial checks now
+recorded in
+[`phase1c-ssh-transport-proof.md`](phase1c-ssh-transport-proof.md). That proof
+awaits independent review; it must not yet be described as reviewed evidence.
+Wazuh Server/Dashboard, OIDC/application authorization and the constrained
+reader/UI remain unimplemented, so the complete feature must still be
+described as planned.
 
 Accepted evidence may include:
 
