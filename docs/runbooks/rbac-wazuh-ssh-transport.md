@@ -1,7 +1,10 @@
 # Runbook — Phase 1C restricted SSH transport
 
-**Status:** reviewed package required; do not execute until an independent
-reviewer approves the commit containing this file.
+**Status:** The reviewed package was owner-executed and its sanitized live
+evidence was independently approved and merged through PR #16 at `0ebc665`.
+This runbook remains the reproducible configuration and rollback reference; it
+is not authority to repeat or alter the transport without a new review. The
+rollback/revocation drill remains pending.
 
 **Scope:** install OpenSSH Server on `wazuh-siem`, keep it inert throughout
 installation, validate a host-only/local-forward-only policy, and only then

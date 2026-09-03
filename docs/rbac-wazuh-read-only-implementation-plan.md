@@ -2,16 +2,14 @@
 
 **Document status:** Phase 0 and the Phase 1A/1B Indexer identity and
 enforcement gates are independently approved and merged through PR #10. The
-owner removed an unrelated broken, unused Postfix package after a separate
-simulation/approval gate; package consistency and Wazuh health remain intact.
-This branch prepares the exact Phase 1C SSH installation, configuration,
-pre-enable proof and rollback package. It is not authority to execute that
-package before independent review. SSH transport, Wazuh Server/Dashboard
-configuration, OIDC and application integration remain unimplemented.
+restricted Phase 1C SSH transport was owner-executed, independently reviewed
+and merged through PR #16 at `0ebc665`; its rollback/revocation drill remains
+pending. Wazuh Server/Dashboard configuration, OIDC and application
+integration remain unimplemented.
 
 **Date:** 1 September 2026
 
-**Last updated:** 2 September 2026
+**Last updated:** 3 September 2026
 
 **Applies to:** current `assistant/` package; submitted-v1 Wazuh 4.14.5
 baseline; current live `wazuh-indexer` 4.14.7-1 / OpenSearch 2.19.5;
@@ -77,8 +75,9 @@ The plan is based on the current repository rather than the earlier
   created on VM loopback. A pre-mapping check exposed inherited `own_index`
   access; after independent review, the owner narrowed that mapping, applied
   both direct-user mappings and completed the fail-safe Indexer matrix. That
-  proof is independently approved and merged in PR #10. SSH transport and live
-  ingestion remain incomplete.
+  proof is independently approved and merged in PR #10. The restricted SSH
+  transport proof is independently approved and merged in PR #16; its
+  rollback/revocation drill and live ingestion remain incomplete.
 - The pre-feature regression baseline was 78 assistant tests plus the frozen-
   evidence verifier. Phase 0 adds eight characterization tests, bringing the
   branch to 86 tests without changing prompts, views, redaction, schema,

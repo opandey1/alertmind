@@ -3,11 +3,13 @@
 **Captured:** 2–3 September 2026 (owner-executed on the Windows host and
 `wazuh-siem` VM)
 
-**Status:** Sanitized owner-executed live proof, awaiting independent review.
-The host-only SSH local forward, verified-TLS metadata read and transport
-denial matrix completed successfully. This record closes only the owner-proof
-portion of the Phase 1C transport gate; it does not claim application
-integration or independent approval.
+**Status:** Sanitized owner-executed live proof, independently reviewed.
+Evidence commits `af571b1` and `0767a89` were approved and merged through PR
+#16 at `0ebc665`. The host-only SSH local forward, verified-TLS metadata read
+and transport denial matrix completed successfully. This record closes only
+the independently reviewed transport evidence gate; it does not claim
+application integration or completion of Phase 1C, whose rollback/revocation
+drill remains pending.
 
 This record contains public fingerprints, configuration hashes and sanitized
 outcomes only. It contains no password, private key, authorization header,
@@ -154,10 +156,11 @@ fall through to a later PASS.
 
 ## Stop point and remaining work
 
-This evidence demonstrates a host-only, public-key-only, local-forward-only
-transport to the loopback-bound Indexer, a verified-hostname metadata read and
-denial of five unapproved transport/authentication paths. It awaits independent
-review and does not yet close Phase 1C as reviewed evidence.
+This independently reviewed evidence demonstrates a host-only,
+public-key-only, local-forward-only transport to the loopback-bound Indexer, a
+verified-hostname metadata read and denial of five unapproved
+transport/authentication paths. It closes the transport evidence gate but does
+not complete Phase 1C because the rollback/revocation drill remains pending.
 
 It does **not** implement or prove Wazuh Server/Dashboard read-only
 configuration, OIDC/application authentication or authorization, the
