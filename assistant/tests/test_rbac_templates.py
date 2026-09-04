@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Offline contract tests for the secret-free Phase 1 Wazuh RBAC package."""
+import ast
 import hashlib
 import importlib.util
 import io
@@ -504,6 +505,202 @@ class RbacTemplateContractTests(unittest.TestCase):
         self.assertIn("Unexecuted Phase 1C rollback/revocation inputs", siem_readme)
         self.assertNotIn("OpenSSH remains uninstalled", siem_readme)
         self.assertNotIn("Unexecuted Phase 1C transport inputs", siem_readme)
+
+    def _assert_rollback_template_pending(self, template):
+        # Pin fields, not just a marker total: removing a row or leaving a
+        # spare PENDING elsewhere must not hide a fabricated observation.
+        expected_labels = """Owner execution date/time and timezone
+Repository commit containing the reviewed drill
+VM snapshot confirmed available
+Pre-drill application state
+Explicitly untouched
+Raw alert or `_source` captured
+Probe/index/document created
+`siem/rbac/SHA256SUMS`
+`siem/rbac/SSH-SHA256SUMS`
+`siem/rbac/ROLLBACK-SHA256SUMS`
+Rotation helper syntax check
+Owner confirmed app stopped; no visible Streamlit CLI process
+Existing Windows tunnel
+Existing SSH client public fingerprint
+Pinned VM host-key fingerprint
+Wazuh public CA SHA-256
+Exact `alertmind_assistant_alerts_ro` role and mapping
+Exact `assistant-svc` effective role
+Scoped `own_index` unchanged
+`socanalyst` user/mapping present and untouched
+Wazuh health: Indexer → Manager → Filebeat → Dashboard
+Windows TCP 19200 listener absent
+`ssh.service` / `ssh.socket` masked and inactive
+VM TCP 22 listener absent
+SSH drop-in absent and authorized-key entry count zero
+OpenSSH packages retained at reviewed versions
+`alertmind_assistant_alerts_ro` mapping absent
+`assistant-svc` user absent
+Old service password rejected after deletion
+Custom role, `socanalyst` and scoped `own_index` retained
+Wazuh health: Indexer → Manager → Filebeat → Dashboard
+Replacement password transported only through anonymous pipe
+Replacement differs from old value
+Replacement user initially has zero effective roles
+Old password rejected after recreation
+Reviewed direct-user mapping restored exactly
+Replacement effective role
+Bounded metadata-only read
+Cluster-health and username-index reads denied
+Revoked client public fingerprint
+Replacement client public fingerprint
+Fingerprints differ
+VM authorized-key entry count and installed fingerprint
+Old SSH key denied with no authentication marker
+VM host-key fingerprint unchanged
+One VM listener at `192.168.56.102:22`; socket masked
+One Windows listener at `127.0.0.1:19200`
+Wrong-hostname TLS leg
+Correct-identity TLS/read leg
+Replacement key promoted to canonical ignored path
+Revoked local key files removed
+Canonical-path tunnel and bounded read repeated
+Shell, PTY, remote-forward, alternate-destination and password denials using promoted key
+Exact replacement service role/mapping
+Scoped `own_index` still excludes both AlertMind principals
+`socanalyst` unchanged
+Restricted SSH transport restored
+Wazuh health: Indexer → Manager → Filebeat → Dashboard
+Frozen artifacts and model runs unchanged
+Reviewer
+Reviewed commit
+Verdict
+Required corrections""".splitlines()
+        headers = {
+            ("Item", "Sanitized value"), ("Artifact", "SHA-256/result"),
+            ("Check", "Result"), ("Item", "Value"),
+        }
+        rows = [
+            row for row in re.findall(r"^\| (.+?) \| (.+?) \|$", template, re.MULTILINE)
+            if row not in headers
+        ]
+        self.assertEqual([label for label, _ in rows], expected_labels)
+        for label, value in rows:
+            if label == "Explicitly untouched":
+                self.assertEqual(
+                    value,
+                    "`socanalyst`, custom roles, DLS, scoped `own_index`, frozen evidence",
+                )
+            else:
+                self.assertRegex(value, r"^`PENDING`(?: — .+)?$", label)
+        deviations = re.findall(
+            r"^## 8\. Deviations and failures\n\n(.*?)\n\n## 9\. Independent review$",
+            template, re.MULTILINE | re.DOTALL,
+        )
+        self.assertEqual(deviations, [
+            "`PENDING` — list every failed or aborted attempt and the fail-closed state. Do\n"
+            "not omit a failed stage or turn a partial run into a passing conclusion."
+        ])
+
+    def test_rollback_template_rejects_filled_or_missing_result_fields(self):
+        template = (
+            REPO_ROOT / "evidence" / "rbac" /
+            "phase1c-rollback-revocation-proof-template.md"
+        ).read_text(encoding="utf-8")
+        self._assert_rollback_template_pending(template)
+        result_rows = list(re.finditer(
+            r"^\| .+? \| `PENDING`[^\n]*$", template, re.MULTILINE,
+        ))
+        self.assertEqual(len(result_rows), 62)
+        for row in result_rows:
+            for replacement in (row.group().replace("`PENDING`", "PASS", 1), ""):
+                with self.subTest(row=row.group(), replacement=replacement):
+                    altered = template[:row.start()] + replacement + template[row.end():]
+                    self.assertNotEqual(altered, template)
+                    with self.assertRaises(AssertionError):
+                        self._assert_rollback_template_pending(altered)
+        for old, new in (
+            ("| VM snapshot confirmed available | `PENDING` |",
+             "| VM snapshot confirmed available | yes (was `PENDING`) |"),
+            ("| Explicitly untouched | `socanalyst`, custom roles, DLS, scoped `own_index`, frozen evidence |",
+             "| Explicitly untouched | PASS |"),
+            ("`PENDING` — list every failed", "No failures — list every failed"),
+        ):
+            with self.subTest(mutation=old):
+                altered = template.replace(old, new, 1)
+                self.assertNotEqual(altered, template)
+                with self.assertRaises(AssertionError):
+                    self._assert_rollback_template_pending(altered)
+
+    def _assert_rollback_containment_review_gate(self, runbook):
+        sections = re.findall(
+            r"^## 11\. Stop conditions and containment\n(.*?)(?=^## |\Z)",
+            runbook, re.MULTILINE | re.DOTALL,
+        )
+        self.assertEqual(len(sections), 1)
+        blocks = re.findall(r"^```bash\n(.*?)\n```$", sections[0], re.MULTILINE | re.DOTALL)
+        self.assertEqual(len(blocks), 1)
+        # It must be the final command of containment, not a comment or a
+        # matching phrase elsewhere in the document.
+        self.assertEqual(blocks[0].splitlines()[-2:], [
+            "echo 'STOP POINT: no restoration retry until sanitized failure and containment are reviewed'",
+            ")",
+        ])
+
+    def test_rollback_containment_requires_review_before_restoration_retry(self):
+        runbook = (
+            REPO_ROOT / "docs" / "runbooks" /
+            "rbac-phase1c-rollback-revocation-drill.md"
+        ).read_text(encoding="utf-8")
+        self._assert_rollback_containment_review_gate(runbook)
+        gate = "echo 'STOP POINT: no restoration retry until sanitized failure and containment are reviewed'"
+        self.assertEqual(runbook.count(gate), 1)
+        for replacement in ("", "echo 'Continue immediately with restoration'", "# " + gate):
+            with self.subTest(replacement=replacement):
+                altered = runbook.replace(gate, replacement)
+                # Keep the original text outside containment: a whole-file
+                # substring assertion would incorrectly accept this mutation.
+                altered = gate + "\n" + altered
+                self.assertNotEqual(altered, runbook)
+                with self.assertRaises(AssertionError):
+                    self._assert_rollback_containment_review_gate(altered)
+
+    def test_readme_counts_match_unittest_method_inventory(self):
+        test_files = sorted((REPO_ROOT / "assistant" / "tests").glob("test_*.py"))
+        method_count = 0
+        for path in test_files:
+            tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+            # The suite currently declares its cases directly. Do not import
+            # UI/provider modules merely to check their documented inventory.
+            for node in tree.body:
+                if isinstance(node, ast.ClassDef):
+                    methods = [
+                        item for item in node.body
+                        if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef))
+                        and item.name.startswith("test_")
+                    ]
+                    if methods:
+                        self.assertIn("unittest.TestCase", [ast.unparse(base) for base in node.bases])
+                        method_count += len(methods)
+        self.assertGreater(method_count, 0)
+        self.assertGreater(len(test_files), 0)
+        docs = {
+            name: (REPO_ROOT / name).read_text(encoding="utf-8")
+            for name in ("README.md", "assistant/README.md")
+        }
+        for name, pattern, expected in (
+            ("README.md", r"current suite contains \*\*(\d+) tests\*\*", str(method_count)),
+            ("README.md", r"runs the (\d+)-test regression suite", str(method_count)),
+            ("assistant/README.md", r"# full suite — (\d+) tests", str(method_count)),
+            ("assistant/README.md", r"# (\d+) unittest methods across (\d+) files",
+             (str(method_count), str(len(test_files)))),
+        ):
+            with self.subTest(document=name, pattern=pattern):
+                self.assertEqual(re.findall(pattern, docs[name]), [expected])
+                match = re.search(pattern, docs[name])
+                # Check every captured count, including the test-file count.
+                for group in range(1, len(match.groups()) + 1):
+                    start, end = match.span(group)
+                    altered = docs[name][:start] + str(int(match.group(group)) + 1) + docs[name][end:]
+                    self.assertNotEqual(altered, docs[name])
+                    with self.assertRaises(AssertionError):
+                        self.assertEqual(re.findall(pattern, altered), [expected])
 
     def test_sshd_dropin_is_host_only_public_key_only_and_sessionless(self):
         lines = [
