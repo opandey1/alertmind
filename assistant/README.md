@@ -99,7 +99,7 @@ assistant/
 ```bash
 cd assistant
 pip install -r requirements.txt
-python -m unittest discover -s tests -p "test_*.py"   # full suite — 102 tests
+python -m unittest discover -s tests -p "test_*.py"   # full suite — 103 tests
 python tests/test_redact.py                       # redaction proof (non-zero exit if a secret leaks)
 python tests/test_injection.py                    # recorded injection scenario (mock)
 python runner.py --provider mock --view operational

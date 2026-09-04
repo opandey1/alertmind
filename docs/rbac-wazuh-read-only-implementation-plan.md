@@ -4,12 +4,13 @@
 enforcement gates are independently approved and merged through PR #10. The
 restricted Phase 1C SSH transport was owner-executed, independently reviewed
 and merged through PR #16 at `0ebc665`; its rollback/revocation drill remains
-pending. Wazuh Server/Dashboard configuration, OIDC and application
-integration remain unimplemented.
+pending, with a secret-free drill package awaiting review. Wazuh
+Server/Dashboard configuration, OIDC and application integration remain
+unimplemented.
 
 **Date:** 1 September 2026
 
-**Last updated:** 3 September 2026
+**Last updated:** 4 September 2026
 
 **Applies to:** current `assistant/` package; submitted-v1 Wazuh 4.14.5
 baseline; current live `wazuh-indexer` 4.14.7-1 / OpenSearch 2.19.5;
@@ -731,16 +732,23 @@ Phase 0 is closed. The approved commit is merged to `main` at `de4b6a5`.
    prove `own_index` and every unexpected role absent for both users, require
    `403` on both username-named read-only searches, then apply the two project
    mappings and repeat authinfo and username-index checks.
-5. **Current package gate:** independently review
-   `docs/runbooks/rbac-wazuh-ssh-transport.md`, the secret-free SSH payloads,
-   prerequisite evidence and contract tests. Only after approval may the owner
-   install OpenSSH with both activation paths masked, capture both
-   context-aware `sshd -T -C` outputs and stop before enabling SSH.
+5. **Done, approved and merged through PR #16:** install the reviewed
+   host-only, public-key-only SSH transport, prove the VM and Windows listeners,
+   paired TLS identity check, bounded read and shell/forward/password denials,
+   then bind the evidence to the committed SSH manifest.
 6. **Done, approved and merged in PR #10:** execute the
    fail-safe document-level allow/deny sequence in Section 10.2 and
    `siem/rbac/negative-test-matrix.md`; the optional index-level test remains
    prohibited.
-7. Verify `socanalyst` Dashboard read access and Wazuh write,
+7. **Current package gate:** independently review and then owner-execute
+   `docs/runbooks/rbac-phase1c-rollback-revocation-drill.md`. Remove the
+   tunnel/listener and authorized key, revoke `assistant-svc`, prove the old
+   credential fails, rotate the service password and SSH client key, restore
+   the exact reviewed boundary, and verify Wazuh Indexer, Manager, Filebeat and
+   Dashboard health in that order. The current app has no live profile, so the
+   drill must record that leg as not yet applicable rather than fabricate a
+   profile-disable result.
+8. Verify `socanalyst` Dashboard read access and Wazuh write,
    administration and active-response denials. If built-in `readonly` is
    used, disclose its broader read scope in the proof. Label dashboard evidence
    DLS-scoped because agent ID 000 is excluded.
@@ -814,6 +822,11 @@ possible from the UI or client.
    plane.
 
 **Gate:** independent review returns `approve`; only the human pushes.
+
+The Phase 1C drill in Phase 1 is an early transport/service-identity acceptance
+gate. It deliberately leaves `socanalyst` unchanged and cannot test a profile
+that does not yet exist. Phase 5 repeats the complete rollback after OIDC,
+Dashboard/Server RBAC, the constrained reader and live UI exist.
 
 ---
 
@@ -1031,14 +1044,22 @@ part of the live integration state.
    `chore(rbac): add secret-free identity and role templates`
 7. **Done and approved — `ccd5ea3`:**
    `fix(rbac): remove inherited write grant before identity mapping`
-8. **Owner-executed; current review cycle:**
-   `evidence(rbac): record live Indexer enforcement proof`
-9. `feat(auth): add OIDC profiles and server-side authorization`
-10. `feat(wazuh): add constrained read-only alert client`
-11. `feat(assistant): triage live Wazuh alerts through guarded pipeline`
-12. `test(rbac): cover identity, reader, audit and denial boundaries`
-13. `evidence(rbac): record complete least-privilege integration proof`
-14. `docs(architecture): publish implemented read-only Wazuh path`
+8. **Owner-executed and approved:**
+   `evidence(rbac): record live Indexer enforcement proof` — independently
+   approved and merged through PR #10.
+9. **Done and approved:** restricted SSH package, live proof, evidence binding
+   and reviewed-status reconciliation — merged through PRs #11–#17.
+10. **Current review package:**
+    `docs(rbac): add Phase 1C rollback and revocation drill`
+11. `evidence(rbac): record Phase 1C rollback and restoration proof`
+12. `docs(rbac): define Server and Dashboard read-only proof`
+13. `evidence(rbac): record Server and Dashboard read-only denials`
+14. `feat(auth): add OIDC profiles and server-side authorization`
+15. `feat(wazuh): add constrained read-only alert client`
+16. `feat(assistant): triage live Wazuh alerts through guarded pipeline`
+17. `test(rbac): cover identity, reader, audit and denial boundaries`
+18. `evidence(rbac): record complete least-privilege integration proof`
+19. `docs(architecture): publish implemented read-only Wazuh path`
 
 Each commit stages explicit paths only. Never use `git add -A` in this
 repository because of the known line-ending churn risk.
@@ -1055,9 +1076,11 @@ Before implementation, the project owner must:
    either agent is re-enrolled;
 3. **Done:** approve the reviewed host-only, key-restricted SSH local-forward
    setup;
-4. generate the dedicated SSH key locally and choose strong passwords, OIDC
-   client secrets and an audit-subject HMAC key without pasting any secret or
-   private key into an agent chat or commit;
+4. **Done for the initial transport:** generate the dedicated SSH key locally
+   and choose the Indexer passwords without pasting any secret or private key
+   into an agent chat or commit; the Phase 1C drill rotates the service
+   password and SSH key through the same boundary. OIDC client secrets and an
+   audit-subject HMAC key remain future human inputs;
 5. approve installation of a local Keycloak instance or nominate an existing
    OIDC provider;
 6. perform the privileged Wazuh/Keycloak configuration steps while the agent

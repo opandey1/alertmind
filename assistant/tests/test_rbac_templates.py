@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 """Offline contract tests for the secret-free Phase 1 Wazuh RBAC package."""
 import hashlib
+import importlib.util
+import io
 import json
 import re
 import unittest
+from unittest import mock
 from pathlib import Path
 
 
@@ -210,6 +213,297 @@ class RbacTemplateContractTests(unittest.TestCase):
             self.assertNotIn(b"\r\n", payload)
             self.assertTrue(payload.endswith(b"\n"))
             self.assertEqual(hashlib.sha256(payload).hexdigest(), expected_digest)
+
+    def test_phase1c_rotation_helper_and_rollback_drill_are_fail_closed(self):
+        helper_name = "build_assistant_svc_rotation_payload.py"
+        helper_path = RBAC_DIR / helper_name
+        manifest_path = RBAC_DIR / "ROLLBACK-SHA256SUMS"
+        manifest = manifest_path.read_bytes()
+        self.assertNotIn(b"\r\n", manifest)
+        self.assertTrue(manifest.endswith(b"\n"))
+        recorded_digest, recorded_name = manifest.decode("ascii").strip().split()
+        self.assertEqual(recorded_name, helper_name)
+        self.assertEqual(
+            hashlib.sha256(helper_path.read_bytes()).hexdigest(),
+            recorded_digest,
+        )
+
+        helper_source = helper_path.read_text(encoding="utf-8")
+        for required in (
+            "getpass.getpass",
+            "require_pipe_output()",
+            "stat.S_ISFIFO(output_mode)",
+            'warnings.simplefilter("error", getpass.GetPassWarning)',
+            "replacement_password == current_password",
+            '"password": replacement_password',
+            '"backend_roles": []',
+            '"opendistro_security_roles": []',
+            '"attributes": {}',
+            "json.dump(",
+            "sys.stdout",
+        ):
+            self.assertIn(required, helper_source)
+        for forbidden in (
+            "os.environ",
+            "argparse",
+            "tempfile",
+            "subprocess",
+            "open(",
+            "Path(",
+        ):
+            self.assertNotIn(forbidden, helper_source)
+
+        spec = importlib.util.spec_from_file_location(
+            "alertmind_rotation_payload", helper_path
+        )
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        output = io.StringIO()
+        with mock.patch.object(module, "require_pipe_output"), mock.patch.object(
+            module.getpass,
+            "getpass",
+            side_effect=["current-secret", "replacement-secret", "replacement-secret"],
+        ), mock.patch.object(module.sys, "stdout", output):
+            self.assertEqual(module.main(), 0)
+        self.assertEqual(
+            json.loads(output.getvalue()),
+            {
+                "password": "replacement-secret",
+                "backend_roles": [],
+                "opendistro_security_roles": [],
+                "attributes": {},
+            },
+        )
+        for answers, message in (
+            (["", "replacement", "replacement"], "current password"),
+            (["current", "", ""], "replacement password"),
+            (["current", "one", "two"], "confirmation differs"),
+            (["same", "same", "same"], "must differ"),
+        ):
+            failed_output = io.StringIO()
+            with mock.patch.object(module, "require_pipe_output"), mock.patch.object(
+                module.getpass, "getpass", side_effect=answers
+            ), mock.patch.object(module.sys, "stdout", failed_output), \
+                    self.assertRaisesRegex(SystemExit, message):
+                module.main()
+            self.assertEqual(failed_output.getvalue(), "")
+
+        fake_stdout = mock.Mock()
+        fake_stdout.fileno.return_value = 1
+        for mode in (0o100000, 0o020000):  # Regular file, character device/TTY.
+            with mock.patch.object(module.sys, "stdout", fake_stdout), \
+                    mock.patch.object(module.os, "fstat", return_value=mock.Mock(st_mode=mode)), \
+                    mock.patch.object(module.getpass, "getpass") as prompt, \
+                    self.assertRaisesRegex(SystemExit, "pipe, not a terminal or file"):
+                module.main()
+            prompt.assert_not_called()
+        with mock.patch.object(module.sys, "stdout", fake_stdout), \
+                mock.patch.object(module.os, "fstat", return_value=mock.Mock(st_mode=0o010000)):
+            module.require_pipe_output()
+        with mock.patch.object(module, "require_pipe_output"), mock.patch.object(
+            module.getpass, "getpass", side_effect=module.getpass.GetPassWarning
+        ), self.assertRaisesRegex(SystemExit, "private terminal prompt"):
+            module.main()
+
+        runbook_path = (
+            REPO_ROOT / "docs" / "runbooks" /
+            "rbac-phase1c-rollback-revocation-drill.md"
+        )
+        runbook = runbook_path.read_text(encoding="utf-8")
+        normalized = " ".join(runbook.split())
+        for required in (
+            "Secret-free drill package; not yet executed",
+            "must receive independent review before the owner runs Stage 1",
+            "no implemented profile to disable or restore",
+            "cannot establish rollback of the future OIDC/application/live-reader layer",
+            "The drill is probe-free",
+            "The only Indexer mutations are deletion/restoration of the one service mapping",
+            "the scoped `own_index` mapping do not change",
+            "`socanalyst` user/mapping and the scoped `own_index` mapping do not change",
+            "The safe failure state is",
+            "remain in that disabled state",
+            "must never be redirected, inspected, copied or logged",
+            "PASS old assistant-svc credential rejected after deletion: HTTP 401",
+            "PASS old assistant-svc credential remains rejected after recreation: HTTP 401",
+            "PASS replacement credential authenticates with zero effective roles",
+            "PASS exact restored mapping: assistant-svc only",
+            "PASS revoked SSH key denied by server",
+            "a generic nonzero exit is insufficient",
+            "The replacement key must complete the positive local forward",
+            "deletion is revocation hygiene, not a claim of forensic erasure",
+            "wazuh-indexer wazuh-manager filebeat wazuh-dashboard",
+            "Do not overwrite the template",
+            "must not call `securityadmin.sh`",
+        ):
+            self.assertIn(required, normalized)
+
+        ordered_markers = (
+            "## 4. Stage 1 — read-only preflight",
+            "## 5. Stage 2 — prepare the replacement SSH key",
+            "## 6. Stage 3 — disable the live transport",
+            "## 7. Stage 4 — revoke and rotate `assistant-svc`",
+            "### 7.1 Remove the mapping, then delete the user",
+            "PASS old assistant-svc credential rejected after deletion: HTTP 401",
+            "### 7.2 Recreate with a distinct password and no direct grant",
+            "PASS old assistant-svc credential remains rejected after recreation: HTTP 401",
+            "PASS replacement credential authenticates with zero effective roles",
+            "### 7.3 Restore the reviewed direct-user mapping",
+            "PASS replacement assistant-svc effective role is exact",
+            "## 8. Stage 5 — restore SSH with the replacement client key",
+            "## 9. Stage 6 — prove old-key denial and replacement-key success",
+            "### 9.1 Deny the old SSH key",
+            "### 9.2 Start a tunnel with the replacement key",
+            "### 9.3 Promote the replacement key only after all proofs pass",
+            "## 10. Final state and evidence",
+        )
+        positions = [runbook.index(marker) for marker in ordered_markers]
+        self.assertEqual(positions, sorted(positions))
+
+        rotation_section = runbook[
+            runbook.index("### 7.2 Recreate with a distinct password"):
+            runbook.index("### 7.3 Restore the reviewed direct-user mapping")
+        ]
+        self.assertIn(
+            'python3 "$DRILL_STAGE/build_assistant_svc_rotation_payload.py" |',
+            rotation_section,
+        )
+        self.assertIn('"--request","PUT","--data-binary","@-"', rotation_section)
+        consumers = re.findall(
+            r"python3 -c '\n(import json,subprocess,sys\n.*?)\n'",
+            rotation_section, re.DOTALL,
+        )
+        self.assertEqual(len(consumers), 1)
+        consumer = compile(consumers[0], "<rotation-pipe-consumer>", "exec")
+        # Validate the real documented consumer, with no sudo/curl process run.
+        valid_payload = {
+            "password": 'synthetic-"quoted"-value',
+            "backend_roles": [],
+            "opendistro_security_roles": [],
+            "attributes": {},
+        }
+        with mock.patch("sys.stdin", io.StringIO(json.dumps(valid_payload))), \
+                mock.patch("subprocess.run", return_value=mock.Mock(returncode=0)) as send, \
+                self.assertRaises(SystemExit) as finished:
+            exec(consumer, {})
+        self.assertEqual(finished.exception.code, 0)
+        arguments = send.call_args.args[0]
+        self.assertEqual(arguments[:5], ["sudo", "curl", "--disable", "--noproxy", "*"])
+        self.assertEqual(
+            arguments[-1],
+            "https://127.0.0.1:9200/_plugins/_security/api/internalusers/assistant-svc",
+        )
+        self.assertEqual(arguments[arguments.index("--data-binary")+1], "@-")
+        self.assertNotIn(valid_payload["password"], " ".join(arguments))
+        self.assertEqual(json.loads(send.call_args.kwargs["input"]), valid_payload)
+        self.assertFalse(send.call_args.kwargs.get("shell", False))
+        for invalid in (
+            "", "{", "[]", "{}",
+            json.dumps({**valid_payload, "password": ""}),
+            json.dumps({**valid_payload, "password": 1}),
+            json.dumps({**valid_payload, "backend_roles": ["admin"]}),
+            json.dumps({**valid_payload, "opendistro_security_roles": ["all_access"]}),
+            json.dumps({**valid_payload, "attributes": {"unexpected": "value"}}),
+            json.dumps({**valid_payload, "extra": "value"}),
+        ):
+            with mock.patch("sys.stdin", io.StringIO(invalid)), \
+                    mock.patch("subprocess.run") as send, \
+                    self.assertRaisesRegex(SystemExit, "no request sent"):
+                exec(consumer, {})
+            send.assert_not_called()
+        with mock.patch("sys.stdin", io.StringIO(json.dumps(valid_payload))), \
+                mock.patch("subprocess.run", return_value=mock.Mock(returncode=22)), \
+                self.assertRaises(SystemExit) as failed:
+            exec(consumer, {})
+        self.assertEqual(failed.exception.code, 22)
+        self.assertIn("expected absent resource before recreation", rotation_section)
+        self.assertLess(
+            rotation_section.index("expected absent resource before recreation"),
+            rotation_section.index('python3 "$DRILL_STAGE/build_assistant_svc_rotation_payload.py" |'),
+        )
+        self.assertIn('test "$status" = \'201\'', rotation_section)
+        for forbidden in (
+            "tee ",
+            "PASSWORD=",
+            "export PASSWORD",
+            "--user assistant-svc:",
+            "--data-binary '{\"password\"",
+            "securityadmin.sh",
+        ):
+            self.assertNotIn(forbidden, rotation_section)
+
+        revoke_section = runbook[
+            runbook.index("### 7.1 Remove the mapping"):
+            runbook.index("### 7.2 Recreate with a distinct password")
+        ]
+        self.assertLess(
+            revoke_section.index(
+                "rolesmapping/alertmind_assistant_alerts_ro"
+            ),
+            revoke_section.index("internalusers/assistant-svc"),
+        )
+        self.assertNotRegex(
+            revoke_section,
+            r"--request DELETE[^\n]*(?:\n[^\n]*){0,8}(?:socanalyst|own_index)",
+        )
+        self.assertNotIn(
+            "indexer-role-mapping_own_index_rollback.patch.json", runbook
+        )
+        for required in (
+            "## 11. Stop conditions and containment",
+            "Stopping a failing script does not itself undo",
+            "PASS containment: service user authenticates with zero effective roles",
+            "Offering public key:.*SHA256:",
+            "(Authenticated to|Server accepts key:)",
+            "IdentityAgent=none",
+            "own_index",
+            "First repeat the entire VM/Indexer preflight in Section 4.2",
+            "canonical key path, which still refers to the old key",
+            "if [ \"$state\" != 'active' ]; then",
+            "STOP service health:",
+        ):
+            self.assertIn(required, runbook)
+        self.assertNotIn("sudo systemctl is-active \\", runbook)
+        self.assertNotIn("\n! systemctl is-active", runbook)
+        for line in runbook.splitlines():
+            if "sudo curl " in line:
+                self.assertIn("sudo curl --disable --noproxy '*'", line)
+        # Compile embedded Python without executing any VM or credential path.
+        for source in re.findall(r"python3 -c '([^']*)'", runbook, re.DOTALL):
+            compile(source, "<rollback-runbook-python>", "exec")
+
+        template = (
+            REPO_ROOT / "evidence" / "rbac" /
+            "phase1c-rollback-revocation-proof-template.md"
+        ).read_text(encoding="utf-8")
+        template_normalized = " ".join(template.split())
+        for required in (
+            "Unexecuted template. This file is not evidence that the drill ran",
+            "must say no live analyst/Wazuh profile existed",
+            "Old service password rejected after deletion",
+            "Old password rejected after recreation",
+            "Old SSH key denied with no authentication marker",
+            "Allowed conclusion after independent approval",
+            "**Not established:** application-profile rollback",
+            "do not claim forensic erasure",
+        ):
+            self.assertIn(required, template_normalized)
+        for forbidden in (
+            "BEGIN PRIVATE KEY",
+            "Authorization: Basic",
+            '"password":',
+            '"hash":',
+        ):
+            self.assertNotIn(forbidden, runbook)
+            self.assertNotIn(forbidden, template)
+
+        siem_readme = (RBAC_DIR / "README.md").read_text(encoding="utf-8")
+        self.assertIn(
+            "Executed and independently reviewed Phase 1C transport inputs",
+            siem_readme,
+        )
+        self.assertIn("Unexecuted Phase 1C rollback/revocation inputs", siem_readme)
+        self.assertNotIn("OpenSSH remains uninstalled", siem_readme)
+        self.assertNotIn("Unexecuted Phase 1C transport inputs", siem_readme)
 
     def test_sshd_dropin_is_host_only_public_key_only_and_sessionless(self):
         lines = [
