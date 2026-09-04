@@ -6,6 +6,13 @@ This runbook remains the reproducible configuration and rollback reference; it
 is not authority to repeat or alter the transport without a new review. The
 rollback/revocation drill remains pending.
 
+Section 11 is an immediate fail-safe teardown, not the acceptance drill. The
+separate, currently unexecuted
+[`rbac-phase1c-rollback-revocation-drill.md`](rbac-phase1c-rollback-revocation-drill.md)
+adds service-credential and SSH-client-key rotation, restoration, ordered
+health checks and a sanitized evidence contract. Do not execute that package
+until it receives independent review.
+
 **Scope:** install OpenSSH Server on `wazuh-siem`, keep it inert throughout
 installation, validate a host-only/local-forward-only policy, and only then
 enable one listener at `192.168.56.102:22`. The Wazuh Indexer remains bound to
@@ -913,6 +920,10 @@ The reviewer must see sanitized outcomes only: exit status, requested class,
 expected denial and public fingerprint. Do not commit verbose SSH output.
 
 ## 11. Immediate rollback
+
+This emergency leg leaves the feature disabled and does not rotate or restore
+`assistant-svc`; by itself it cannot satisfy the Phase 1C rollback/revocation
+acceptance criterion.
 
 Run from the VM console, not through the tunnel:
 

@@ -19,8 +19,10 @@ completed the live transport, paired TLS/read and same-key denial checks now
 recorded in
 [`phase1c-ssh-transport-proof.md`](phase1c-ssh-transport-proof.md). Commits
 `af571b1` and `0767a89` were independently approved and merged through PR #16,
-closing the transport evidence gate. The rollback/revocation drill, Wazuh
-Server/Dashboard configuration, OIDC/application authorization and the
+closing the transport evidence gate. The rollback/revocation drill now has an
+unexecuted [evidence worksheet](phase1c-rollback-revocation-proof-template.md)
+and a package awaiting review; neither is evidence that the drill succeeded.
+Wazuh Server/Dashboard configuration, OIDC/application authorization and the
 constrained reader/UI remain unimplemented, so neither Phase 1C as a whole nor
 the complete feature is finished.
 
@@ -46,7 +48,8 @@ Accepted evidence may include:
   interactive shell or unapproved forwarding for the dedicated key;
 - one sanitized live alert reaching a schema-valid DRAFT through the shared
   guarded path; and
-- rollback/revocation and post-rollback service health.
+- rollback/revocation, restoration and service health before, during and after
+  the disabled state.
 
 Dashboard evidence captured as `socanalyst` must be labelled **DLS-scoped**:
 the approved `agent.id` 001/002 filter excludes agent 000, so those totals are

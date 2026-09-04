@@ -16,3 +16,5 @@ siem/rbac/SHA256SUMS          text eol=lf
 siem/rbac/sshd-alertmind.conf text eol=lf
 siem/rbac/ssh-authorized-key-options.txt text eol=lf
 siem/rbac/SSH-SHA256SUMS      text eol=lf
+siem/rbac/build_assistant_svc_rotation_payload.py text eol=lf
+siem/rbac/ROLLBACK-SHA256SUMS text eol=lf

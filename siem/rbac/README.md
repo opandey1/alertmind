@@ -4,10 +4,12 @@ This directory is the secret-free source location for the post-v1 human and
 machine read-only Wazuh role templates.
 
 **Current status:** Phase 0 and the Phase 1A/1B Indexer identity and enforcement
-gates are independently approved and merged through PR #10. The exact Phase
-1C SSH configuration and key-option prefix are committed here for review, but
-OpenSSH remains uninstalled and TCP 22 remains closed. Wazuh
-Server/Dashboard, OIDC and application integration remain unimplemented.
+gates are independently approved and merged through PR #10. The Phase 1C SSH
+transport was then owner-executed, independently reviewed and merged through
+PR #16 at `0ebc665`. Its rollback/revocation drill is now a secret-free,
+unexecuted review package; Phase 1C is not complete until that drill and its
+sanitized evidence receive independent approval. Wazuh Server/Dashboard, OIDC
+and application integration remain unimplemented.
 
 Planned identities:
 
@@ -37,7 +39,7 @@ Committed Phase 1A artifacts and the Phase 1B correction package:
   and
 - `negative-test-matrix.md` — executed and reusable zero-state-change proof.
 
-Unexecuted Phase 1C transport inputs:
+Executed and independently reviewed Phase 1C transport inputs:
 
 - `sshd-alertmind.conf` — host-only, public-key-only server drop-in with a
   source-scoped `notroot` match, local forwarding only, server-side
@@ -46,9 +48,21 @@ Unexecuted Phase 1C transport inputs:
   it contains no key material; and
 - `SSH-SHA256SUMS` — LF-stable transfer hashes for those two public inputs.
 
-The execution and rollback sequence is in
-`docs/runbooks/rbac-wazuh-ssh-transport.md`. These files do not claim that SSH
-is installed or enabled.
+The original execution and immediate fail-safe rollback sequence is in
+`docs/runbooks/rbac-wazuh-ssh-transport.md`. The live transport proof is in
+`evidence/rbac/phase1c-ssh-transport-proof.md`.
+
+Unexecuted Phase 1C rollback/revocation inputs:
+
+- `build_assistant_svc_rotation_payload.py` — interactively requires a
+  confirmed password distinct from the current one and emits the replacement
+  user payload only to standard output for an anonymous pipe; and
+- `ROLLBACK-SHA256SUMS` — LF-stable transfer hash for that helper.
+
+The proposed drill sequence is in
+`docs/runbooks/rbac-phase1c-rollback-revocation-drill.md`. The helper contains
+no credential and must never be redirected or logged when it emits a live
+payload. Its existence does not claim that the drill has run.
 
 ## Inherited `own_index` correction
 
