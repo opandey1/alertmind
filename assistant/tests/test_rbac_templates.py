@@ -304,6 +304,73 @@ class RbacTemplateContractTests(unittest.TestCase):
             for source in re.findall(r"python3 -c '([^']*)'", document, re.DOTALL):
                 compile(source, "<boot-order-runbook-python>", "exec")
 
+    def _assert_boot_order_wait_online_checks(self, document):
+        """Pin executable assertions within each reviewed Bash gate, not prose."""
+        checks = (
+            """test "$(systemctl is-enabled NetworkManager-wait-online.service)" = 'enabled'""",
+            """test "$(systemctl is-active NetworkManager-wait-online.service)" = 'active'""",
+            """test "$(systemctl show -p Result --value NetworkManager-wait-online.service)" = 'success'""",
+        )
+        stages = (
+            ("## 4. Read-only live preflight",
+             "## 5. Install the ordering drop-in without restarting SSH", 1, 0,
+             "LISTENERS=$(sudo ss -H -ltnp"),
+            ("## 6. Controlled reboot and boot-persistence proof",
+             "## 7. Revalidate the complete Windows-side boundary", 3, 2,
+             "ONLINE_US=$(systemctl show"),
+        )
+        for start, end, block_count, selected, subsequent_check in stages:
+            self.assertEqual(document.splitlines().count(start), 1)
+            self.assertEqual(document.splitlines().count(end), 1)
+            section = document.split(start + "\n", 1)[1].split(end + "\n", 1)[0]
+            fence = chr(96) * 3
+            blocks = re.findall(rf"^{fence}bash\n(.*?)^{fence}$", section, re.MULTILINE | re.DOTALL)
+            self.assertEqual(len(blocks), block_count, start)
+            block = blocks[selected]
+            lines = block.splitlines()
+            self.assertEqual(lines[:2], ["(", "set -euo pipefail"])
+            for check in checks:
+                self.assertEqual(lines.count(check), 1, f"{start}: missing or altered {check}")
+                self.assertLess(block.index(check), block.index(subsequent_check), start)
+            positions = [block.index(check) for check in checks]
+            self.assertEqual(positions, sorted(positions), start)
+
+    def test_boot_order_wait_online_guards_are_pinned_in_both_stages(self):
+        recovery_path = REPO_ROOT / "docs/runbooks/rbac-phase1c-ssh-boot-order-recovery.md"
+        recovery = recovery_path.read_text(encoding="utf-8")
+        self._assert_boot_order_wait_online_checks(recovery)
+
+        checks = (
+            """test "$(systemctl is-enabled NetworkManager-wait-online.service)" = 'enabled'""",
+            """test "$(systemctl is-active NetworkManager-wait-online.service)" = 'active'""",
+            """test "$(systemctl show -p Result --value NetworkManager-wait-online.service)" = 'success'""",
+        )
+        # Target exact executable lines, not mentions, prompts or arbitrary bytes.
+        for check in checks:
+            matches = list(re.finditer("^" + re.escape(check) + r"$", recovery, re.MULTILINE))
+            self.assertEqual(len(matches), 2)
+            for stage, match in zip(("preflight", "post-reboot"), matches):
+                self.assertEqual(match.group(), check)
+                replacements = {
+                    "deleted": "",
+                    "commented": "# " + check,
+                    "weakened-value": check.rsplit(" = ", 1)[0] + " = 'unexpected'",
+                    "swallowed-failure": check + " || true",
+                    "removed-command": check.replace("systemctl ", "echo systemctl ", 1),
+                }
+                for kind, replacement in replacements.items():
+                    altered = recovery[:match.start()] + replacement + recovery[match.end():]
+                    # A decoy exact line outside a code fence must not satisfy the guard.
+                    altered = check + "\n" + altered
+                    self.assertNotEqual(altered, recovery)
+                    self.assertEqual(
+                        altered.count(check + "\n"),
+                        3 if kind == "commented" else 2,
+                    )
+                    with self.subTest(stage=stage, check=check, mutation=kind):
+                        with self.assertRaises(AssertionError):
+                            self._assert_boot_order_wait_online_checks(altered)
+
     def test_boot_order_evidence_has_only_pending_results(self):
         template = (REPO_ROOT / "evidence/rbac/phase1c-ssh-boot-order-proof-template.md").read_text(encoding="utf-8")
         rows = re.findall(r"^\| (.+?) \| (.+?) \|$", template, re.MULTILINE)
