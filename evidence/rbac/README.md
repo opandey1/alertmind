@@ -20,13 +20,15 @@ recorded in
 [`phase1c-ssh-transport-proof.md`](phase1c-ssh-transport-proof.md). Commits
 `af571b1` and `0767a89` were independently approved and merged through PR #16,
 closing the original `.3.5` transport evidence gate. After a later Ubuntu
-update installed OpenSSH `.3.6`, a reboot exposed a bind-before-host-only-
-address race. The resulting additive recovery has an unexecuted
-[boot-order worksheet](phase1c-ssh-boot-order-proof-template.md); it is not
-evidence that `.3.6` was revalidated or that reboot persistence was restored.
-The rollback/revocation drill separately has an unexecuted
-[evidence worksheet](phase1c-rollback-revocation-proof-template.md); neither
-worksheet is evidence that its procedure succeeded.
+update installed OpenSSH `.3.6`, the reboot chronology strongly supported a
+bind-before-host-only-address race. The owner completed the additive ordering
+install, one controlled reboot and the refreshed TLS/read/SSH denial matrix.
+The separate [maintenance record](phase1c-ssh-boot-order-proof.md) awaits
+independent evidence review; it is not an availability guarantee. The blank
+[boot-order worksheet](phase1c-ssh-boot-order-proof-template.md) and original
+`.3.5` evidence remain unchanged. The rollback/revocation drill separately has
+an unexecuted [evidence worksheet](phase1c-rollback-revocation-proof-template.md);
+it remains gated and is not evidence that the drill succeeded.
 Wazuh Server/Dashboard configuration, OIDC/application authorization and the
 constrained reader/UI remain unimplemented, so neither Phase 1C as a whole nor
 the complete feature is finished.

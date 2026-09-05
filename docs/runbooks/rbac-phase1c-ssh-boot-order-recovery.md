@@ -1,8 +1,10 @@
 # Runbook — Phase 1C SSH boot-order recovery
 
-**Status:** Secret-free recovery package; not yet owner-executed or independently
-reviewed. It is not authority to mutate the VM until the commit containing this
-file receives an independent `approve` review.
+**Status:** Recovery package independently approved and merged through PR #19
+at `32496af`. The owner completed the gated checks on 5 September 2026; the
+[separate maintenance evidence](../../evidence/rbac/phase1c-ssh-boot-order-proof.md)
+awaits independent review. This is not approval to resume the rollback drill
+or to repeat live mutations outside their documented gates.
 
 **Scope:** preserve the accepted host-only/local-forward-only SSH policy while
 ordering `ssh.service` after `network-online.target`, then revalidate the
@@ -32,7 +34,7 @@ same service after `enp0s8` was active restored exactly one listener at
 `192.168.56.102:22`; `ssh.socket` remained masked and all four Wazuh services
 remained active.
 
-The service currently has `After=network.target` but no dependency on
+At the failing boot, the service had `After=network.target` but no dependency on
 `network-online.target`. The chronology strongly supports a bind-before-address
 race, although the captured journal does not contain an explicit bind error.
 Do not work around it by adding a wildcard, NAT or IPv6 listener,
