@@ -6,6 +6,8 @@ import importlib.util
 import io
 import json
 import re
+import shutil
+import subprocess
 import unittest
 from unittest import mock
 from pathlib import Path
@@ -197,6 +199,8 @@ class RbacTemplateContractTests(unittest.TestCase):
             self.assertEqual(actual_digest, expected_digest)
 
     def test_ssh_transport_manifest_matches_lf_stable_public_inputs(self):
+        # The accepted initial manifest is historical evidence and remains
+        # exactly the two inputs bound into the independently reviewed proof.
         expected_names = {
             "sshd-alertmind.conf",
             "ssh-authorized-key-options.txt",
@@ -214,6 +218,250 @@ class RbacTemplateContractTests(unittest.TestCase):
             self.assertNotIn(b"\r\n", payload)
             self.assertTrue(payload.endswith(b"\n"))
             self.assertEqual(hashlib.sha256(payload).hexdigest(), expected_digest)
+
+        boot_manifest = (RBAC_DIR / "SSH-BOOT-ORDER-SHA256SUMS").read_bytes()
+        self.assertNotIn(b"\r\n", boot_manifest)
+        self.assertTrue(boot_manifest.endswith(b"\n"))
+        boot_digest, boot_name = boot_manifest.decode("ascii").strip().split()
+        self.assertEqual(boot_name, "ssh-service-network-online.conf")
+        boot_payload = (RBAC_DIR / boot_name).read_bytes()
+        self.assertNotIn(b"\r\n", boot_payload)
+        self.assertTrue(boot_payload.endswith(b"\n"))
+        self.assertEqual(hashlib.sha256(boot_payload).hexdigest(), boot_digest)
+        self.assertEqual(
+            boot_payload.decode("ascii").splitlines(),
+            [
+                "[Unit]",
+                "Wants=network-online.target",
+                "After=network-online.target",
+            ],
+        )
+
+
+    def test_boot_order_reboot_comparisons_reject_bad_observations(self):
+        recovery = (REPO_ROOT / "docs/runbooks/rbac-phase1c-ssh-boot-order-recovery.md").read_text(encoding="utf-8")
+        post = recovery.split("CURRENT_BOOT=$(cat /proc/sys/kernel/random/boot_id)", 1)[1]
+        boot_guard = post.splitlines()[1]
+        self.assertEqual(boot_guard, 'test "$CURRENT_BOOT" != "$BEFORE_BOOT"')
+        time_guard = recovery.split('for timestamp in "$WAIT_US" "$ONLINE_US" "$SSH_US"; do', 1)[1]
+        time_guard = 'for timestamp in "$WAIT_US" "$ONLINE_US" "$SSH_US"; do' + time_guard.split('test "$SSH_US" -ge "$ONLINE_US"', 1)[0] + 'test "$SSH_US" -ge "$ONLINE_US"'
+        self.assertNotIn("sudo", time_guard)
+        # Execute only the extracted pure comparisons, never a live runbook.
+        git_bash = Path("C:/Program Files/Git/bin/bash.exe")
+        bash = str(git_bash) if git_bash.is_file() else shutil.which("bash")
+        if bash is None:
+            self.skipTest("Bash unavailable for pure-comparison replay")
+        cases = [
+            (("old", "new", "10", "20", "30"), True),
+            (("old", "new", "10", "10", "10"), True),
+            (("old", "old", "10", "20", "30"), False),
+            (("old", "new", "0", "20", "30"), False),
+            (("old", "new", "", "20", "30"), False),
+            (("old", "new", "x", "20", "30"), False),
+            (("old", "new", "10", "0", "30"), False),
+            (("old", "new", "21", "20", "30"), False),
+            (("old", "new", "10", "31", "30"), False),
+            (("old", "new", "10", "20", "-1"), False),
+        ]
+        script = ('set -euo pipefail\nBEFORE_BOOT="$1"; CURRENT_BOOT="$2"; '
+                  'WAIT_US="$3"; ONLINE_US="$4"; SSH_US="$5"\n' +
+                  boot_guard + "\n" + time_guard + "\nprintf PASSED")
+        for values, expected in cases:
+            with self.subTest(values=values):
+                result = subprocess.run([bash, "-c", script, "guard-test", *values],
+                                        capture_output=True, text=True, timeout=10)
+                self.assertEqual(result.returncode == 0, expected, result.stderr)
+                self.assertEqual("PASSED" in result.stdout, expected)
+
+    def test_boot_order_install_restore_and_containment_gates(self):
+        recovery = (REPO_ROOT / "docs/runbooks/rbac-phase1c-ssh-boot-order-recovery.md").read_text(encoding="utf-8")
+        rollback = (REPO_ROOT / "docs/runbooks/rbac-phase1c-rollback-revocation-drill.md").read_text(encoding="utf-8")
+        original = (REPO_ROOT / "docs/runbooks/rbac-wazuh-ssh-transport.md").read_text(encoding="utf-8")
+        install = recovery.split("## 5.", 1)[1].split("## 6.", 1)[0]
+        self.assertLess(install.index("attempted=1"), install.index('sudo install -o root'))
+        self.assertIn('test ! -L "$SERVICE_DIR"', install)
+        self.assertIn('sudo rm -f -- "$SERVICE_DROPIN" &&', install)
+        self.assertIn('automatic cleanup incomplete', install)
+        self.assertIn('test "$(systemctl show -p MainPID --value ssh.service)" = "$BEFORE_PID"', install)
+        self.assertNotIn("systemctl restart", install)
+        masked = rollback.split("### 8.1", 1)[1].split("### 8.2", 1)[0]
+        self.assertNotIn("systemctl show -p DropInPaths", masked)
+        self.assertNotIn("sudo /usr/sbin/sshd -t", masked)
+        self.assertEqual(masked.count("sudo systemd-run --quiet --wait --pipe --collect"), 3)
+        self.assertEqual(masked.count("-p RuntimeDirectory=sshd -p RuntimeDirectoryMode=0755"), 3)
+        enable = rollback.split("### 8.2", 1)[1].split("## 9.", 1)[0]
+        self.assertLess(enable.index("unmask ssh.service"), enable.index("show -p DropInPaths"))
+        self.assertLess(enable.index("show -p DropInPaths"), enable.index("enable --now ssh.service"))
+        for document, end in ((rollback, "## References"), (original, "## 12.")):
+            containment = document.split("## 11.", 1)[1].split(end, 1)[0]
+            # Definitions must be in the same block as use, not an earlier stage.
+            self.assertIn("SERVICE_DIR='/etc/systemd/system/ssh.service.d'", containment)
+            self.assertIn('SERVICE_DROPIN="$SERVICE_DIR/10-alertmind-network-online.conf"', containment)
+            self.assertIn('test ! -e "$SERVICE_DROPIN"', containment)
+            self.assertIn('test ! -L "$SERVICE_DROPIN"', containment)
+        for document in (recovery, rollback):
+            self.assertNotIn("\n! systemctl is-active", document)
+            for source in re.findall(r"python3 -c '([^']*)'", document, re.DOTALL):
+                compile(source, "<boot-order-runbook-python>", "exec")
+
+    def _assert_boot_order_wait_online_checks(self, document):
+        """Pin executable assertions within each reviewed Bash gate, not prose."""
+        checks = (
+            """test "$(systemctl is-enabled NetworkManager-wait-online.service)" = 'enabled'""",
+            """test "$(systemctl is-active NetworkManager-wait-online.service)" = 'active'""",
+            """test "$(systemctl show -p Result --value NetworkManager-wait-online.service)" = 'success'""",
+        )
+        stages = (
+            ("## 4. Read-only live preflight",
+             "## 5. Install the ordering drop-in without restarting SSH", 1, 0,
+             "LISTENERS=$(sudo ss -H -ltnp"),
+            ("## 6. Controlled reboot and boot-persistence proof",
+             "## 7. Revalidate the complete Windows-side boundary", 3, 2,
+             "ONLINE_US=$(systemctl show"),
+        )
+        for start, end, block_count, selected, subsequent_check in stages:
+            self.assertEqual(document.splitlines().count(start), 1)
+            self.assertEqual(document.splitlines().count(end), 1)
+            section = document.split(start + "\n", 1)[1].split(end + "\n", 1)[0]
+            fence = chr(96) * 3
+            blocks = re.findall(rf"^{fence}bash\n(.*?)^{fence}$", section, re.MULTILINE | re.DOTALL)
+            self.assertEqual(len(blocks), block_count, start)
+            block = blocks[selected]
+            lines = block.splitlines()
+            self.assertEqual(lines[:2], ["(", "set -euo pipefail"])
+            for check in checks:
+                self.assertEqual(lines.count(check), 1, f"{start}: missing or altered {check}")
+                self.assertLess(block.index(check), block.index(subsequent_check), start)
+            positions = [block.index(check) for check in checks]
+            self.assertEqual(positions, sorted(positions), start)
+
+    def test_boot_order_wait_online_guards_are_pinned_in_both_stages(self):
+        recovery_path = REPO_ROOT / "docs/runbooks/rbac-phase1c-ssh-boot-order-recovery.md"
+        recovery = recovery_path.read_text(encoding="utf-8")
+        self._assert_boot_order_wait_online_checks(recovery)
+
+        checks = (
+            """test "$(systemctl is-enabled NetworkManager-wait-online.service)" = 'enabled'""",
+            """test "$(systemctl is-active NetworkManager-wait-online.service)" = 'active'""",
+            """test "$(systemctl show -p Result --value NetworkManager-wait-online.service)" = 'success'""",
+        )
+        # Target exact executable lines, not mentions, prompts or arbitrary bytes.
+        for check in checks:
+            matches = list(re.finditer("^" + re.escape(check) + r"$", recovery, re.MULTILINE))
+            self.assertEqual(len(matches), 2)
+            for stage, match in zip(("preflight", "post-reboot"), matches):
+                self.assertEqual(match.group(), check)
+                replacements = {
+                    "deleted": "",
+                    "commented": "# " + check,
+                    "weakened-value": check.rsplit(" = ", 1)[0] + " = 'unexpected'",
+                    "swallowed-failure": check + " || true",
+                    "removed-command": check.replace("systemctl ", "echo systemctl ", 1),
+                }
+                for kind, replacement in replacements.items():
+                    altered = recovery[:match.start()] + replacement + recovery[match.end():]
+                    # A decoy exact line outside a code fence must not satisfy the guard.
+                    altered = check + "\n" + altered
+                    self.assertNotEqual(altered, recovery)
+                    self.assertEqual(
+                        altered.count(check + "\n"),
+                        3 if kind == "commented" else 2,
+                    )
+                    with self.subTest(stage=stage, check=check, mutation=kind):
+                        with self.assertRaises(AssertionError):
+                            self._assert_boot_order_wait_online_checks(altered)
+
+    def test_boot_order_evidence_has_only_pending_results(self):
+        template = (REPO_ROOT / "evidence/rbac/phase1c-ssh-boot-order-proof-template.md").read_text(encoding="utf-8")
+        rows = re.findall(r"^\| (.+?) \| (.+?) \|$", template, re.MULTILINE)
+        header_names = {"Item", "Artifact", "Check"}
+        observations = [(label, value) for label, value in rows if label not in header_names]
+        self.assertEqual(len(observations), 57)
+        expected_labels = """Owner execution date/time and timezone
+Repository commit containing the approved recovery
+VM snapshot confirmed available
+Original accepted transport evidence
+Current OpenSSH package pair
+Triggering reboot failure
+Temporary recovery
+Raw alert, `_source`, credential or private key captured
+`siem/rbac/SSH-SHA256SUMS`
+`siem/rbac/SSH-BOOT-ORDER-SHA256SUMS`
+`ssh-service-network-online.conf`
+Installed SSH policy matches `sshd-alertmind.conf`
+`enp0s8` address and route
+`ssh.service` / `ssh.socket`
+Existing SSH listener
+Existing systemd SSH drop-ins
+OpenSSH package integrity
+Indexer listener
+Wazuh health: Indexer → Manager → Filebeat → Dashboard
+Installed service drop-in path, owner and mode
+Installed bytes match reviewed artifact
+Effective `Wants=network-online.target`
+Effective `After=network-online.target`
+SSH listener unchanged without restart
+Wazuh health unchanged
+Reboot date/time and timezone
+Pre-reboot and post-reboot boot IDs differ
+No manual `/run/sshd` creation or SSH start after reboot
+NetworkManager wait-online enabled, active and successful
+Wait-online monotonic activation not later than network-online
+`network-online.target` monotonic activation
+`ssh.service` monotonic main-process start
+SSH start not earlier than network-online
+`ssh.service` result
+`ssh.socket` state
+VM SSH listener after reboot
+Indexer listener after reboot
+Post-update parser, target/control policy and restricted key
+Post-update OpenSSH package integrity
+Wazuh health: Indexer → Manager → Filebeat → Dashboard
+Existing client public fingerprint
+VM host-key fingerprint unchanged
+Wazuh public CA SHA-256 unchanged
+Windows tunnel
+Wrong-hostname TLS leg
+Correct-identity TLS/read leg
+Shell/command denial
+PTY/session denial
+Remote-forward denial
+Alternate-local-destination denial
+Password-only denial
+Diagnostic tunnels and logs removed
+Wazuh health after denial matrix
+Reviewer
+Reviewed commit
+Verdict
+Required corrections""".splitlines()
+        def check(text):
+            data = [(a, b) for a, b in re.findall(r"^\| (.+?) \| (.+?) \|$", text, re.MULTILINE)
+                    if a not in header_names]
+            self.assertEqual([label for label, _ in data], expected_labels)
+            for label, value in data:
+                self.assertRegex(value, r"^`PENDING`(?: — .+)?$", label)
+        check(template)
+        for row in re.findall(r"^\| .+? \| `PENDING`[^\n]*$", template, re.MULTILINE):
+            for replacement in (row.replace("`PENDING`", "PASS", 1), ""):
+                altered = template.replace(row, replacement, 1)
+                self.assertNotEqual(altered, template)
+                with self.subTest(row=row, replacement=replacement), self.assertRaises(AssertionError):
+                    check(altered)
+        labels = [label for label, _ in observations]
+        for label in (
+            "Pre-reboot and post-reboot boot IDs differ",
+            "NetworkManager wait-online enabled, active and successful",
+            "Wait-online monotonic activation not later than network-online",
+            "Post-update parser, target/control policy and restricted key",
+            "Post-update OpenSSH package integrity",
+        ):
+            self.assertIn(label, labels)
+        for label, value in observations:
+            with self.subTest(label=label):
+                self.assertRegex(value, r"^`PENDING`(?: — .+)?$")
+        self.assertIn("no-manual-recovery statement is an owner attestation", template)
+        self.assertIn("Do not turn a partial run into a passing conclusion", template)
+        self.assertIn("general availability across multiple reboots", template)
 
     def test_phase1c_rotation_helper_and_rollback_drill_are_fail_closed(self):
         helper_name = "build_assistant_svc_rotation_payload.py"
@@ -315,6 +563,12 @@ class RbacTemplateContractTests(unittest.TestCase):
         for required in (
             "Secret-free drill package; not yet executed",
             "must receive independent review before the owner runs Stage 1",
+            "Do not run this drill until the additive",
+            "1:10.2p1-2ubuntu3.6",
+            "SSH-BOOT-ORDER-SHA256SUMS",
+            "10-alertmind-network-online.conf",
+            "After=network-online.target",
+            "Wants=network-online.target",
             "no implemented profile to disable or restore",
             "cannot establish rollback of the future OIDC/application/live-reader layer",
             "The drill is probe-free",
@@ -468,9 +722,57 @@ class RbacTemplateContractTests(unittest.TestCase):
         for line in runbook.splitlines():
             if "sudo curl " in line:
                 self.assertIn("sudo curl --disable --noproxy '*'", line)
+        self.assertNotIn("1:10.2p1-2ubuntu3.5", runbook)
         # Compile embedded Python without executing any VM or credential path.
         for source in re.findall(r"python3 -c '([^']*)'", runbook, re.DOTALL):
             compile(source, "<rollback-runbook-python>", "exec")
+
+        recovery = (
+            REPO_ROOT / "docs" / "runbooks" /
+            "rbac-phase1c-ssh-boot-order-recovery.md"
+        ).read_text(encoding="utf-8")
+        recovery_normalized = " ".join(recovery.split())
+        for required in (
+            "Secret-free recovery package; not yet owner-executed or independently reviewed",
+            "bind-before-address race",
+            "ExecStartPre=/usr/sbin/sshd -t` succeeded",
+            "1:10.2p1-2ubuntu3.6",
+            "ssh-service-network-online.conf",
+            "SSH-BOOT-ORDER-SHA256SUMS",
+            "/etc/systemd/system/ssh.service.d/10-alertmind-network-online.conf",
+            "Wants=network-online.target",
+            "After=network-online.target",
+            "ExecMainStartTimestampMonotonic",
+            "ActiveEnterTimestampMonotonic",
+            "test \"$SSH_US\" -ge \"$ONLINE_US\"",
+            "Do not manually start SSH or create `/run/sshd`",
+            "wrong-hostname TLS failure with curl exit `60`",
+            "Do not claim `.3.6` transport revalidation from the VM listener alone",
+            "Do not turn a partial run into a passing conclusion",
+        ):
+            self.assertIn(required, recovery_normalized)
+        for forbidden in (
+            "ListenAddress 0.0.0.0",
+            "ListenAddress 10.0.2.15",
+            "ListenAddress ::",
+            "systemctl unmask ssh.socket",
+            "systemctl enable --now ssh.socket",
+            "--insecure",
+            "--ssl-no-revoke",
+            "sudo mkdir /run/sshd",
+            "sudo install -d /run/sshd",
+        ):
+            self.assertNotIn(forbidden, recovery)
+        recovery_order = (
+            "## 3. Preconditions and staging",
+            "## 4. Read-only live preflight",
+            "## 5. Install the ordering drop-in without restarting SSH",
+            "## 6. Controlled reboot and boot-persistence proof",
+            "## 7. Revalidate the complete Windows-side boundary",
+            "## 8. Failure containment",
+        )
+        recovery_positions = [recovery.index(marker) for marker in recovery_order]
+        self.assertEqual(recovery_positions, sorted(recovery_positions))
 
         template = (
             REPO_ROOT / "evidence" / "rbac" /
@@ -512,12 +814,14 @@ class RbacTemplateContractTests(unittest.TestCase):
         expected_labels = """Owner execution date/time and timezone
 Repository commit containing the reviewed drill
 VM snapshot confirmed available
+Approved `.3.6` boot-order recovery evidence
 Pre-drill application state
 Explicitly untouched
 Raw alert or `_source` captured
 Probe/index/document created
 `siem/rbac/SHA256SUMS`
 `siem/rbac/SSH-SHA256SUMS`
+`siem/rbac/SSH-BOOT-ORDER-SHA256SUMS`
 `siem/rbac/ROLLBACK-SHA256SUMS`
 Rotation helper syntax check
 Owner confirmed app stopped; no visible Streamlit CLI process
@@ -525,6 +829,8 @@ Existing Windows tunnel
 Existing SSH client public fingerprint
 Pinned VM host-key fingerprint
 Wazuh public CA SHA-256
+OpenSSH package pair
+Effective SSH service ordering
 Exact `alertmind_assistant_alerts_ro` role and mapping
 Exact `assistant-svc` effective role
 Scoped `own_index` unchanged
@@ -533,7 +839,7 @@ Wazuh health: Indexer → Manager → Filebeat → Dashboard
 Windows TCP 19200 listener absent
 `ssh.service` / `ssh.socket` masked and inactive
 VM TCP 22 listener absent
-SSH drop-in absent and authorized-key entry count zero
+SSH and service-ordering drop-ins absent; authorized-key entry count zero
 OpenSSH packages retained at reviewed versions
 `alertmind_assistant_alerts_ro` mapping absent
 `assistant-svc` user absent
@@ -554,6 +860,7 @@ Fingerprints differ
 VM authorized-key entry count and installed fingerprint
 Old SSH key denied with no authentication marker
 VM host-key fingerprint unchanged
+Reviewed service-ordering drop-in restored
 One VM listener at `192.168.56.102:22`; socket masked
 One Windows listener at `127.0.0.1:19200`
 Wrong-hostname TLS leg
@@ -565,7 +872,7 @@ Shell, PTY, remote-forward, alternate-destination and password denials using pro
 Exact replacement service role/mapping
 Scoped `own_index` still excludes both AlertMind principals
 `socanalyst` unchanged
-Restricted SSH transport restored
+Boot-ordered restricted SSH transport restored
 Wazuh health: Indexer → Manager → Filebeat → Dashboard
 Frozen artifacts and model runs unchanged
 Reviewer
@@ -607,7 +914,7 @@ Required corrections""".splitlines()
         result_rows = list(re.finditer(
             r"^\| .+? \| `PENDING`[^\n]*$", template, re.MULTILINE,
         ))
-        self.assertEqual(len(result_rows), 62)
+        self.assertEqual(len(result_rows), 67)
         for row in result_rows:
             for replacement in (row.group().replace("`PENDING`", "PASS", 1), ""):
                 with self.subTest(row=row.group(), replacement=replacement):

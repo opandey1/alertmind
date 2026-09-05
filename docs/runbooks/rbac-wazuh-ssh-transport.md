@@ -6,6 +6,14 @@ This runbook remains the reproducible configuration and rollback reference; it
 is not authority to repeat or alter the transport without a new review. The
 rollback/revocation drill remains pending.
 
+**Maintenance note:** The accepted proof below used OpenSSH `.3.5`. A later
+Ubuntu security update installed `.3.6`, and the next reboot exposed a race
+between `ssh.service` and assignment of the host-only address. The additive,
+unexecuted recovery package is in
+[`rbac-phase1c-ssh-boot-order-recovery.md`](rbac-phase1c-ssh-boot-order-recovery.md).
+Every `.3.5` value below remains an initial-execution fact, not a claim about
+the current package or authority to downgrade it.
+
 Section 11 is an immediate fail-safe teardown, not the acceptance drill. The
 separate, currently unexecuted
 [`rbac-phase1c-rollback-revocation-drill.md`](rbac-phase1c-rollback-revocation-drill.md)
@@ -34,8 +42,8 @@ proof and obtain human review of its output.
 | Forward destination | VM `127.0.0.1:9200` only |
 | SSH principal | `notroot` |
 | Authentication | dedicated, passphrase-protected Ed25519 key |
-| Server package | `openssh-server=1:10.2p1-2ubuntu3.5` |
-| Required companion package | `openssh-sftp-server=1:10.2p1-2ubuntu3.5` |
+| Initial server package in accepted proof | `openssh-server=1:10.2p1-2ubuntu3.5` |
+| Initial companion package in accepted proof | `openssh-sftp-server=1:10.2p1-2ubuntu3.5` |
 | Activation model | `ssh.service`; `ssh.socket` remains masked |
 
 The server package ships both `ssh.service` and `ssh.socket` on this Ubuntu
@@ -43,11 +51,16 @@ release. Both activation paths are masked before installation. The classic
 service is selected only after configuration proof so `ListenAddress` remains
 the single listener authority.
 
-Committed, secret-free inputs:
+Accepted initial secret-free inputs:
 
 - `siem/rbac/sshd-alertmind.conf`
 - `siem/rbac/ssh-authorized-key-options.txt`
 - `siem/rbac/SSH-SHA256SUMS`
+
+The separate additive maintenance inputs
+`siem/rbac/ssh-service-network-online.conf` and
+`siem/rbac/SSH-BOOT-ORDER-SHA256SUMS` are not part of that historical
+manifest or proof.
 
 Never commit the generated public-key line, private key, copied Wazuh CA,
 password, SSH verbose log or local runtime file.
@@ -931,27 +944,40 @@ Run from the VM console, not through the tunnel:
 (
 set -euo pipefail
 STAGE="$HOME/alertmind-rbac-phase1c"
+SERVICE_DIR='/etc/systemd/system/ssh.service.d'
+SERVICE_DROPIN="$SERVICE_DIR/10-alertmind-network-online.conf"
 
 sudo systemctl disable --now ssh.service 2>/dev/null || true
 sudo systemctl mask ssh.service ssh.socket
 sudo install -o notroot -g notroot -m 600 \
   "$STAGE/rollback/authorized_keys.pre-phase1c" \
   /home/notroot/.ssh/authorized_keys
-sudo rm -f /etc/ssh/sshd_config.d/00-alertmind-transport.conf
+sudo rm -f \
+  /etc/ssh/sshd_config.d/00-alertmind-transport.conf \
+  "$SERVICE_DROPIN"
+sudo rmdir "$SERVICE_DIR" 2>/dev/null || true
 sudo systemctl daemon-reload
 
 test "$(systemctl is-enabled ssh.service 2>/dev/null || true)" = 'masked'
 test "$(systemctl is-enabled ssh.socket 2>/dev/null || true)" = 'masked'
-! systemctl is-active --quiet ssh.service
-! systemctl is-active --quiet ssh.socket
+if systemctl is-active --quiet ssh.service || systemctl is-active --quiet ssh.socket; then
+  echo 'STOP: SSH activation remains after rollback'; exit 1
+fi
+test ! -e "$SERVICE_DROPIN"
+test ! -L "$SERVICE_DROPIN"
+test ! -e /etc/ssh/sshd_config.d/00-alertmind-transport.conf
+test ! -L /etc/ssh/sshd_config.d/00-alertmind-transport.conf
 if sudo ss -ltnp | grep -E ':(22)\b'; then
   echo 'STOP: TCP 22 still listening after rollback'
   exit 1
 fi
 test "$(awk 'NF && $1 !~ /^#/ {n++} END {print n+0}' \
   /home/notroot/.ssh/authorized_keys)" -eq 0
-sudo systemctl is-active wazuh-manager wazuh-indexer filebeat wazuh-dashboard
-echo 'PASS: SSH listener/config/key access rolled back; packages remain inert'
+for unit in wazuh-indexer wazuh-manager filebeat wazuh-dashboard; do
+  test "$(systemctl is-active "$unit")" = 'active'
+  printf 'PASS service health: %s=active\n' "$unit"
+done
+echo 'PASS: SSH listener/config/order/key access rolled back; packages remain inert'
 )
 ```
 

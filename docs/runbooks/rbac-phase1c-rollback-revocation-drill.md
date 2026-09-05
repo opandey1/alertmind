@@ -4,6 +4,14 @@
 contract tests must receive independent review before the owner runs Stage 1.
 Each later `STOP POINT` is a separate human/reviewer gate.
 
+**Current prerequisite:** A post-review Ubuntu update installed OpenSSH `.3.6`
+and exposed an SSH bind-before-host-only-address race on reboot. Do not run this
+drill until the additive
+[`rbac-phase1c-ssh-boot-order-recovery.md`](rbac-phase1c-ssh-boot-order-recovery.md)
+package and its controlled-reboot/transport evidence receive independent
+approval. This drill now targets that maintained `.3.6` boundary; the accepted
+`.3.5` transport evidence remains unchanged historical evidence.
+
 **Scope:** Exercise the rollback and restoration of the already reviewed
 Phase 1C SSH transport and the `assistant-svc` Indexer credential. The drill
 removes the Windows tunnel and VM SSH exposure, revokes the service mapping and
@@ -40,8 +48,10 @@ for two deliberately rotated secrets:
   the `socanalyst` user/mapping and the scoped `own_index` mapping do not
   change; and
 - the existing `openssh-server` and `openssh-sftp-server` packages remain
-  installed. The disabled leg masks both SSH activation paths rather than
-  removing packages.
+  installed at `1:10.2p1-2ubuntu3.6`. The disabled leg masks both SSH
+  activation paths rather than removing packages; and
+- the final `ssh.service` again loads the reviewed additive ordering drop-in
+  with both `Wants=` and `After=` on `network-online.target`.
 
 The drill is probe-free. It must not create an index, alert, archive, sentinel
 or document; request `_source`; invoke a model; or alter the frozen corpus. It
@@ -229,18 +239,24 @@ INDEXER_URL='https://127.0.0.1:9200'
 INDEXER_CA='/etc/wazuh-indexer/certs/root-ca.pem'
 IDENTITY_STAGE="$HOME/alertmind-rbac-phase1b"
 SSH_STAGE="$HOME/alertmind-rbac-phase1c"
+BOOT_STAGE="$HOME/alertmind-rbac-phase1c-boot-order"
 DRILL_STAGE="$HOME/alertmind-rbac-phase1c-rollback"
+SERVICE_DROPIN='/etc/systemd/system/ssh.service.d/10-alertmind-network-online.conf'
 PRESERVED='admin,anomalyadmin,kibanaro,kibanaserver,logstash,readall,snapshotrestore'
 
 cd "$IDENTITY_STAGE"
 sha256sum -c SHA256SUMS
 cd "$SSH_STAGE"
 sha256sum -c SSH-SHA256SUMS
+cd "$BOOT_STAGE"
+sha256sum -c SSH-BOOT-ORDER-SHA256SUMS
 cd "$DRILL_STAGE"
 sha256sum -c ROLLBACK-SHA256SUMS
 
 sudo cmp --silent "$SSH_STAGE/sshd-alertmind.conf" \
   /etc/ssh/sshd_config.d/00-alertmind-transport.conf
+sudo cmp --silent "$BOOT_STAGE/ssh-service-network-online.conf" \
+  "$SERVICE_DROPIN"
 python3 -c '
 from pathlib import Path
 import sys
@@ -257,15 +273,30 @@ print("PASS installed drop-in and one restricted authorized-key record")
 ' "$SSH_STAGE/ssh-authorized-key-options.txt"
 
 test "$(dpkg-query -W -f='${Version}' openssh-server)" = \
-  '1:10.2p1-2ubuntu3.5'
+  '1:10.2p1-2ubuntu3.6'
 test "$(dpkg-query -W -f='${Version}' openssh-sftp-server)" = \
-  '1:10.2p1-2ubuntu3.5'
+  '1:10.2p1-2ubuntu3.6'
 test "$(systemctl is-enabled ssh.service)" = 'enabled'
 test "$(systemctl is-enabled ssh.socket 2>/dev/null || true)" = 'masked'
 test "$(systemctl is-active ssh.service)" = 'active'
 if systemctl is-active --quiet ssh.socket; then
   echo 'STOP: SSH socket activation is active'; exit 1
 fi
+DROPINS=$(systemctl show -p DropInPaths --value ssh.service)
+case " $DROPINS " in
+  *" $SERVICE_DROPIN "*) ;;
+  *) echo 'STOP: reviewed SSH service-ordering drop-in is not loaded'; exit 1;;
+esac
+AFTER=$(systemctl show -p After --value ssh.service)
+WANTS=$(systemctl show -p Wants --value ssh.service)
+case " $AFTER " in
+  *' network-online.target '*) ;;
+  *) echo 'STOP: ssh.service lacks After=network-online.target'; exit 1;;
+esac
+case " $WANTS " in
+  *' network-online.target '*) ;;
+  *) echo 'STOP: ssh.service lacks Wants=network-online.target'; exit 1;;
+esac
 LISTENERS=$(sudo ss -ltnp | awk '$4 ~ /:22$/ {print}')
 test "$(printf '%s\n' "$LISTENERS" | awk 'NF {n++} END {print n+0}')" -eq 1
 printf '%s\n' "$LISTENERS" | grep -F '192.168.56.102:22' >/dev/null
@@ -498,6 +529,8 @@ set -euo pipefail
 SSH_STAGE="$HOME/alertmind-rbac-phase1c"
 AUTH_KEYS='/home/notroot/.ssh/authorized_keys'
 DROPIN='/etc/ssh/sshd_config.d/00-alertmind-transport.conf'
+SERVICE_DIR='/etc/systemd/system/ssh.service.d'
+SERVICE_DROPIN="$SERVICE_DIR/10-alertmind-network-online.conf"
 
 cd "$SSH_STAGE"
 sha256sum -c SSH-SHA256SUMS
@@ -509,7 +542,8 @@ sudo systemctl disable --now ssh.service
 sudo systemctl mask ssh.service ssh.socket
 sudo install -o notroot -g notroot -m 600 \
   "$SSH_STAGE/rollback/authorized_keys.pre-phase1c" "$AUTH_KEYS"
-sudo rm -f "$DROPIN"
+sudo rm -f "$DROPIN" "$SERVICE_DROPIN"
+sudo rmdir "$SERVICE_DIR" 2>/dev/null || true
 sudo systemctl daemon-reload
 
 test "$(systemctl is-enabled ssh.service 2>/dev/null || true)" = 'masked'
@@ -523,14 +557,18 @@ if systemctl list-units --type=service --state=active --no-legend \
   echo 'STOP: a per-connection sshd service remains active'; exit 1
 fi
 test "$(awk 'NF && $1 !~ /^#/ {n++} END {print n+0}' "$AUTH_KEYS")" -eq 0
+test ! -e "$DROPIN"
+test ! -L "$DROPIN"
+test ! -e "$SERVICE_DROPIN"
+test ! -L "$SERVICE_DROPIN"
 if sudo ss -ltnp | grep -E ':(22)\b'; then
   echo 'STOP: TCP 22 remains after transport removal'
   exit 1
 fi
 test "$(dpkg-query -W -f='${Version}' openssh-server)" = \
-  '1:10.2p1-2ubuntu3.5'
+  '1:10.2p1-2ubuntu3.6'
 test "$(dpkg-query -W -f='${Version}' openssh-sftp-server)" = \
-  '1:10.2p1-2ubuntu3.5'
+  '1:10.2p1-2ubuntu3.6'
 
 for unit in wazuh-indexer wazuh-manager filebeat wazuh-dashboard; do
   state=$(systemctl is-active "$unit" || true)
@@ -539,7 +577,7 @@ for unit in wazuh-indexer wazuh-manager filebeat wazuh-dashboard; do
   fi
   printf 'PASS service health: %s=active\n' "$unit"
 done
-echo 'PASS transport removed: no tunnel, listener, drop-in or authorized key'
+echo 'PASS transport removed: no tunnel, listener, SSH/order drop-in or authorized key'
 echo 'PASS OpenSSH packages retained inert and masked'
 echo 'STOP POINT: preserve this output for review before service-user revocation'
 )
@@ -873,12 +911,17 @@ key or either key into chat.
 set -euo pipefail
 umask 077
 SSH_STAGE="$HOME/alertmind-rbac-phase1c"
+BOOT_STAGE="$HOME/alertmind-rbac-phase1c-boot-order"
 DRILL_STAGE="$HOME/alertmind-rbac-phase1c-rollback"
 AUTH_KEYS='/home/notroot/.ssh/authorized_keys'
 DROPIN='/etc/ssh/sshd_config.d/00-alertmind-transport.conf'
+SERVICE_DIR='/etc/systemd/system/ssh.service.d'
+SERVICE_DROPIN="$SERVICE_DIR/10-alertmind-network-online.conf"
 
 cd "$SSH_STAGE"
 sha256sum -c SSH-SHA256SUMS
+cd "$BOOT_STAGE"
+sha256sum -c SSH-BOOT-ORDER-SHA256SUMS
 cd "$DRILL_STAGE"
 sha256sum -c ROLLBACK-SHA256SUMS
 test "$(systemctl is-enabled ssh.service 2>/dev/null || true)" = 'masked'
@@ -887,7 +930,16 @@ if systemctl is-active --quiet ssh.service || systemctl is-active --quiet ssh.so
   echo 'STOP: SSH is active before restoration proof'; exit 1
 fi
 test ! -e "$DROPIN"
+test ! -L "$DROPIN"
+test ! -e "$SERVICE_DROPIN"
+test ! -L "$SERVICE_DROPIN"
 test "$(awk 'NF && $1 !~ /^#/ {n++} END {print n+0}' "$AUTH_KEYS")" -eq 0
+test ! -L "$SERVICE_DIR"
+if [ -e "$SERVICE_DIR" ]; then
+  test -d "$SERVICE_DIR"
+  test "$(stat -c '%a:%U:%G' "$SERVICE_DIR")" = '755:root:root'
+  test -z "$(sudo find "$SERVICE_DIR" -mindepth 1 -maxdepth 1 -print)"
+fi
 
 read -r -p 'Paste the one-line replacement Ed25519 PUBLIC key: ' PUBLIC_KEY
 case "$PUBLIC_KEY" in ssh-ed25519\ *) ;; *) echo 'STOP: expected ssh-ed25519'; exit 1;; esac
@@ -909,15 +961,34 @@ printf '%s %s\n' "$OPTIONS" "$PUBLIC_KEY" > "$AUTHORIZED"
 sudo install -o notroot -g notroot -m 600 "$AUTHORIZED" "$AUTH_KEYS"
 sudo install -o root -g root -m 644 \
   "$SSH_STAGE/sshd-alertmind.conf" "$DROPIN"
+sudo install -d -o root -g root -m 755 "$SERVICE_DIR"
+sudo install -o root -g root -m 644 \
+  "$BOOT_STAGE/ssh-service-network-online.conf" "$SERVICE_DROPIN"
+sudo systemctl daemon-reload
+
+sudo cmp --silent \
+  "$BOOT_STAGE/ssh-service-network-online.conf" "$SERVICE_DROPIN"
+# A masked unit does not expose the loaded service dependencies. Verify bytes
+# now; inspect DropInPaths/Wants/After only after unmasking in Section 8.2.
+test "$(stat -c '%a:%U:%G' "$SERVICE_DROPIN")" = '644:root:root'
 
 test "$(awk 'NF && $1 !~ /^#/ {n++} END {print n+0}' "$AUTH_KEYS")" -eq 1
 INSTALLED=$(ssh-keygen -lf "$AUTH_KEYS" -E sha256 | awk '{print $2}')
 test "$INSTALLED" = "$EXPECTED"
 test "$INSTALLED" != "$REVOKED"
-sudo /usr/sbin/sshd -t
-sudo /usr/sbin/sshd -T -C \
+# With ssh.service stopped, systemd has removed its runtime directory. These
+# parser-only transient units create/clean it using the packaged policy; they
+# do not open a listener or unmask/start ssh.service.
+sudo systemd-run --quiet --wait --pipe --collect \
+  -p RuntimeDirectory=sshd -p RuntimeDirectoryMode=0755 \
+  /usr/sbin/sshd -t
+sudo systemd-run --quiet --wait --pipe --collect \
+  -p RuntimeDirectory=sshd -p RuntimeDirectoryMode=0755 \
+  /usr/sbin/sshd -T -C \
   user=root,host=wazuh-siem,addr=192.168.56.1 > "$CONTROL"
-sudo /usr/sbin/sshd -T -C \
+sudo systemd-run --quiet --wait --pipe --collect \
+  -p RuntimeDirectory=sshd -p RuntimeDirectoryMode=0755 \
+  /usr/sbin/sshd -T -C \
   user=notroot,host=wazuh-siem,addr=192.168.56.1 > "$TARGET"
 
 for line in \
@@ -983,8 +1054,28 @@ fail_closed() {
 trap fail_closed EXIT
 test "$(systemctl is-enabled ssh.service 2>/dev/null || true)" = 'masked'
 test "$(systemctl is-enabled ssh.socket 2>/dev/null || true)" = 'masked'
-sudo /usr/sbin/sshd -t
+if systemctl is-active --quiet ssh.service || systemctl is-active --quiet ssh.socket; then
+  echo 'STOP: SSH must remain stopped before parser-only validation'; exit 1
+fi
+sudo systemd-run --quiet --wait --pipe --collect \
+  -p RuntimeDirectory=sshd -p RuntimeDirectoryMode=0755 \
+  /usr/sbin/sshd -t
+BOOT_STAGE="$HOME/alertmind-rbac-phase1c-boot-order"
+SERVICE_DROPIN='/etc/systemd/system/ssh.service.d/10-alertmind-network-online.conf'
+cd "$BOOT_STAGE"
+sha256sum -c SSH-BOOT-ORDER-SHA256SUMS
+sudo cmp --silent "$BOOT_STAGE/ssh-service-network-online.conf" "$SERVICE_DROPIN"
+ip -brief -4 address show dev enp0s8 | grep -F '192.168.56.102/24'
 sudo systemctl unmask ssh.service
+sudo systemctl daemon-reload
+DROPINS=$(systemctl show -p DropInPaths --value ssh.service)
+test "$DROPINS" = "$SERVICE_DROPIN"
+AFTER=$(systemctl show -p After --value ssh.service)
+WANTS=$(systemctl show -p Wants --value ssh.service)
+case " $AFTER " in *' network-online.target '*) ;; \
+  *) echo 'STOP: missing After=network-online.target'; exit 1;; esac
+case " $WANTS " in *' network-online.target '*) ;; \
+  *) echo 'STOP: missing Wants=network-online.target'; exit 1;; esac
 sudo systemctl enable --now ssh.service
 
 test "$(systemctl is-enabled ssh.service)" = 'enabled'
@@ -1196,12 +1287,34 @@ check at the VM console in the required order:
 ```bash
 (
 set -euo pipefail
+BOOT_STAGE="$HOME/alertmind-rbac-phase1c-boot-order"
+SERVICE_DROPIN='/etc/systemd/system/ssh.service.d/10-alertmind-network-online.conf'
+
+cd "$BOOT_STAGE"
+sha256sum -c SSH-BOOT-ORDER-SHA256SUMS
+sudo cmp --silent \
+  "$BOOT_STAGE/ssh-service-network-online.conf" "$SERVICE_DROPIN"
+test "$(dpkg-query -W -f='${Version}' openssh-server)" = \
+  '1:10.2p1-2ubuntu3.6'
+test "$(dpkg-query -W -f='${Version}' openssh-sftp-server)" = \
+  '1:10.2p1-2ubuntu3.6'
 test "$(systemctl is-enabled ssh.service)" = 'enabled'
 test "$(systemctl is-active ssh.service)" = 'active'
 test "$(systemctl is-enabled ssh.socket 2>/dev/null || true)" = 'masked'
 if systemctl is-active --quiet ssh.socket; then
   echo 'STOP: SSH socket activation is active'; exit 1
 fi
+DROPINS=$(systemctl show -p DropInPaths --value ssh.service)
+case " $DROPINS " in
+  *" $SERVICE_DROPIN "*) ;;
+  *) echo 'STOP: reviewed SSH service-ordering drop-in is not loaded'; exit 1;;
+esac
+AFTER=$(systemctl show -p After --value ssh.service)
+WANTS=$(systemctl show -p Wants --value ssh.service)
+case " $AFTER " in *' network-online.target '*) ;; \
+  *) echo 'STOP: missing After=network-online.target'; exit 1;; esac
+case " $WANTS " in *' network-online.target '*) ;; \
+  *) echo 'STOP: missing Wants=network-online.target'; exit 1;; esac
 LISTENERS=$(sudo ss -ltnp | awk '$4 ~ /:22$/ {print}')
 test "$(printf '%s\n' "$LISTENERS" | awk 'NF {n++} END {print n+0}')" -eq 1
 printf '%s\n' "$LISTENERS" | grep -F '192.168.56.102:22' >/dev/null
@@ -1212,7 +1325,7 @@ for unit in wazuh-indexer wazuh-manager filebeat wazuh-dashboard; do
   fi
   printf 'PASS service health: %s=active\n' "$unit"
 done
-echo 'PASS final VM state: restricted SSH transport restored and Wazuh healthy'
+echo 'PASS final VM state: boot-ordered restricted SSH transport restored and Wazuh healthy'
 )
 ```
 
@@ -1239,6 +1352,8 @@ Stop immediately and remain fail-closed if:
 - any alert/index/document mutation occurs or a proof requires `_source`;
 - SSH binds to NAT, wildcard or IPv6, or forwards outside VM
   `127.0.0.1:9200`;
+- the `.3.6` package pair or reviewed `network-online.target` service ordering
+  drifts;
 - TLS requires `-k`, `--insecure`, `--ssl-no-revoke`, `verify=False` or warning
   suppression; or
 - Wazuh Indexer, Manager, Filebeat or Dashboard is inactive.
@@ -1265,6 +1380,8 @@ set -euo pipefail
 SSH_STAGE="$HOME/alertmind-rbac-phase1c"
 AUTH_KEYS='/home/notroot/.ssh/authorized_keys'
 DROPIN='/etc/ssh/sshd_config.d/00-alertmind-transport.conf'
+SERVICE_DIR='/etc/systemd/system/ssh.service.d'
+SERVICE_DROPIN="$SERVICE_DIR/10-alertmind-network-online.conf"
 INDEXER_URL='https://127.0.0.1:9200'
 INDEXER_CA='/etc/wazuh-indexer/certs/root-ca.pem'
 
@@ -1278,7 +1395,8 @@ test ! -L "$SSH_STAGE/rollback/authorized_keys.pre-phase1c"
 test ! -s "$SSH_STAGE/rollback/authorized_keys.pre-phase1c"
 sudo install -o notroot -g notroot -m 600 \
   "$SSH_STAGE/rollback/authorized_keys.pre-phase1c" "$AUTH_KEYS"
-sudo rm -f "$DROPIN"
+sudo rm -f "$DROPIN" "$SERVICE_DROPIN"
+sudo rmdir "$SERVICE_DIR" 2>/dev/null || true
 sudo systemctl daemon-reload
 for unit in ssh.service ssh.socket; do
   test "$(systemctl is-enabled "$unit" 2>/dev/null || true)" = 'masked'
@@ -1287,6 +1405,10 @@ for unit in ssh.service ssh.socket; do
   fi
 done
 test ! -s "$AUTH_KEYS"
+test ! -e "$DROPIN"
+test ! -L "$DROPIN"
+test ! -e "$SERVICE_DROPIN"
+test ! -L "$SERVICE_DROPIN"
 if sudo ss -ltnp | grep -E ':(22)\b'; then
   echo 'STOP: TCP 22 remains during containment'; exit 1
 fi
@@ -1349,3 +1471,5 @@ identity lacks access if inherited grants have drifted.
 - [curl manual — explicit configuration, CA and proxy options](https://curl.se/docs/manpage.html)
 - [Phase 1B Indexer setup and rollback gates](rbac-wazuh-read-only-setup.md)
 - [Phase 1C restricted SSH transport](rbac-wazuh-ssh-transport.md)
+- [systemd transient service and exit-status semantics](https://github.com/systemd/systemd/blob/main/man/systemd-run.xml)
+- [systemd execution environment and runtime directories](https://github.com/systemd/systemd/blob/main/man/systemd.exec.xml)
