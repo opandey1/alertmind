@@ -733,7 +733,10 @@ Required corrections""".splitlines()
         ).read_text(encoding="utf-8")
         recovery_normalized = " ".join(recovery.split())
         for required in (
-            "Secret-free recovery package; not yet owner-executed or independently reviewed",
+            "Recovery package independently approved and merged through PR #19",
+            "phase1c-ssh-boot-order-proof.md)",
+            "awaits independent review",
+            "This is not approval to resume the rollback drill",
             "bind-before-address race",
             "ExecStartPre=/usr/sbin/sshd -t` succeeded",
             "1:10.2p1-2ubuntu3.6",
@@ -1457,6 +1460,54 @@ Required corrections""".splitlines()
             "No live alert was sent through the LLM assistant",
         ):
             self.assertIn(required, proof_normalized)
+
+        maintenance = (
+            REPO_ROOT / "evidence" / "rbac" /
+            "phase1c-ssh-boot-order-proof.md"
+        ).read_text(encoding="utf-8")
+        maintenance_normalized = " ".join(maintenance.split())
+        expected_maintenance_hashes = dict(manifest_hashes)
+        for line in (RBAC_DIR / "SSH-BOOT-ORDER-SHA256SUMS").read_text(
+            encoding="ascii"
+        ).splitlines():
+            digest, name = line.split(maxsplit=1)
+            expected_maintenance_hashes[name] = digest
+        for name in ("SSH-SHA256SUMS", "SSH-BOOT-ORDER-SHA256SUMS"):
+            expected_maintenance_hashes[name] = hashlib.sha256(
+                (RBAC_DIR / name).read_bytes()
+            ).hexdigest()
+        self.assertEqual(
+            dict(re.findall(
+                r"^\| `([^`]+)` \| `([0-9a-f]{64})` \|$",
+                maintenance,
+                flags=re.MULTILINE,
+            )),
+            expected_maintenance_hashes,
+        )
+        for required in (
+            "awaiting independent evidence review",
+            "32496af4dc4dbab5b8845f7ebae5ed0282194969",
+            "Exact wall-clock times for each execution",
+            "were not printed in the returned outputs",
+            "NO-MANUAL-RECOVERY",
+            "7463f15f-0c87-4f03-94d8-c71adc722a9d",
+            "4e283a22-f60e-44c1-9470-1f9636126a2b",
+            "17048323 <= 17051573 <= 17302430",
+            "`250857` microseconds (`0.250857 s`)",
+            "failed_shards=0; visible_hits=10000; relation=gte",
+            "at least 10,000 matching alerts, not an exact total",
+            "no effective certificate-revocation protection",
+            "Windows wrapper exit `-1`; test marker absent",
+            "Remote forward | SSH exit `255`",
+            "Password-only authentication | SSH exit `255`",
+            "No TCP 19201 listener, alternate-destination log or TLS query file",
+            "summaries alone are not server-side proof",
+            "Such an error would invalidate a policy denial inference",
+            "An early zero-listener observation",
+            "subsequent accidental Section 5 rerun is excluded",
+            "Do not resume the rollback/revocation drill",
+        ):
+            self.assertIn(required, maintenance_normalized)
 
         reader_status = {
             "README.md": (REPO_ROOT / "README.md").read_text(encoding="utf-8"),
