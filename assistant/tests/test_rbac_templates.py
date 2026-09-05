@@ -1509,6 +1509,17 @@ Required corrections""".splitlines()
         ):
             self.assertIn(required, maintenance_normalized)
 
+        # Carry interpretive caveats with their guards when evidence is copied.
+        # Pin complete claims/cells, not words that also occur elsewhere.
+        for required in (
+            "Owner supplied `NO-MANUAL-RECOVERY` under instructions not to start "
+            "SSH or create `/run/sshd`; this is an attestation",
+            "| Verdict | Awaiting independent review; not approved |",
+            "The `-1` values are preserved as observed Windows wrapper results, "
+            "not portable SSH exit-code claims.",
+        ):
+            self.assertIn(required, maintenance_normalized)
+
         reader_status = {
             "README.md": (REPO_ROOT / "README.md").read_text(encoding="utf-8"),
             "assistant/README.md": (
