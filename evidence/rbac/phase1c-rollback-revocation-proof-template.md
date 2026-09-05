@@ -15,6 +15,7 @@ sanitized observed result; never overwrite this template.
 | Owner execution date/time and timezone | `PENDING` |
 | Repository commit containing the reviewed drill | `PENDING` |
 | VM snapshot confirmed available | `PENDING` |
+| Approved `.3.6` boot-order recovery evidence | `PENDING` |
 | Pre-drill application state | `PENDING` — must say no live analyst/Wazuh profile existed |
 | Explicitly untouched | `socanalyst`, custom roles, DLS, scoped `own_index`, frozen evidence |
 | Raw alert or `_source` captured | `PENDING` — expected `no` |
@@ -30,6 +31,7 @@ OIDC/application/live-reader layer.
 |---|---|
 | `siem/rbac/SHA256SUMS` | `PENDING` |
 | `siem/rbac/SSH-SHA256SUMS` | `PENDING` |
+| `siem/rbac/SSH-BOOT-ORDER-SHA256SUMS` | `PENDING` |
 | `siem/rbac/ROLLBACK-SHA256SUMS` | `PENDING` |
 | Rotation helper syntax check | `PENDING` |
 
@@ -46,6 +48,8 @@ file. Public SHA-256 key/certificate fingerprints are permitted.
 | Existing SSH client public fingerprint | `PENDING` |
 | Pinned VM host-key fingerprint | `PENDING` |
 | Wazuh public CA SHA-256 | `PENDING` |
+| OpenSSH package pair | `PENDING` — expected `1:10.2p1-2ubuntu3.6` |
+| Effective SSH service ordering | `PENDING` — expected Wants/After `network-online.target` |
 | Exact `alertmind_assistant_alerts_ro` role and mapping | `PENDING` |
 | Exact `assistant-svc` effective role | `PENDING` |
 | Scoped `own_index` unchanged | `PENDING` |
@@ -59,7 +63,7 @@ file. Public SHA-256 key/certificate fingerprints are permitted.
 | Windows TCP 19200 listener absent | `PENDING` |
 | `ssh.service` / `ssh.socket` masked and inactive | `PENDING` |
 | VM TCP 22 listener absent | `PENDING` |
-| SSH drop-in absent and authorized-key entry count zero | `PENDING` |
+| SSH and service-ordering drop-ins absent; authorized-key entry count zero | `PENDING` |
 | OpenSSH packages retained at reviewed versions | `PENDING` |
 | `alertmind_assistant_alerts_ro` mapping absent | `PENDING` |
 | `assistant-svc` user absent | `PENDING` |
@@ -90,6 +94,7 @@ file. Public SHA-256 key/certificate fingerprints are permitted.
 | VM authorized-key entry count and installed fingerprint | `PENDING` |
 | Old SSH key denied with no authentication marker | `PENDING` — expected old fingerprint offered and explicit public-key denial |
 | VM host-key fingerprint unchanged | `PENDING` |
+| Reviewed service-ordering drop-in restored | `PENDING` |
 | One VM listener at `192.168.56.102:22`; socket masked | `PENDING` |
 | One Windows listener at `127.0.0.1:19200` | `PENDING` |
 | Wrong-hostname TLS leg | `PENDING` — expected curl exit `60` |
@@ -106,14 +111,14 @@ file. Public SHA-256 key/certificate fingerprints are permitted.
 | Exact replacement service role/mapping | `PENDING` |
 | Scoped `own_index` still excludes both AlertMind principals | `PENDING` |
 | `socanalyst` unchanged | `PENDING` |
-| Restricted SSH transport restored | `PENDING` |
+| Boot-ordered restricted SSH transport restored | `PENDING` |
 | Wazuh health: Indexer → Manager → Filebeat → Dashboard | `PENDING` |
 | Frozen artifacts and model runs unchanged | `PENDING` |
 
 **Allowed conclusion after independent approval:** the currently implemented
 Phase 1C transport and `assistant-svc` credential were disabled, revoked,
-rotated and restored without broadening the reviewed read boundary or changing
-Wazuh service health.
+rotated and restored on the maintained OpenSSH `.3.6` boundary without
+broadening the reviewed read boundary or changing Wazuh service health.
 
 **Not established:** application-profile rollback, OIDC, Dashboard/Server RBAC,
 live alert ingestion, model-path execution, production readiness, certificate

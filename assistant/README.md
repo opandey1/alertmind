@@ -10,6 +10,12 @@ It is built to be **safe** (secrets redacted before the model; alert content tre
 
 ## 1. Pipeline
 
+**Transport maintenance (2026-09-05):** The lab's OpenSSH `.3.6` update requires
+the separately reviewed [boot-order recovery and reboot proof](../docs/runbooks/rbac-phase1c-ssh-boot-order-recovery.md)
+before the pending rollback drill resumes. Temporary owner recovery is not
+reboot-persistence evidence. No live reader or application authentication is
+implemented by this maintenance package.
+
 **Batch evaluation path** (the measured artifact):
 
 ```
@@ -71,7 +77,7 @@ assistant/
 ├── requirements-ci.lock                  # hash-pinned Python 3.12 linux set used by offline CI
 ├── README.md · DESIGN_AND_CHANGELOG.md   # design decisions, review log, Q&A
 │
-├── tests/               # 106 unittest methods across 14 files
+├── tests/               # 109 unittest methods across 14 files
 │   ├── test_redact.py            # redaction proof (plants secrets, asserts none leak)
 │   ├── test_redaction_trace.py   # trace masks values; proof and production paths cannot diverge
 │   ├── test_injection.py         # recorded injection scenario (mock + real provider)
@@ -99,7 +105,7 @@ assistant/
 ```bash
 cd assistant
 pip install -r requirements.txt
-python -m unittest discover -s tests -p "test_*.py"   # full suite — 106 tests
+python -m unittest discover -s tests -p "test_*.py"   # full suite — 109 tests
 python tests/test_redact.py                       # redaction proof (non-zero exit if a secret leaks)
 python tests/test_injection.py                    # recorded injection scenario (mock)
 python runner.py --provider mock --view operational

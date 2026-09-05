@@ -19,9 +19,14 @@ completed the live transport, paired TLS/read and same-key denial checks now
 recorded in
 [`phase1c-ssh-transport-proof.md`](phase1c-ssh-transport-proof.md). Commits
 `af571b1` and `0767a89` were independently approved and merged through PR #16,
-closing the transport evidence gate. The rollback/revocation drill now has an
-unexecuted [evidence worksheet](phase1c-rollback-revocation-proof-template.md)
-and a package awaiting review; neither is evidence that the drill succeeded.
+closing the original `.3.5` transport evidence gate. After a later Ubuntu
+update installed OpenSSH `.3.6`, a reboot exposed a bind-before-host-only-
+address race. The resulting additive recovery has an unexecuted
+[boot-order worksheet](phase1c-ssh-boot-order-proof-template.md); it is not
+evidence that `.3.6` was revalidated or that reboot persistence was restored.
+The rollback/revocation drill separately has an unexecuted
+[evidence worksheet](phase1c-rollback-revocation-proof-template.md); neither
+worksheet is evidence that its procedure succeeded.
 Wazuh Server/Dashboard configuration, OIDC/application authorization and the
 constrained reader/UI remain unimplemented, so neither Phase 1C as a whole nor
 the complete feature is finished.

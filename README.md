@@ -12,6 +12,13 @@ For the complete methodology, evidence index, limitations and results, see the *
 
 ## What was delivered
 
+**Transport maintenance (2026-09-05):** OpenSSH updated from `.3.5` to `.3.6`;
+the owner recovered a boot-time SSH failure after the host-only address became
+ready. The additive [boot-order recovery package](docs/runbooks/rbac-phase1c-ssh-boot-order-recovery.md)
+is awaiting independent review and a controlled reboot/transport revalidation.
+The original transport proof remains historical evidence; the rollback drill
+and live application integration remain pending.
+
 | Component | Delivered state |
 |---|---|
 | Wazuh SIEM | Wazuh 4.14.5 all-in-one manager, indexer and dashboard in an isolated VirtualBox lab |
@@ -314,7 +321,7 @@ cd assistant
 python -m unittest discover -s tests -p "test_*.py"
 ```
 
-The current suite contains **106 tests** covering provider request construction, schema/error metadata, runtime/formal-schema alignment, non-destructive audit reconstruction, explicit corpus-subset selection, redaction, strict-view label leakage, injection markers, boundary blocking, consent, ad hoc audit semantics, Streamlit state handling, and the offline RBAC contract checks that pin the committed identity, role, DLS, transport and unexecuted rollback/revocation packages against drift.
+The current suite contains **109 tests** covering provider request construction, schema/error metadata, runtime/formal-schema alignment, non-destructive audit reconstruction, explicit corpus-subset selection, redaction, strict-view label leakage, injection markers, boundary blocking, consent, ad hoc audit semantics, Streamlit state handling, and the offline RBAC contract checks that pin the committed identity, role, DLS, transport and unexecuted rollback/revocation packages against drift.
 
 Re-score a retained audit log without changing committed evidence:
 
@@ -325,7 +332,7 @@ python rebuild_from_audit.py outputs/runs/<run_id>/audit-log.jsonl --score-only
 
 Omitting `--score-only` writes derived files under `assistant/outputs/rebuilt/<run_id>/`, not beside the source audit log. Existing derived files require an explicit `--overwrite`, and the timing-log default is resolved from the repository rather than the caller's working directory.
 
-**Offline CI.** Every push to `main` and pull request targeting it runs the 106-test regression suite and re-derives the CI-protected assistant-evaluation findings from committed artifacts: frozen-corpus and timing-log SHA-256, canonical scoring for seven retained result-bearing runs, the §9.8 token/latency/hash findings, and the accepted Qwen pair's normalized audit hashes, manifests, model digest and effective request configuration. No live SIEM, model provider, credentials or repository secrets are required. The badge therefore shows that these specific committed measurements still reproduce without another model call. It does not cover MTTD, the assisted-timing study, human grounding verdicts, dashboards or detection counts, which are evidenced elsewhere in this repository. Workflow: [`.github/workflows/offline-ci.yml`](.github/workflows/offline-ci.yml); assertions: [`measurement/verify_frozen_evidence.py`](measurement/verify_frozen_evidence.py).
+**Offline CI.** Every push to `main` and pull request targeting it runs the 109-test regression suite and re-derives the CI-protected assistant-evaluation findings from committed artifacts: frozen-corpus and timing-log SHA-256, canonical scoring for seven retained result-bearing runs, the §9.8 token/latency/hash findings, and the accepted Qwen pair's normalized audit hashes, manifests, model digest and effective request configuration. No live SIEM, model provider, credentials or repository secrets are required. The badge therefore shows that these specific committed measurements still reproduce without another model call. It does not cover MTTD, the assisted-timing study, human grounding verdicts, dashboards or detection counts, which are evidenced elsewhere in this repository. Workflow: [`.github/workflows/offline-ci.yml`](.github/workflows/offline-ci.yml); assertions: [`measurement/verify_frozen_evidence.py`](measurement/verify_frozen_evidence.py).
 
 **Rebuilding the lab from a clean clone:** follow [`docs/rebuild-guide.md`](docs/rebuild-guide.md). Recovery and credential-reset procedures are in [`docs/runbooks/`](docs/runbooks/), and [`docs/artifacts.md`](docs/artifacts.md) indexes the produced artifacts.
 

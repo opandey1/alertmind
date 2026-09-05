@@ -7,9 +7,13 @@ machine read-only Wazuh role templates.
 gates are independently approved and merged through PR #10. The Phase 1C SSH
 transport was then owner-executed, independently reviewed and merged through
 PR #16 at `0ebc665`. Its rollback/revocation drill is now a secret-free,
-unexecuted review package; Phase 1C is not complete until that drill and its
-sanitized evidence receive independent approval. Wazuh Server/Dashboard, OIDC
-and application integration remain unimplemented.
+unexecuted review package. An Ubuntu update subsequently moved the installed
+OpenSSH pair from `.3.5` to `.3.6`; the first observed reboot exposed a service
+start before the host-only DHCP address was active. The additive boot-order
+recovery package is also unexecuted and awaits independent review. Phase 1C is
+not complete until the maintenance revalidation and rollback drill receive
+sanitized, independent approval. Wazuh Server/Dashboard, OIDC and application
+integration remain unimplemented.
 
 Planned identities:
 
@@ -51,6 +55,17 @@ Executed and independently reviewed Phase 1C transport inputs:
 The original execution and immediate fail-safe rollback sequence is in
 `docs/runbooks/rbac-wazuh-ssh-transport.md`. The live transport proof is in
 `evidence/rbac/phase1c-ssh-transport-proof.md`.
+
+Additive, unexecuted OpenSSH `.3.6` boot-order recovery inputs:
+
+- `ssh-service-network-online.conf` — adds only `Wants=` and `After=` for
+  `network-online.target` to `ssh.service`; and
+- `SSH-BOOT-ORDER-SHA256SUMS` — LF-stable transfer hash for that drop-in.
+
+The proposed recovery and controlled-reboot proof is in
+`docs/runbooks/rbac-phase1c-ssh-boot-order-recovery.md`; its blank worksheet is
+`evidence/rbac/phase1c-ssh-boot-order-proof-template.md`. These additive files
+do not alter the accepted `.3.5` manifest or evidence.
 
 Unexecuted Phase 1C rollback/revocation inputs:
 
