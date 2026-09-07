@@ -10,6 +10,38 @@ PROOF = ROOT / "evidence/rbac/phase1c-rollback-revocation-proof.md"
 OLD = "SHA256:+DDAvCldN5xpP0spEP3ClVsmhnhhQtcvJpD3GRyTaDo"
 NEW = "SHA256:RAmkB1Xh5VLXel/ezCNgQRrl54HnnuUoQmlEY/XIb1c"
 
+# Observation-triggered rules cover new evidence records automatically, not a
+# filename allowlist. Keep accepted historical wording without rewriting it.
+CARRIED_CAVEATS = (
+    (
+        "Windows wrapper exit interpretation",
+        re.compile(r"`-1`"),
+        (
+            "The `-1` values are recorded as the observed Windows process-wrapper results, "
+            "not generalized as portable SSH exit codes.",
+            "The `-1` values are preserved as observed Windows wrapper results, "
+            "not portable SSH exit-code claims.",
+            "The `-1` values are Windows-wrapper observations, "
+            "not portable native SSH exit-code meanings.",
+        ),
+    ),
+)
+
+
+def validate_carried_caveats(text):
+    normalized = " ".join(text.split())
+    for name, observation, disclosures in CARRIED_CAVEATS:
+        if observation.search(normalized) and not any(
+            disclosure in normalized for disclosure in disclosures
+        ):
+            raise ValueError(f"missing carried caveat: {name}")
+
+
+def validate_unknown_delete_codes(text):
+    revoked = " ".join(section(text, 4).split())
+    if "Exact mapping/user DELETE response codes are **unknown**" not in revoked:
+        raise ValueError("historical DELETE response codes must remain unknown")
+
 
 def section(text, number):
     matches = list(re.finditer(rf"^## {number}\. .*$", text, re.M))
@@ -88,6 +120,8 @@ class RollbackEvidenceTests(unittest.TestCase):
         self.assertEqual(credentials["Restricted reads"],
                          ["Cluster health `403`; username-index search `403`"])
         self.assertIn("comparison alone does not identify the real old credential", self.normalized)
+        self.assertIn("post-deletion 401 is a consequence of account absence, "
+                      "not independent evidence about the old secret", self.normalized)
 
     def test_tls_and_denials_preserve_scope(self):
         ssh = rows(self.text, 6)
@@ -106,7 +140,37 @@ class RollbackEvidenceTests(unittest.TestCase):
         ):
             self.assertIn(phrase, self.normalized)
 
-    def test_interruption_and_unknowns_cannot_disappear(self):
+        # Apply the shared catalog to every evidence record, including future
+        # additions, and prove each matching record fails without its caveat.
+        matched = []
+        for path in sorted((ROOT / "evidence/rbac").rglob("*.md")):
+            text = " ".join(path.read_text(encoding="utf-8").split())
+            with self.subTest(record=path.name):
+                validate_carried_caveats(text)
+                for name, observation, disclosures in CARRIED_CAVEATS:
+                    if not observation.search(text):
+                        continue
+                    matched.append(path)
+                    changed = text
+                    for disclosure in disclosures:
+                        changed = changed.replace(disclosure, "")
+                    self.assertNotEqual(changed, text, name)
+                    self.assertRegex(changed, observation)
+                    with self.assertRaises(ValueError):
+                        validate_carried_caveats(changed)
+        self.assertIn(PROOF, matched)
+        # An unseen document needs no registration to receive the guard.
+        with self.assertRaises(ValueError):
+            validate_carried_caveats("| Shell | Windows wrapper exit `-1` |")
+
+    def test_interruption_and_unknown_delete_codes_remain_disclosed(self):
+        validate_unknown_delete_codes(self.text)
+        for replacement in ("were `200`", "were `201`", "were recorded"):
+            changed = self.text.replace("codes are **unknown**", f"codes {replacement}")
+            with self.subTest(delete_codes=replacement):
+                self.assertNotEqual(changed, self.text)
+                with self.assertRaises(ValueError):
+                    validate_unknown_delete_codes(changed)
         deviations = " ".join(section(self.text, 8).split())
         for phrase in (
             "Exact DELETE codes and the original final tail were not retained",

@@ -83,6 +83,9 @@ exact files, permissions and LF checks before its later authorized execution.
 The first deletion run was interrupted. Exact mapping/user DELETE response
 codes are **unknown**; later 404/401 checks establish current revoked state,
 not the missing historical response codes or an uninterrupted first run.
+For the absent `assistant-svc` account, the post-deletion 401 is a consequence
+of account absence, not independent evidence about the old secret. Section 5
+separately records the known-old rejection after the account was recreated.
 
 ## 5. Service-credential rotation and restoration
 
