@@ -3,14 +3,16 @@
 **Document status:** Phase 0 and the Phase 1A/1B Indexer identity and
 enforcement gates are independently approved and merged through PR #10. The
 restricted Phase 1C SSH transport was owner-executed, independently reviewed
-and merged through PR #16 at `0ebc665`; its rollback/revocation drill remains
-pending, with a secret-free drill package awaiting review. Wazuh
-Server/Dashboard configuration, OIDC and application integration remain
-unimplemented.
+and merged through PR #16 at `0ebc665`; its rollback/revocation drill was
+completed through owner-reported checkpoints and independently approved in
+PR #21 at `41105a9`. The current [Server/Dashboard package](runbooks/rbac-server-dashboard-readonly.md)
+implements a local inventory collector and defines the next configuration/proof
+gate. Live Server/Dashboard configuration, OIDC and application integration
+remain unimplemented.
 
 **Date:** 1 September 2026
 
-**Last updated:** 4 September 2026
+**Last updated:** 7 September 2026
 
 **Applies to:** current `assistant/` package; submitted-v1 Wazuh 4.14.5
 baseline; current live `wazuh-indexer` 4.14.7-1 / OpenSearch 2.19.5;
@@ -78,7 +80,8 @@ The plan is based on the current repository rather than the earlier
   both direct-user mappings and completed the fail-safe Indexer matrix. That
   proof is independently approved and merged in PR #10. The restricted SSH
   transport proof is independently approved and merged in PR #16; its
-  rollback/revocation drill and live ingestion remain incomplete.
+  rollback/revocation drill was subsequently independently approved and merged
+  through PR #21. Live ingestion remains incomplete.
 - The pre-feature regression baseline was 78 assistant tests plus the frozen-
   evidence verifier. Phase 0 adds eight characterization tests, bringing the
   branch to 86 tests without changing prompts, views, redaction, schema,
@@ -740,15 +743,13 @@ Phase 0 is closed. The approved commit is merged to `main` at `de4b6a5`.
    fail-safe document-level allow/deny sequence in Section 10.2 and
    `siem/rbac/negative-test-matrix.md`; the optional index-level test remains
    prohibited.
-7. **Current package gate:** independently review and then owner-execute
-   `docs/runbooks/rbac-phase1c-rollback-revocation-drill.md`. Remove the
-   tunnel/listener and authorized key, revoke `assistant-svc`, prove the old
-   credential fails, rotate the service password and SSH client key, restore
-   the exact reviewed boundary, and verify Wazuh Indexer, Manager, Filebeat and
-   Dashboard health in that order. The current app has no live profile, so the
-   drill must record that leg as not yet applicable rather than fabricate a
-   profile-disable result.
-8. Verify `socanalyst` Dashboard read access and Wazuh write,
+7. **Done and independently approved — PR #21:** owner-executed transport and
+   service-credential rollback/revocation/restoration checkpoints, reconciled
+   after interruption. The application-profile leg was not applicable; see
+   `evidence/rbac/phase1c-rollback-revocation-proof.md`. Do not rerun the drill.
+8. **Current package:** follow `docs/runbooks/rbac-server-dashboard-readonly.md`.
+   Collect local inventory before exact live configuration. Then verify
+   `socanalyst` Dashboard read access and Wazuh write,
    administration and active-response denials. If built-in `readonly` is
    used, disclose its broader read scope in the proof. Label dashboard evidence
    DLS-scoped because agent ID 000 is excluded.
@@ -1049,10 +1050,11 @@ part of the live integration state.
    approved and merged through PR #10.
 9. **Done and approved:** restricted SSH package, live proof, evidence binding
    and reviewed-status reconciliation — merged through PRs #11–#17.
-10. **Current review package:**
+10. **Done and independently approved:**
     `docs(rbac): add Phase 1C rollback and revocation drill`
-11. `evidence(rbac): record Phase 1C rollback and restoration proof`
-12. `docs(rbac): define Server and Dashboard read-only proof`
+11. **Done — PR #21:** rollback evidence and shared caveat guards.
+12. **Current review package:** Server/Dashboard read-only design and sanitized
+    local inventory collector; live configuration awaits fresh inventory.
 13. `evidence(rbac): record Server and Dashboard read-only denials`
 14. `feat(auth): add OIDC profiles and server-side authorization`
 15. `feat(wazuh): add constrained read-only alert client`
