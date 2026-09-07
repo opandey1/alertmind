@@ -383,6 +383,11 @@ def main():
         print(json.dumps(summary, indent=2, sort_keys=True))
         print('STOP POINT: sanitized Server inventory only; no roles, users, settings or services changed.')
         return 0
+    except InventoryError as exc:
+        # InventoryError carries only a source-literal code, never remote content.
+        print('STOP: Server inventory failed at ' + stage + '; code=' + str(exc)
+              + '; no result accepted. Do not paste credentials or raw responses.')
+        return 1
     except (Exception, KeyboardInterrupt):
         print('STOP: Server inventory failed at ' + stage + '; no result accepted. Do not paste credentials or raw responses.')
         return 1

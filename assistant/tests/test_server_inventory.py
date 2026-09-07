@@ -1,4 +1,5 @@
 """Offline tests only. No credentials, VM, model, DNS or live Server requests."""
+import ast
 import contextlib
 import copy
 import hashlib
@@ -265,19 +266,58 @@ class ServerInventoryTests(unittest.TestCase):
         connect.assert_not_called()
 
     def test_main_failure_suppresses_secrets_and_clears_token(self):
-        client = mock.Mock(token='SECRET-TOKEN')
-        with mock.patch.object(m.sys, 'argv', ['inventory']), mock.patch.object(m.os, 'geteuid', return_value=0, create=True), \
-             mock.patch.object(m.sys.stdin, 'isatty', return_value=True), mock.patch.object(m.sys.stdout, 'isatty', return_value=True), \
-             mock.patch('builtins.input', return_value='REVIEWED'), mock.patch.object(m, 'make_context'), \
-             mock.patch.object(m, 'Client', return_value=client), mock.patch.object(m.getpass, 'getpass', side_effect=['OPERATOR', 'SECRET']), \
-             mock.patch.object(m, 'collect', side_effect=ValueError('SECRET-PAYLOAD')):
-            output = io.StringIO()
-            output.isatty = lambda: True
-            with contextlib.redirect_stdout(output):
-                self.assertEqual(m.main(), 1)
-            self.assertNotIn('SECRET', output.getvalue())
-            self.assertNotIn('inventory_version', output.getvalue())
-            self.assertIsNone(client.token)
+        # Enforce the reason these codes are safe to print: every production
+        # call site uses a literal, with only require() forwarding its argument.
+        tree = ast.parse(PATH.read_text(encoding='utf-8'))
+        guard = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == 'require')
+        forwarded = [n for n in ast.walk(guard) if isinstance(n, ast.Call)
+                     and isinstance(n.func, ast.Name) and n.func.id == 'InventoryError']
+        self.assertEqual(len(forwarded), 1)
+        self.assertEqual(ast.dump(forwarded[0]), ast.dump(ast.parse('InventoryError(code)', mode='eval').body))
+        codes = set()
+        nodes = list(guard.args.defaults)
+        for call in ast.walk(tree):
+            if not isinstance(call, ast.Call) or not isinstance(call.func, ast.Name):
+                continue
+            if call.func.id == 'require':
+                self.assertFalse(call.keywords)
+                self.assertIn(len(call.args), (1, 2))
+                nodes.extend(call.args[1:])
+            elif call.func.id == 'InventoryError' and call is not forwarded[0]:
+                self.assertFalse(call.keywords)
+                self.assertEqual(len(call.args), 1)
+                nodes.extend(call.args)
+        for node in nodes:
+            self.assertIsInstance(node, ast.Constant)
+            self.assertIsInstance(node.value, str)
+            self.assertRegex(node.value, r'^[A-Z][A-Z0-9_]*$')
+            codes.add(node.value)
+        self.assertTrue({'SERVICE_SERVER_IDENTITY', 'MAPPING_COLLISION', 'BROKER_RUN_AS_DISABLED',
+                         'RBAC_MODE', 'READONLY_POLICY_DRIFT', 'PEER_CERT_CHANGED'} <= codes)
+        failures = [(m.InventoryError(code), code) for code in sorted(codes)]
+        failures += [(error('SECRET-PAYLOAD PEER_CERT_CHANGED'), None)
+                     for error in (ValueError, OSError, ssl.SSLError, KeyboardInterrupt)]
+        for failure, code in failures:
+            with self.subTest(code=code, error_type=type(failure).__name__):
+                client = mock.Mock(token='SECRET-TOKEN')
+                with mock.patch.object(m.sys, 'argv', ['inventory']), mock.patch.object(m.os, 'geteuid', return_value=0, create=True), \
+                     mock.patch.object(m.sys.stdin, 'isatty', return_value=True), \
+                     mock.patch('builtins.input', return_value='REVIEWED'), mock.patch.object(m, 'make_context'), \
+                     mock.patch.object(m, 'Client', return_value=client), mock.patch.object(m.getpass, 'getpass', side_effect=['OPERATOR', 'SECRET']), \
+                     mock.patch.object(m, 'collect', side_effect=failure):
+                    output = io.StringIO()
+                    output.isatty = lambda: True
+                    with contextlib.redirect_stdout(output):
+                        self.assertEqual(m.main(), 1)
+                    expected = 'STOP: Server inventory failed at inventory'
+                    if code is not None:
+                        expected += '; code=' + code
+                    expected += '; no result accepted. Do not paste credentials or raw responses.'
+                    self.assertEqual(output.getvalue().splitlines()[-1], expected)
+                    self.assertNotIn('SECRET', output.getvalue())
+                    self.assertNotIn('OPERATOR', output.getvalue())
+                    self.assertNotIn('inventory_version', output.getvalue())
+                    self.assertIsNone(client.token)
 
     def test_context_uses_only_checked_public_certificate(self):
         # A synthetic PEM is enough here because the parser and context are mocked.

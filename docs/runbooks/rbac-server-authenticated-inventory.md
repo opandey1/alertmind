@@ -55,8 +55,12 @@ local-only helper and its manifest remain unchanged.
   HTTP header parsing uses socket timeouts; this is not a hard wall-clock kill
   of a peer that continuously trickles header bytes. Bodies must be uncompressed JSON. Non-200,
   redirects, duplicate keys, partial failures, shape errors and oversize results
-  stop without printing raw errors or a partial inventory. Failures report only
-  a static phase; no response body, username, JWT or password is emitted.
+  stop without printing raw errors or a partial inventory. Failures report a
+  static phase and, for `InventoryError` only, its predefined source-literal
+  code (for example, `SERVICE_SERVER_IDENTITY` or `PEER_CERT_CHANGED`). Other
+  exception types report only the phase, never their exception text. No response
+  body, username, JWT or password is emitted. Return the sanitized STOP line for
+  review; do not retry authentication or change permissions based on a code alone.
 
 ## Read set and interpretation
 
