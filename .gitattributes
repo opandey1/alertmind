@@ -20,3 +20,5 @@ siem/rbac/ssh-service-network-online.conf text eol=lf
 siem/rbac/SSH-BOOT-ORDER-SHA256SUMS text eol=lf
 siem/rbac/build_assistant_svc_rotation_payload.py text eol=lf
 siem/rbac/ROLLBACK-SHA256SUMS text eol=lf
+siem/rbac/collect_dashboard_inventory.py text eol=lf
+siem/rbac/SERVER-DASHBOARD-SHA256SUMS text eol=lf
