@@ -90,7 +90,11 @@ done
 dpkg-query -W -f='${Package} ${Status} ${Version}\n' \
   wazuh-manager wazuh-indexer wazuh-dashboard
 PY=/var/ossec/framework/python/bin/python3
-test -x "$PY" || { echo 'STOP: packaged Python absent'; exit 1; }
+sudo -v
+sudo test -f "$PY" && sudo test -x "$PY" || {
+  echo 'STOP: packaged Python unavailable to root'
+  exit 1
+}
 sudo "$PY" -B collect_dashboard_inventory.py
 printf '%s\n' 'STOP POINT: return sanitized output; no configuration or permission change.'
 )
@@ -102,6 +106,20 @@ the missing dependency/access at the console without installing packages in
 this gate. The fresh package versions must still support the reviewed design.
 
 ## 3. Read-only follow-up inventory before mutation
+
+The next [authenticated Server inventory package](rbac-server-authenticated-inventory.md)
+implements the Server-admin slice below and is pending independent review.
+It does not replace actual Dashboard-context or separate Indexer baseline proof.
+The owner-observed Server certificate names `localhost`, not `127.0.0.1`:
+use localhost as the verified TLS identity with explicit loopback resolution.
+Trust-file fingerprint checking alone is not exact peer-certificate pinning;
+the new client additionally checks the presented DER digest before HTTP.
+
+The original local inventory stopped at an unprivileged interpreter check.
+The owner proved root could access the packaged Python while notroot could not
+traverse root:wazuh 0750 parents. The corrected privileged guard above succeeded
+without installing Python, changing permissions or altering group membership.
+Preserve the earlier outside-Git packet and failure as historical evidence.
 
 The local summary is the first packet, not the full preflight. From its output,
 prepare and independently review a VM-local authenticated collector that:
