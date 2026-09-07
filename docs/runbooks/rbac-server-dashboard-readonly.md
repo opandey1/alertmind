@@ -53,6 +53,21 @@ hosts require individual review; no "first host wins" selection is permitted.
 The helper does not prove that a broker has run-as authority, that a Server role
 exists or that the application is read-only.
 
+The output contract is **inventory_version: 2**. Dashboard settings may use
+flat dotted keys, nested mappings or a combination of dotted parent keys and
+nested children. The collector resolves those forms equivalently. If two forms
+define the same setting, it stops even when the values agree; it never guesses
+which value the running Dashboard would choose. Malformed parent structures
+also stop with a static message, not a configuration dump.
+
+For `readonly_role_list_valid`, JSON `null` means unknown (the explicit setting
+was not found), `false` means a present value is not a list of strings, and
+`true` means a valid list, including an empty list. Both `readonly_ui_matches_*`
+fields are `null` when the list is missing or invalid; only a valid list can
+produce a confirmed `true` or `false` membership result. Do not infer an absent
+grant from `null`, coerce it to false, or use these local settings as effective
+authorization proof. Review missing/invalid settings before any live change.
+
 After independent package review, stage only this public helper on the VM at
 `/home/notroot/alertmind-server-dashboard-inventory/`. Compare its SHA-256 with
 the committed manifest, using a console transfer; do not enable an SSH shell

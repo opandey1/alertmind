@@ -10,6 +10,7 @@ from pathlib import Path
 import sys
 
 MAX_BYTES = 1024 * 1024
+MISSING = object()
 CONFIG_PATHS = (
     Path('/usr/share/wazuh-dashboard/data/wazuh/config/wazuh.yml'),
     Path('/etc/wazuh-dashboard/opensearch_dashboards.yml'),
@@ -47,10 +48,38 @@ def load_config(path):
     return document
 
 
+def resolve_setting(document, dotted_name):
+    """Resolve dotted/nested combinations without guessing key precedence.
+
+    Multiple representations of the same setting are ambiguous even if their
+    values agree. A scalar where a parent mapping is needed is also rejected.
+    Error messages stay static because keys and values may contain secrets.
+    """
+    def candidates(mapping, parts):
+        found = []
+        for length in range(1, len(parts) + 1):
+            key = '.'.join(parts[:length])
+            if key not in mapping:
+                continue
+            value = mapping[key]
+            if length == len(parts):
+                found.append(value)
+            else:
+                if not isinstance(value, dict):
+                    raise ValueError('invalid configuration parent shape')
+                found.extend(candidates(value, parts[length:]))
+        return found
+
+    found = candidates(document, dotted_name.split('.'))
+    if len(found) > 1:
+        raise ValueError('ambiguous configuration setting')
+    return found[0] if found else MISSING
+
+
 def bool_state(value):
     if type(value) is bool:
         return 'true' if value else 'false'
-    return 'missing' if value is None else 'invalid'
+    return 'missing' if value is None or value is MISSING else 'invalid'
 
 
 def summarize(wazuh, dashboard, api):
@@ -77,21 +106,22 @@ def summarize(wazuh, dashboard, api):
             'https_loopback_url': local,
             'port_55000': type(port) is int and port == 55000,
         })
-    roles = dashboard.get('opensearch_security.readonly_mode.roles')
-    valid_roles = isinstance(roles, list) and all(type(r) is str for r in roles)
+    roles = resolve_setting(dashboard, 'opensearch_security.readonly_mode.roles')
+    valid_roles = (None if roles is MISSING else
+                   isinstance(roles, list) and all(type(r) is str for r in roles))
     https = api.get('https', {})
     if not isinstance(https, dict):
         raise ValueError('invalid HTTPS configuration')
     return {
-        'inventory_version': 1,
+        'inventory_version': 2,
         'scope': 'local explicit settings only; not effective permissions or TLS proof',
         'host_count': len(hosts),
         'hosts': summaries,
         'dashboard_multitenancy': bool_state(
-            dashboard.get('opensearch_security.multitenancy.enabled')),
+            resolve_setting(dashboard, 'opensearch_security.multitenancy.enabled')),
         'readonly_role_list_valid': valid_roles,
-        'readonly_ui_matches_socanalyst_role': valid_roles and 'alertmind_socanalyst_ro' in roles,
-        'readonly_ui_matches_builtin_label': valid_roles and 'kibana_read_only' in roles,
+        'readonly_ui_matches_socanalyst_role': 'alertmind_socanalyst_ro' in roles if valid_roles else None,
+        'readonly_ui_matches_builtin_label': 'kibana_read_only' in roles if valid_roles else None,
         'api_https_enabled': bool_state(https.get('enabled')),
         'api_certificate_path_explicit': 'cert' in https,
         'api_ca_path_explicit': 'ca' in https,

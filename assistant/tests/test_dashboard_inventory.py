@@ -33,6 +33,25 @@ class DashboardInventoryTests(unittest.TestCase):
         self.assertTrue(result['readonly_ui_matches_builtin_label'])
         self.assertNotIn('SECRET-SENTINEL', str(result))
         self.assertNotIn('wazuh-wui', str(result))
+        self.assertEqual(result['inventory_version'], 2)
+        wazuh, _, api = self.inputs()
+        roles = ['alertmind_socanalyst_ro', 'kibana_read_only']
+        flat = {'opensearch_security.multitenancy.enabled': False,
+                'opensearch_security.readonly_mode.roles': roles}
+        expected = inventory.summarize(wazuh, flat, api)
+        for dashboard in (
+            {'opensearch_security': {'multitenancy': {'enabled': False},
+                                     'readonly_mode': {'roles': roles}}},
+            {'opensearch_security': {'multitenancy.enabled': False,
+                                     'readonly_mode.roles': roles}},
+            {'opensearch_security.multitenancy': {'enabled': False},
+             'opensearch_security.readonly_mode': {'roles': roles}},
+            {'opensearch_security.multitenancy.enabled': False,
+             'opensearch_security': {'readonly_mode': {'roles': roles}}},
+        ):
+            with self.subTest(dashboard=dashboard):
+                self.assertEqual(inventory.summarize(wazuh, dashboard, api), expected)
+        self.assertTrue(expected['readonly_ui_matches_socanalyst_role'])
 
     def test_missing_invalid_and_multiple_hosts_are_not_passes(self):
         wazuh, dashboard, api = self.inputs()
@@ -47,6 +66,35 @@ class DashboardInventoryTests(unittest.TestCase):
         self.assertFalse(result['hosts'][0]['port_55000'])
         self.assertEqual(result['api_https_enabled'], 'missing')
         self.assertNotIn('SECRET-SENTINEL', str(result))
+        self.assertIsNone(result['readonly_role_list_valid'])
+        self.assertIsNone(result['readonly_ui_matches_socanalyst_role'])
+        self.assertIsNone(result['readonly_ui_matches_builtin_label'])
+        for roles in (None, 'SECRET-SENTINEL', {}, [True], ['known', 1]):
+            with self.subTest(roles=roles):
+                result = inventory.summarize(wazuh, {
+                    'opensearch_security': {'readonly_mode': {'roles': roles}}}, api)
+                self.assertIs(result['readonly_role_list_valid'], False)
+                self.assertIsNone(result['readonly_ui_matches_socanalyst_role'])
+                self.assertIsNone(result['readonly_ui_matches_builtin_label'])
+                self.assertNotIn('SECRET-SENTINEL', str(result))
+        empty = inventory.summarize(wazuh, {
+            'opensearch_security.readonly_mode.roles': []}, api)
+        self.assertIs(empty['readonly_role_list_valid'], True)
+        self.assertIs(empty['readonly_ui_matches_socanalyst_role'], False)
+        for nested in (True, False):
+            # Reject conflicting AND equivalent duplicated representations.
+            with self.subTest(duplicate=nested), self.assertRaises(ValueError):
+                inventory.summarize(wazuh, {
+                    'opensearch_security.multitenancy.enabled': True,
+                    'opensearch_security': {'multitenancy': {'enabled': nested}}}, api)
+        for parent in ('SECRET-SENTINEL', [], None):
+            with self.subTest(parent=parent), self.assertRaises(ValueError):
+                inventory.summarize(wazuh, {'opensearch_security': parent}, api)
+        for nested_roles in ([], ['kibana_read_only']):
+            with self.subTest(duplicate_roles=nested_roles), self.assertRaises(ValueError):
+                inventory.summarize(wazuh, {
+                    'opensearch_security.readonly_mode.roles': [],
+                    'opensearch_security': {'readonly_mode.roles': nested_roles}}, api)
         for bad in ({}, {'hosts': []}, {'hosts': [{}]}, {'hosts': [{'x': 'secret'}]}):
             with self.subTest(bad=bad), self.assertRaises(ValueError):
                 inventory.summarize(bad, dashboard, api)
@@ -61,6 +109,15 @@ class DashboardInventoryTests(unittest.TestCase):
                     inventory.load_config(path)
             path.write_bytes(b'https:\n  enabled: true\n')
             self.assertEqual(inventory.load_config(path), {'https': {'enabled': True}})
+            results = []
+            for raw in (
+                b'opensearch_security.multitenancy.enabled: false\nopensearch_security.readonly_mode.roles: [alertmind_socanalyst_ro]\n',
+                b'opensearch_security:\n  multitenancy:\n    enabled: false\n  readonly_mode:\n    roles: [alertmind_socanalyst_ro]\n',
+            ):
+                path.write_bytes(raw)
+                wazuh, _, api = self.inputs()
+                results.append(inventory.summarize(wazuh, inventory.load_config(path), api))
+            self.assertEqual(results[0], results[1])
 
     def test_main_suppresses_failures_and_emits_no_partial_inventory(self):
         with mock.patch.object(inventory.sys, 'argv', ['inventory']):
@@ -76,6 +133,14 @@ class DashboardInventoryTests(unittest.TestCase):
             self.assertEqual([c.args[0] for c in reader.call_args_list], list(inventory.CONFIG_PATHS))
             self.assertNotIn('SECRET-SENTINEL', output.getvalue())
             self.assertIn('STOP POINT: inventory only', output.getvalue())
+            wazuh, _, api = self.inputs()
+            output = io.StringIO()
+            with mock.patch.object(inventory, 'load_config', side_effect=[
+                wazuh, {'opensearch_security': 'SECRET-SENTINEL'}, api
+            ]), contextlib.redirect_stdout(output):
+                self.assertEqual(inventory.main(), 1)
+            self.assertNotIn('SECRET-SENTINEL', output.getvalue())
+            self.assertNotIn('inventory_version', output.getvalue())
 
     def test_design_preserves_gates_and_no_live_http_in_collector(self):
         manifest = PATH.with_name('SERVER-DASHBOARD-SHA256SUMS').read_text(encoding='ascii').splitlines()
@@ -87,7 +152,9 @@ class DashboardInventoryTests(unittest.TestCase):
         for phrase in ('No live mutation is authorized by this package',
                        'not an Indexer identity', 'No active-response command',
                        'not behavioral write-denial proof',
-                       'No monitoring-index grant', 'No application runtime change'):
+                       'No monitoring-index grant', 'No application runtime change',
+                       'inventory_version: 2', 'JSON `null` means unknown',
+                       'even when the values agree'):
             self.assertIn(phrase, text)
         source = PATH.read_text(encoding='utf-8')
         for forbidden in ('import requests', 'import subprocess', 'import socket', 'urllib', '.write_text(', '.write_bytes('):
