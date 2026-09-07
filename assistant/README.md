@@ -10,11 +10,12 @@ It is built to be **safe** (secrets redacted before the model; alert content tre
 
 ## 1. Pipeline
 
-**Transport maintenance (2026-09-05):** The lab's OpenSSH `.3.6` update requires
-the separately reviewed [boot-order recovery and reboot proof](../docs/runbooks/rbac-phase1c-ssh-boot-order-recovery.md)
-before the pending rollback drill resumes. Temporary owner recovery is not
-reboot-persistence evidence. No live reader or application authentication is
-implemented by this maintenance package.
+**Transport maintenance and rollback (2026-09-07):** The OpenSSH `.3.6`
+boot-order maintenance evidence and guards were independently approved and
+merged through PR #20. The subsequent owner-executed
+[rollback/revocation record](../evidence/rbac/phase1c-rollback-revocation-proof.md)
+awaits independent review and retains its interruptions and rechecks.
+No live reader or application authentication is implemented.
 
 **Batch evaluation path** (the measured artifact):
 
@@ -77,7 +78,7 @@ assistant/
 ├── requirements-ci.lock                  # hash-pinned Python 3.12 linux set used by offline CI
 ├── README.md · DESIGN_AND_CHANGELOG.md   # design decisions, review log, Q&A
 │
-├── tests/               # 110 unittest methods across 14 files
+├── tests/               # 119 unittest methods across 15 files
 │   ├── test_redact.py            # redaction proof (plants secrets, asserts none leak)
 │   ├── test_redaction_trace.py   # trace masks values; proof and production paths cannot diverge
 │   ├── test_injection.py         # recorded injection scenario (mock + real provider)
@@ -105,7 +106,7 @@ assistant/
 ```bash
 cd assistant
 pip install -r requirements.txt
-python -m unittest discover -s tests -p "test_*.py"   # full suite — 110 tests
+python -m unittest discover -s tests -p "test_*.py"   # full suite — 119 tests
 python tests/test_redact.py                       # redaction proof (non-zero exit if a secret leaks)
 python tests/test_injection.py                    # recorded injection scenario (mock)
 python runner.py --provider mock --view operational
@@ -232,7 +233,7 @@ short timeout — so a misconfiguration fails in ~20s instead of hanging 300s pe
 
 A second Streamlit tab, **🧪 Paste & inspect**, runs arbitrary *synthetic or approved* telemetry (JSON or plain text) through `redact_alert_with_trace → apply_view → injection scan → boundary gate → prompt → one model call → schema`. It **shares the batch path's redaction implementation and model boundary, but is not the same pipeline** — it adds input limits, a redaction trace, injection visibility, delimiter blocking, egress consent and explicit one-shot audit persistence, and it does not score. It exists to make the redaction and injection claims inspectable live, not just via offline proof files.
 
-- **Local, single-user only.** Bind to localhost. Post-v1 work has independently reviewed the least-privilege Indexer identities and restricted SSH transport described in `architecture/soc-architecture.md` §8; the transport proof was merged through PR #16, while its rollback/revocation drill remains pending. This UI still has no OIDC/application authorization and does not retrieve live Wazuh alerts, so it is not yet production- or multi-user-safe.
+- **Local, single-user only.** Bind to localhost. Post-v1 work has independently reviewed the least-privilege Indexer identities and restricted SSH transport described in `architecture/soc-architecture.md` §8; the transport proof was merged through PR #16, while the owner-executed rollback/revocation drill awaits independent evidence review. This UI still has no OIDC/application authorization and does not retrieve live Wazuh alerts, so it is not yet production- or multi-user-safe.
 - **Input limits:** ≤ 50,000 chars, depth ≤ 20, ≤ 10,000 nodes.
 - **Hard boundary gate:** a literal `<ALERT_DATA>`/`</ALERT_DATA>` delimiter in any model-bound key or value **blocks the call**. Enforcement independently checks the complete serialized object immediately before the provider path.
 - **Egress consent:** every non-loopback model endpoint requires an explicit confirmation bound to the current input, provider, model and endpoint. Mock and verified loopback endpoints do not require external-egress consent.

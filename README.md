@@ -12,12 +12,13 @@ For the complete methodology, evidence index, limitations and results, see the *
 
 ## What was delivered
 
-**Transport maintenance (2026-09-05):** OpenSSH updated from `.3.5` to `.3.6`;
-the owner recovered a boot-time SSH failure after the host-only address became
-ready. The additive [boot-order recovery package](docs/runbooks/rbac-phase1c-ssh-boot-order-recovery.md)
-is awaiting independent review and a controlled reboot/transport revalidation.
-The original transport proof remains historical evidence; the rollback drill
-and live application integration remain pending.
+**Transport maintenance and rollback (2026-09-07):** The OpenSSH `.3.6`
+[boot-order maintenance evidence](evidence/rbac/phase1c-ssh-boot-order-proof.md)
+and guards were independently approved and merged through PR #20. The owner
+has now completed the transport/service-credential rollback checkpoints;
+the [consolidated drill evidence](evidence/rbac/phase1c-rollback-revocation-proof.md)
+preserves the interrupted attempts and awaits independent review.
+Live application integration remains unimplemented.
 
 | Component | Delivered state |
 |---|---|
@@ -194,7 +195,7 @@ Work after the submitted `v1.0` tag is building the least-privilege identity lay
 
 **Implemented and independently reviewed — Indexer identities.** Two dedicated Wazuh Indexer identities exist and their boundary was exercised against the live cluster. `alertmind_assistant_alerts_ro` holds no cluster permission, no tenant permission and no Server API identity — only `indices:data/read/search` and `indices:data/read/get` on `wazuh-alerts-4.x-*`, with document-level security limited to `agent.id` `001` and `002`. Wazuh Dashboard multitenancy is disabled and the service identity has no configured Dashboard tenant; `authinfo` still reports private-tenant metadata, which is metadata rather than Indexer role authority. The live proof recorded a successful bounded read of an in-scope document alongside `403` denials for create, update and delete from the same principal, with the source document's hash unchanged before and after. Setup also found and closed an inherited `own_index` grant that would have given both new identities write access to a self-named index. Sanitized evidence, containing identifiers and hashes but no credentials or raw alerts, is under [`evidence/rbac/`](evidence/rbac/); the secret-free role, mapping and scope templates are under [`siem/rbac/`](siem/rbac/) and are pinned against drift by the offline contract tests.
 
-**Implemented and independently reviewed — restricted transport.** The host-only SSH local forward was exercised end to end by the project owner: the VM listener bound only to the host-only address, the client forward bound only to Windows loopback, the pinned host-key fingerprint and CA digest checked, a paired TLS proof rejected the wrong certificate identity and accepted the correct one, and shell, PTY, remote-forward, alternate-destination and password-only attempts were denied with all four Wazuh services active before and after. The sanitized [Phase 1C transport evidence](evidence/rbac/phase1c-ssh-transport-proof.md) and its drift-binding tests were independently reviewed and merged through PR #16. This closes the transport evidence gate only; the rollback/revocation drill remains pending, so Phase 1C as a whole is not complete.
+**Implemented and independently reviewed — restricted transport.** The host-only SSH local forward was exercised end to end by the project owner: the VM listener bound only to the host-only address, the client forward bound only to Windows loopback, the pinned host-key fingerprint and CA digest checked, a paired TLS proof rejected the wrong certificate identity and accepted the correct one, and shell, PTY, remote-forward, alternate-destination and password-only attempts were denied with all four Wazuh services active before and after. The sanitized [Phase 1C transport evidence](evidence/rbac/phase1c-ssh-transport-proof.md) and its drift-binding tests were independently reviewed and merged through PR #16. This closes the transport evidence gate only; the rollback/revocation checkpoints are owner-executed but their independent evidence review is pending, so Phase 1C as a whole is not complete.
 
 **Not implemented.** There is no OIDC authentication, no application authorization, no constrained reader module, no live-alert UI and no audit integration. The assistant application still consumes only the frozen corpus and analyst-pasted input, exactly as in `v1.0`; nothing in it reads from Wazuh.
 
@@ -321,7 +322,7 @@ cd assistant
 python -m unittest discover -s tests -p "test_*.py"
 ```
 
-The current suite contains **110 tests** covering provider request construction, schema/error metadata, runtime/formal-schema alignment, non-destructive audit reconstruction, explicit corpus-subset selection, redaction, strict-view label leakage, injection markers, boundary blocking, consent, ad hoc audit semantics, Streamlit state handling, and the offline RBAC contract checks that pin the committed identity, role, DLS, transport and unexecuted rollback/revocation packages against drift.
+The current suite contains **119 tests** covering provider request construction, schema/error metadata, runtime/formal-schema alignment, non-destructive audit reconstruction, explicit corpus-subset selection, redaction, strict-view label leakage, injection markers, boundary blocking, consent, ad hoc audit semantics, Streamlit state handling, and the offline RBAC contract checks that pin the committed identity, role, DLS, transport and rollback/revocation packages and the owner-reported drill evidence against drift.
 
 Re-score a retained audit log without changing committed evidence:
 
@@ -332,7 +333,7 @@ python rebuild_from_audit.py outputs/runs/<run_id>/audit-log.jsonl --score-only
 
 Omitting `--score-only` writes derived files under `assistant/outputs/rebuilt/<run_id>/`, not beside the source audit log. Existing derived files require an explicit `--overwrite`, and the timing-log default is resolved from the repository rather than the caller's working directory.
 
-**Offline CI.** Every push to `main` and pull request targeting it runs the 110-test regression suite and re-derives the CI-protected assistant-evaluation findings from committed artifacts: frozen-corpus and timing-log SHA-256, canonical scoring for seven retained result-bearing runs, the §9.8 token/latency/hash findings, and the accepted Qwen pair's normalized audit hashes, manifests, model digest and effective request configuration. No live SIEM, model provider, credentials or repository secrets are required. The badge therefore shows that these specific committed measurements still reproduce without another model call. It does not cover MTTD, the assisted-timing study, human grounding verdicts, dashboards or detection counts, which are evidenced elsewhere in this repository. Workflow: [`.github/workflows/offline-ci.yml`](.github/workflows/offline-ci.yml); assertions: [`measurement/verify_frozen_evidence.py`](measurement/verify_frozen_evidence.py).
+**Offline CI.** Every push to `main` and pull request targeting it runs the 119-test regression suite and re-derives the CI-protected assistant-evaluation findings from committed artifacts: frozen-corpus and timing-log SHA-256, canonical scoring for seven retained result-bearing runs, the §9.8 token/latency/hash findings, and the accepted Qwen pair's normalized audit hashes, manifests, model digest and effective request configuration. No live SIEM, model provider, credentials or repository secrets are required. The badge therefore shows that these specific committed measurements still reproduce without another model call. It does not cover MTTD, the assisted-timing study, human grounding verdicts, dashboards or detection counts, which are evidenced elsewhere in this repository. Workflow: [`.github/workflows/offline-ci.yml`](.github/workflows/offline-ci.yml); assertions: [`measurement/verify_frozen_evidence.py`](measurement/verify_frozen_evidence.py).
 
 **Rebuilding the lab from a clean clone:** follow [`docs/rebuild-guide.md`](docs/rebuild-guide.md). Recovery and credential-reset procedures are in [`docs/runbooks/`](docs/runbooks/), and [`docs/artifacts.md`](docs/artifacts.md) indexes the produced artifacts.
 
@@ -370,7 +371,7 @@ The superseded Qwen pilots and pre-commit candidate pair remain committed for tr
 - One synthetic attack payload identifies itself as an AlertMind test after decoding, creating a documented construct-validity limitation.
 - Redaction does not guarantee removal of unknown or encoded secrets.
 - Prompt-injection markers provide detection and visibility; only reserved-boundary attempts are deterministically blocked. Semantic model influence remains possible.
-- Least-privilege Wazuh Indexer identities `socanalyst` and `assistant-svc` and the restricted host-only SSH transport now have independently reviewed live evidence. Live read-only ingestion is still not implemented: OIDC authentication, application authorization, the constrained reader and the live-alert UI all remain unbuilt, no application code reads from Wazuh, and the transport rollback/revocation drill is still pending. See [Post-v1 RBAC and read-only ingestion status](#post-v1-rbac-and-read-only-ingestion-status).
+- Least-privilege Wazuh Indexer identities `socanalyst` and `assistant-svc` and the restricted host-only SSH transport now have independently reviewed live evidence. Live read-only ingestion is still not implemented: OIDC authentication, application authorization, the constrained reader and the live-alert UI all remain unbuilt, no application code reads from Wazuh, and the owner-executed transport rollback/revocation drill still awaits independent evidence review. See [Post-v1 RBAC and read-only ingestion status](#post-v1-rbac-and-read-only-ingestion-status).
 - The lab certificate chain publishes no CRL distribution point or Authority Information Access, so revocation cannot be evaluated for it; a reviewed certificate-chain replacement is the intended fix rather than relaxing verification.
 - High-confidence injection quarantine with an explicit audited override remains future work.
 - Live cloud ingestion is an optional stretch goal; the project uses the required Windows and Linux sources. A static cloud sample was demonstrated only.
