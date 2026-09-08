@@ -150,7 +150,9 @@ class BrokerCodeInventoryTests(unittest.TestCase):
         for raw in (b'', b'textx', b'\xffxxx', b'\x00xxx'):
             with self.subTest(raw=raw):
                 path, source, _, _ = self.read_fixture(raw=raw)
-                with self.assertRaises(Exception): inventory.read_public(path)
+                code = 'SOURCE_ENCODING' if raw in (b'\xffxxx', b'\x00xxx') else 'FILE_SIZE'
+                with self.assertRaisesRegex(inventory.InventoryError, '^' + code + '$'):
+                    inventory.read_public(path)
                 source.__exit__.assert_called_once()
         before = self.metadata(); changed = copy.copy(before); changed.st_ino += 1
         path, _, _, _ = self.read_fixture(states=[before, changed])
@@ -158,6 +160,26 @@ class BrokerCodeInventoryTests(unittest.TestCase):
         path, _, opener, _ = self.read_fixture(parent_bad=True)
         with self.assertRaisesRegex(inventory.InventoryError, 'UNTRUSTED_FILE_METADATA'): inventory.read_public(path)
         opener.assert_not_called()
+
+        for raw in (b'\xff', b'\x00'):
+            data = self.blobs(); data['broker_client'] = raw
+            with self.assertRaisesRegex(inventory.InventoryError, '^SOURCE_ENCODING$'):
+                inventory.summarize(data)
+            with self.assertRaisesRegex(inventory.InventoryError, '^SOURCE_ENCODING$'):
+                inventory.parse_manifest(raw, 'wazuhCore')
+
+        for error, code in ((FileNotFoundError, 'PUBLIC_FILE_MISSING'),
+                            (PermissionError, 'PUBLIC_FILE_ACCESS_DENIED'),
+                            (IsADirectoryError, 'PUBLIC_FILE_IS_DIRECTORY')):
+            for boundary in ('lstat', 'open', 'read'):
+                with self.subTest(error=error, boundary=boundary):
+                    path, source, opener, _ = self.read_fixture()
+                    target = {'lstat': path.lstat, 'open': opener, 'read': source.read}[boundary]
+                    target.side_effect = error('SECRET-SENTINEL')
+                    with self.assertRaisesRegex(inventory.InventoryError, '^' + code + '$'):
+                        inventory.read_public(path)
+                    if boundary == 'read':
+                        source.__exit__.assert_called_once()
         path, _, opener, _ = self.read_fixture(initial_size=inventory.MAX_BYTES + 1)
         with self.assertRaisesRegex(inventory.InventoryError, 'FILE_SIZE'): inventory.read_public(path)
         opener.assert_not_called()
@@ -180,6 +202,15 @@ class BrokerCodeInventoryTests(unittest.TestCase):
                 self.assertEqual(inventory.main(), 0)
             self.assertIn('broker execution and live changes remain on hold', output.getvalue())
 
+            for error, code in ((FileNotFoundError('SECRET-SENTINEL'), 'PUBLIC_FILE_MISSING'),
+                                (PermissionError('SECRET-SENTINEL'), 'PUBLIC_FILE_ACCESS_DENIED'),
+                                (IsADirectoryError('SECRET-SENTINEL'), 'PUBLIC_FILE_IS_DIRECTORY')):
+                output = io.StringIO()
+                # Exercise translation -> collect -> CLI, not a pretranslated mock.
+                with mock.patch.object(inventory, '_read_public', side_effect=error), contextlib.redirect_stdout(output):
+                    self.assertEqual(inventory.main(), 1)
+                self.assertEqual(output.getvalue(), 'STOP: broker code inventory failed; code=' + code + '; no result accepted.\n')
+
     def test_main_rejects_args_and_nonroot_before_read(self):
         for args, uid, platform in ((['collector', 'path'], 0, 'linux'), (['collector'], 1000, 'linux'),
                                     (['collector'], 0, 'win32')):
@@ -196,8 +227,20 @@ class BrokerCodeInventoryTests(unittest.TestCase):
         self.assertEqual((digest, name), (hashlib.sha256(PATH.read_bytes()).hexdigest(), PATH.name))
         source = PATH.read_text(encoding='utf-8')
         tree = ast.parse(source, feature_version=(3, 10))
-        imports = {n.names[0].name for n in ast.walk(tree) if isinstance(n, ast.Import)}
-        self.assertEqual(imports, {'hashlib', 'json', 'os', 're', 'stat', 'sys'})
+        def check_capabilities(tree):
+            imports = {alias.name for n in ast.walk(tree) if isinstance(n, ast.Import) for alias in n.names}
+            imports |= {n.module for n in ast.walk(tree) if isinstance(n, ast.ImportFrom)}
+            self.assertEqual(imports, {'hashlib', 'json', 'os', 'pathlib', 're', 'stat', 'sys'})
+            os_calls = {n.func.attr for n in ast.walk(tree) if isinstance(n, ast.Call)
+                        and isinstance(n.func, ast.Attribute) and isinstance(n.func.value, ast.Name)
+                        and n.func.value.id == 'os'}
+            self.assertLessEqual(os_calls, {'open', 'fdopen', 'fstat', 'close', 'geteuid'})
+        check_capabilities(tree)
+        # Parse only: these regression mutations must never be imported/executed.
+        for addition in ('from http.client import HTTPSConnection', 'os.system("never execute")',
+                         'os.popen("never execute")', 'os.execv("never execute", [])'):
+            with self.subTest(addition=addition), self.assertRaises(AssertionError):
+                check_capabilities(ast.parse(source + '\n' + addition, feature_version=(3, 10)))
         for forbidden in ('subprocess', 'socket', 'urllib', 'getpass', 'eval(', 'exec(', '.write_text(', '.write_bytes('):
             self.assertNotIn(forbidden, source)
         for call in (n for n in ast.walk(tree) if isinstance(n, ast.Call)):

@@ -51,6 +51,25 @@ def trusted(st, directory=False):
 
 
 def read_public(path):
+    try:
+        return _read_public(path)
+    except FileNotFoundError:
+        raise InventoryError('PUBLIC_FILE_MISSING') from None
+    except PermissionError:
+        raise InventoryError('PUBLIC_FILE_ACCESS_DENIED') from None
+    except IsADirectoryError:
+        raise InventoryError('PUBLIC_FILE_IS_DIRECTORY') from None
+
+
+def decode_source(raw):
+    require(b'\x00' not in raw, 'SOURCE_ENCODING')
+    try:
+        return raw.decode('utf-8')
+    except UnicodeDecodeError:
+        raise InventoryError('SOURCE_ENCODING') from None
+
+
+def _read_public(path):
     # Fixed root-owned tree: reject symlink components and group/world writes.
     # O_NOFOLLOW plus descriptor/path equality guards the last component.
     # Root can still change files; two passes are not an atomic snapshot.
@@ -71,8 +90,7 @@ def read_public(path):
             require(metadata(before) == metadata(os.fstat(source.fileno())), 'FILE_CHANGED')
         require(metadata(before) == metadata(path.lstat()), 'FILE_CHANGED')
         require(len(raw) == before.st_size and len(raw) <= MAX_BYTES, 'FILE_SIZE')
-        require(b'\x00' not in raw, 'SOURCE_ENCODING')
-        raw.decode('utf-8')
+        decode_source(raw)
         return raw
     finally:
         if fd is not None:
@@ -92,7 +110,7 @@ def reject_constant(_):
 
 
 def parse_manifest(raw, expected_id, version=None):
-    value = json.loads(raw.decode('utf-8'), object_pairs_hook=unique_object,
+    value = json.loads(decode_source(raw), object_pairs_hook=unique_object,
                        parse_constant=reject_constant)
     require(isinstance(value, dict) and value.get('id') == expected_id
             and value.get('server') is True, 'PLUGIN_MANIFEST')
@@ -109,8 +127,7 @@ def summarize(blobs):
     require(set(blobs) == set(FILES), 'FILE_SET')
     require(all(isinstance(b, bytes) and 0 < len(b) <= MAX_BYTES for b in blobs.values()), 'FILE_SIZE')
     require(sum(map(len, blobs.values())) <= MAX_TOTAL_BYTES, 'TOTAL_SIZE')
-    texts = {name: raw.decode('utf-8') for name, raw in blobs.items()}
-    require(all('\x00' not in t for t in texts.values()), 'SOURCE_ENCODING')
+    texts = {name: decode_source(raw) for name, raw in blobs.items()}
     core = parse_manifest(blobs['core_manifest'], 'wazuhCore', '4.14.7-01')
     main = parse_manifest(blobs['main_manifest'], 'wazuh', '4.14.7-01')
     security = parse_manifest(blobs['security_manifest'], 'securityDashboards')
