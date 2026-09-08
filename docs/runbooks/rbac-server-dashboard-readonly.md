@@ -1,7 +1,8 @@
 # Server/Dashboard read-only implementation gate
 
-**Status:** Local implementation package; awaiting independent review and fresh
-VM inventory. No live mutation is authorized by this package. No application
+**Status:** Local configuration and corrected Server-admin inventory completed
+from owner-reported output. The next [Dashboard broker preflight package](rbac-dashboard-broker-preflight.md)
+awaits independent review. No live mutation is authorized by this package. No application
 runtime change is included. The authenticated analyst profile is still absent.
 
 **Baseline:** PR #21 (`41105a9`) merged the independently approved transport and
@@ -107,9 +108,14 @@ this gate. The fresh package versions must still support the reviewed design.
 
 ## 3. Read-only follow-up inventory before mutation
 
-The next [authenticated Server inventory package](rbac-server-authenticated-inventory.md)
-implements the Server-admin slice below and is pending independent review.
-It does not replace actual Dashboard-context or separate Indexer baseline proof.
+The [authenticated Server inventory package](rbac-server-authenticated-inventory.md)
+implements the Server-admin slice below. The reviewed reader correction passed
+in the owner's 8 September execution. It does not replace actual Dashboard-context
+or separate Indexer baseline proof. The next [broker code inventory](rbac-dashboard-broker-preflight.md)
+checks installed code before broker execution: versioned upstream constructs an
+HTTPS agent with certificate verification disabled. Separate curl/Python TLS
+proofs do not prove the Dashboard broker verifies TLS. No credential-bearing
+broker test or TLS exception is authorized by this new inventory package.
 The owner-observed Server certificate names `localhost`, not `127.0.0.1`:
 use localhost as the verified TLS identity with explicit loopback resolution.
 Trust-file fingerprint checking alone is not exact peer-certificate pinning;
@@ -219,9 +225,11 @@ identity/context, exact requests/status/error classification, positive controls,
 denials, broader Server-read disclosure, failures and rollback results. Unrun
 rows remain NOT TESTED. Do not add a "proof" file before execution.
 
-**Next owner action:** after Claude approves this package, run the local
-inventory via its public staging packet and return only the sanitized summary.
-**Next author action:** use that inventory to produce the authenticated
-readback and exact mutation/denial package; do not improvise live permissions.
+**Next owner action:** obtain independent review of the new broker-code package;
+then run only its newly pinned, local-only staging/inventory packet. Do not replay
+the completed configuration/Server inventory or enter broker credentials.
+**Next author action:** review installed code and resolve the broker TLS decision
+before producing the actual context/broker proof and exact mutation/denial
+package; do not improvise live permissions.
 Then, after this gate passes, implement OIDC/named permissions, the constrained
 Indexer reader, guarded live-alert triage and transactional sanitized auditing.

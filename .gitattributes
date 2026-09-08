@@ -24,3 +24,5 @@ siem/rbac/collect_dashboard_inventory.py text eol=lf
 siem/rbac/SERVER-DASHBOARD-SHA256SUMS text eol=lf
 siem/rbac/collect_server_inventory.py text eol=lf
 siem/rbac/SERVER-AUTH-SHA256SUMS text eol=lf
+siem/rbac/collect_broker_code_inventory.py text eol=lf
+siem/rbac/BROKER-CODE-SHA256SUMS text eol=lf
