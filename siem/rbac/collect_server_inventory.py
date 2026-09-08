@@ -144,6 +144,7 @@ class Client:
         peer = self.connect()  # Identity + exact peer pin checked BEFORE any HTTP headers.
         connection = http.client.HTTPConnection(HOSTNAME, ADDRESS[1], timeout=self.timeout())
         connection.sock = peer
+        response = None
         try:
             headers = {'Host': 'localhost:55000', 'Accept': 'application/json',
                        'Accept-Encoding': 'identity', 'Connection': 'close'}
@@ -160,18 +161,47 @@ class Client:
             require(response.getheader('Content-Encoding', 'identity') == 'identity', 'ENCODING')
             require(response.getheader('Content-Type', '').split(';')[0].strip().lower()
                     == 'application/json', 'CONTENT_TYPE')
-            chunks, total = [], 0
-            while True:
-                peer.settimeout(self.timeout())
-                chunk = response.read1(min(65536, MAX_BYTES + 1 - total))
-                if not chunk:
-                    break
-                total += len(chunk)
-                require(total <= MAX_BYTES, 'RESPONSE_SIZE')
-                chunks.append(chunk)
-            return envelope(b''.join(chunks))
+            return envelope(self.read_body(response, peer))
         finally:
+            if response is not None:
+                response.close()
             connection.close()
+
+    def read_body(self, response, peer):
+        # HTTPResponse.read1 closes its file at the Content-Length boundary.
+        # With Connection: close, that can release the final socket reference.
+        # Never touch the peer again once all declared bytes have been read.
+        transfer = response.getheader('Transfer-Encoding', None)
+        length = response.getheader('Content-Length', None)
+        require(transfer is None or (transfer.strip().lower() == 'chunked'
+                and length is None), 'HTTP_FRAMING')
+        declared = None
+        if length is not None:
+            require(re.fullmatch(r'[0-9]{1,20}', length.strip()) is not None, 'HTTP_FRAMING')
+            declared = int(length.strip())
+            require(declared <= MAX_BYTES, 'RESPONSE_SIZE')
+        chunks, total = [], 0
+        while declared is None or total < declared:
+            amount = min(65536, MAX_BYTES + 1 - total)
+            if declared is not None:
+                amount = min(amount, declared - total)
+            try:
+                peer.settimeout(self.timeout())
+                chunk = response.read1(amount)
+            except TimeoutError:
+                raise InventoryError('RESPONSE_TIMEOUT') from None
+            except (http.client.HTTPException, OSError):
+                raise InventoryError('RESPONSE_IO') from None
+            if not chunk:
+                require(declared is None or total == declared, 'TRUNCATED_RESPONSE')
+                break
+            total += len(chunk)
+            require(total <= MAX_BYTES, 'RESPONSE_SIZE')
+            chunks.append(chunk)
+        # For chunked bodies, HTTPResponse must reach its terminal chunk; for
+        # unframed bodies, only EOF delimits the message. Neither permits an
+        # early return merely because a prefix already parses as valid JSON.
+        return b''.join(chunks)
 
     def authenticate(self, username, password):
         require(type(username) is str and 1 <= len(username) <= 128
