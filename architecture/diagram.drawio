@@ -125,7 +125,7 @@
           <mxGeometry relative="1" as="geometry">
           </mxGeometry>
         </mxCell>
-        <mxCell id="e9-l" value="TARGET: API :55000 via assistant-svc (not implemented)" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];labelBackgroundColor=#0b1220;fontColor=#c7d2e4;fontSize=17;" vertex="1" connectable="0" parent="e9">
+        <mxCell id="e9-l" value="TARGET: Indexer API :9200 · wazuh-alerts-4.x-* · assistant-svc (reader not implemented)" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];labelBackgroundColor=#0b1220;fontColor=#c7d2e4;fontSize=17;" vertex="1" connectable="0" parent="e9">
           <mxGeometry x="0" relative="1" as="geometry">
             <mxPoint x="0" y="0" as="offset"/>
           </mxGeometry>
