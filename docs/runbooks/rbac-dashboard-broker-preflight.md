@@ -6,9 +6,15 @@ by this package. Do not issue a run-as token or enter broker credentials yet.
 No assistant runtime change is included. This is a prerequisite to the actual
 Dashboard-context/broker proof, not completion of that proof.
 
-The original package was approved and merged in PR #26. This diagnostic/guard
-follow-up needs independent review and a newly hash-pinned staging packet;
-do not transfer the earlier helper digest with the revised file.
+The original package and diagnostic follow-up were approved and merged in
+PRs #26/#27. The owner's execution then stopped with UNTRUSTED_FILE_METADATA.
+Metadata-only inspection showed root:root ancestors through /usr/share, but
+wazuh-dashboard:wazuh-dashboard ownership from /usr/share/wazuh-dashboard
+downward (directories 0750, files 0640, no displayed symlinks). The collector's
+root-only assumption was incompatible with that observation; this is not by
+itself evidence of compromise. Do not change VM ownership or permissions.
+This ownership correction needs independent review and a NEW hash-pinned
+staging packet. Preserve the failed packet/stage; do not replay or overwrite it.
 
 ## 1. Accepted prerequisite and new safety finding
 
@@ -81,8 +87,19 @@ imports or executes those JavaScript files. It never reads `wazuh.yml`, password
 archives, certificates/private keys, application data, logs or browser storage.
 It has no HTTP, credential prompts, subprocesses, file writes or custom path option.
 
-- Root/Linux/no arguments. All path components must be non-symlinks, root-owned
-  and not group/world writable; targets must be regular files.
+- Root/Linux/no arguments; exactly the nine allowlisted targets, no sibling or
+  traversal paths. Ancestors above /usr/share/wazuh-dashboard require root:root.
+  Within that exact directory boundary allow root:root or the named
+  wazuh-dashboard:wazuh-dashboard UID/GID pair, never arbitrary non-root owners
+  or mixed pairs. Resolve the OS account/group, require nonzero IDs and a matching
+  primary group, and recheck the same identity after both passes.
+- All components remain non-symlinks and not group/world writable; directories
+  and regular-file targets are type checked. No permission repair is performed.
+- Each open is anchored to the preceding checked directory descriptor, with
+  O_NOFOLLOW on every component (not just the final file). Compare pre-open,
+  descriptor and post-read path metadata; close all handles even on failure.
+  These checks reduce path-replacement risk but do not make a service-writable
+  tree immutable or the observation atomic.
 - Descriptor/path checks, no-follow/nonblocking open, 512 KiB/file and 3 MiB/pass
   limits, strict UTF-8, duplicate-manifest-key and nonfinite-number rejection.
 - Requires `wazuh` and `wazuhCore` manifests at `4.14.7-01`, server enabled and
@@ -93,6 +110,11 @@ It has no HTTP, credential prompts, subprocesses, file writes or custom path opt
   process loaded those files. Keep updates/configuration work quiescent.
 - Emits known labels/relative paths, lengths, SHA-256 values, bounded version
   strings and literal indicators, never source snippets or raw error text.
+- Inventory version 2 includes ownership-policy limits and resolved service
+  UID/GID. Service-owned code is mutable by the service account. The allowlist
+  is an observation policy, NOT package authenticity or integrity attestation;
+  package_authenticity_proven and atomic_snapshot_proven are always false.
+  A compromised service account can change code while preserving allowed modes.
 
 The deployment layout is a hypothesis based on plugin IDs and server build
 paths. If a file is absent, inaccessible, symlinked, unusually large or the
@@ -120,6 +142,11 @@ or exception text. They still stop execution with no partial inventory:
 | `PUBLIC_FILE_ACCESS_DENIED` | An operating-system permission check denied access |
 | `PUBLIC_FILE_IS_DIRECTORY` | A filesystem operation raised an is-directory error |
 | `SOURCE_ENCODING` | NUL or invalid UTF-8, consistently at all decoding entry points |
+| `SERVICE_IDENTITY_UNAVAILABLE` | Named Dashboard account or group lookup was missing |
+| `SERVICE_IDENTITY_INVALID` | Named account/group, nonzero IDs or primary group did not match |
+| `SERVICE_IDENTITY_CHANGED` | Resolved service UID/GID differed after the observations |
+| `FIXED_PATH_REQUIRED` | Requested target was outside the exact nine-file allowlist |
+| `DIRECTORY_CHANGED` | Ancestor path/descriptor metadata differed during a read |
 
 A directory rejected earlier by the regular-file metadata guard still reports
 `UNTRUSTED_FILE_METADATA`. Other unexpected exceptions retain the generic STOP;
