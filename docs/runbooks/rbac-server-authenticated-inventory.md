@@ -5,6 +5,38 @@ inventory package. Independent approval and a separate owner staging packet
 must precede execution. No application runtime change, role edit, Server user
 creation, Dashboard edit, service operation or additional tunnel is included.
 
+## Reader correction — replacement review required
+
+The owner ran the previously approved `510f049` package and reached `inventory`
+before a generic STOP, without a diagnostic code or accepted summary. This means
+authentication/token parsing completed, not that administrator permissions were
+verified. The precise live exception and HTTP framing were not captured.
+
+Offline tests reproduced a client defect: a final fixed-length `read1()` can
+close the response file and release the socket, so the old loop's next
+`peer.settimeout()` touches a closed descriptor. The corrected reader stops at
+the declared length without another socket operation. It rejects premature EOF
+even if the bytes already form valid JSON. Chunked messages are read through
+the standard-library terminal-chunk handling; bodies without length/transfer
+headers remain EOF-delimited (there is no independent length to verify).
+
+The reader rejects ambiguous/unsupported transfer framing, invalid or duplicate
+Content-Length values and bodies above the existing byte cap. Deadlines and
+timeouts remain enforced between reads; this does not add a hard wall-clock
+deadline for trickled headers/trailers. Response files are explicitly closed on
+success, errors and the credential-free 401 probe. Existing TLS, authentication,
+route and permission checks are unchanged.
+
+New static failure codes include `HTTP_FRAMING`, `TRUNCATED_RESPONSE`,
+`RESPONSE_TIMEOUT` and `RESPONSE_IO`. They never include remote values or raw
+exception text. Other exception types retain the generic phase-only STOP.
+
+**Do not replay the original execution packet or overwrite its staging files.**
+Keep the earlier failure as evidence. This replacement helper/manifest needs
+Claude's independent approval and a newly pinned transfer/run packet before
+another owner execution. No password reset or additional login is needed to
+review this correction offline.
+
 ## Purpose and completed prerequisites
 
 The owner completed the local version-2 configuration inventory and paired
@@ -154,3 +186,8 @@ The tests also generate disposable synthetic certificates using the OpenSSL CLI
 (Ubuntu runner or Git for Windows) and exercise real TLS through MemoryBIO,
 without listening sockets or network access. This adds no Python dependency;
 synthetic private keys exist only in a temporary test directory and are removed.
+Reader regressions use real `HTTPConnection`/`HTTPResponse` with synthetic byte
+streams and a peer modelling socket/file reference lifetime: no network socket.
+They cover fragmented fixed-length/chunked/EOF reads, premature EOF, malformed
+framing, bounds, cleanup, safe failure codes and a full synthetic inventory.
+This is not a real VM/TLS socket integration test or proof of the live failure.

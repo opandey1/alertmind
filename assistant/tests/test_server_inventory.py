@@ -64,7 +64,171 @@ class FakeAPI:
         return page(copy.deepcopy(self.catalog[kind]))
 
 
+class FragmentedReader(io.BufferedReader):
+    def __init__(self, data, fragment):
+        super().__init__(io.BytesIO(data))
+        self.fragment = fragment
+        self.body_reads = 0
+
+    def read1(self, size=-1):
+        self.body_reads += 1
+        return super().read1(min(size, self.fragment))
+
+
+class WirePeer:
+    """Synthetic socket.makefile lifetime; real HTTPConnection/HTTPResponse.
+
+    No network socket: close() drops the connection's reference while the
+    response file keeps it alive. Its final close makes settimeout fail just
+    as a released socket descriptor would. sendall discards request bytes.
+    """
+    def __init__(self, wire, fragment=65536):
+        self.file = FragmentedReader(wire, fragment)
+        self.closed = False
+        self.timeouts_after_release = 0
+
+    def makefile(self, *args, **kwargs):
+        return self.file
+
+    def sendall(self, data):
+        pass
+
+    def close(self):
+        self.closed = True
+
+    def settimeout(self, value):
+        if self.closed and self.file.closed:
+            self.timeouts_after_release += 1
+            raise OSError(9, 'synthetic released socket')
+
+
+def wire(body, framing='length', extra=b'', connection=b'close'):
+    header = b'HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nConnection: ' + connection + b'\r\n'
+    if framing == 'length':
+        header += b'Content-Length: ' + str(len(body)).encode() + b'\r\n'
+    elif framing == 'chunked':
+        header += b'Transfer-Encoding: chunked\r\n'
+        # Multiple chunks, including valid JSON prefixes, must all be consumed.
+        pieces = (body[:7], body[7:])
+        body = b''.join(format(len(p), 'x').encode() + b'\r\n' + p + b'\r\n'
+                        for p in pieces if p) + b'0\r\n\r\n'
+    return header + extra + b'\r\n' + body
+
+
 class ServerInventoryTests(unittest.TestCase):
+    def read_wire(self, message, fragment=65536):
+        peer = WirePeer(message, fragment)
+        client = m.Client(mock.Mock())
+        client.token = 'SYNTHETIC-TOKEN'
+        try:
+            with mock.patch.object(client, 'connect', return_value=peer):
+                return client.request('GET', '/')
+        finally:
+            self.assertTrue(peer.closed)
+            self.assertTrue(peer.file.closed)
+            self.assertEqual(peer.timeouts_after_release, 0)
+
+    def test_real_http_fixed_length_socket_lifetime(self):
+        body = b'{"error":0,"data":{"value":1}}'
+        for fragment in (1, 7, 65536):
+            for connection in (b'close', b'keep-alive'):
+                with self.subTest(fragment=fragment, connection=connection):
+                    self.assertEqual(self.read_wire(wire(body, connection=connection), fragment), {'value': 1})
+        # An empty declared body is invalid JSON, not a socket-lifetime failure.
+        with self.assertRaises(json.JSONDecodeError):
+            self.read_wire(wire(b''))
+
+    def test_real_http_chunked_and_close_delimited_bodies(self):
+        body = b'{"error":0,"data":{"value":1}}'
+        for framing in ('chunked', 'eof'):
+            for fragment in (1, 7, 65536):
+                with self.subTest(framing=framing, fragment=fragment):
+                    self.assertEqual(self.read_wire(wire(body, framing), fragment), {'value': 1})
+        trailer = wire(body, 'chunked').replace(b'0\r\n\r\n', b'0\r\nX-Note: synthetic\r\n\r\n')
+        self.assertEqual(self.read_wire(trailer), {'value': 1})
+
+    def test_real_http_truncation_rejected_even_for_valid_json_prefix(self):
+        body = b'{"error":0,"data":{}}'
+        length = str(len(body)).encode()
+        short = wire(body).replace(b'Content-Length: ' + length,
+                                   b'Content-Length: ' + str(len(body) + 4).encode())
+        cases = [(short, 'TRUNCATED_RESPONSE'),
+                 (wire(body)[:-3], 'TRUNCATED_RESPONSE'),
+                 (wire(body, 'chunked')[:-5], 'RESPONSE_IO'),
+                 (wire(body, 'chunked').replace(b'0\r\n\r\n', b'Z\r\n'), 'RESPONSE_IO')]
+        for message, code in cases:
+            with self.subTest(code=code), mock.patch.object(m, 'envelope') as parse:
+                with self.assertRaisesRegex(m.InventoryError, '^' + code + '$'):
+                    self.read_wire(message, 3)
+                parse.assert_not_called()
+
+    def test_real_http_ambiguous_and_unsupported_framing_rejected(self):
+        body = b'{"error":0,"data":{}}'
+        for extra in (b'Content-Length: -1\r\n', b'Content-Length: +20\r\n',
+                      b'Content-Length: nope\r\n', b'Content-Length: 20, 20\r\n',
+                      b'Transfer-Encoding: gzip\r\n', b'Transfer-Encoding: gzip, chunked\r\n'):
+            with self.subTest(extra=extra), self.assertRaisesRegex(m.InventoryError, '^HTTP_FRAMING$'):
+                self.read_wire(wire(body, 'eof', extra))
+        for message in (wire(body, extra=b'Content-Length: 20\r\n'),
+                        wire(body, 'chunked', extra=b'Content-Length: 20\r\n')):
+            with self.assertRaisesRegex(m.InventoryError, '^HTTP_FRAMING$'):
+                self.read_wire(message)
+
+    def test_real_http_body_bounds_and_safe_io_errors(self):
+        body = b'{"error":0,"data":{}}'
+        # The pre-credential 401 must close the file without reading its body.
+        peer = WirePeer(wire(b'SECRET-ERROR').replace(b'200 OK', b'401 Unauthorized'))
+        client = m.Client(mock.Mock())
+        with mock.patch.object(client, 'connect', return_value=peer):
+            self.assertIsNone(client.request('GET', '/'))
+        self.assertTrue(peer.file.closed)
+        self.assertTrue(peer.closed)
+        self.assertEqual(peer.file.body_reads, 0)
+        with mock.patch.object(m, 'MAX_BYTES', 64):
+            for framing in ('length', 'chunked', 'eof'):
+                with self.subTest(framing=framing):
+                    self.assertEqual(self.read_wire(wire(body.ljust(64), framing)), {})
+                    with self.assertRaisesRegex(m.InventoryError, '^RESPONSE_SIZE$'):
+                        self.read_wire(wire(body.ljust(65), framing))
+        for error, code in ((TimeoutError('SECRET'), 'RESPONSE_TIMEOUT'),
+                            (OSError('SECRET'), 'RESPONSE_IO'),
+                            (m.http.client.IncompleteRead(b'SECRET'), 'RESPONSE_IO')):
+            peer = WirePeer(wire(body))
+            client = m.Client(mock.Mock())
+            client.token = 'SYNTHETIC-TOKEN'
+            with mock.patch.object(client, 'connect', return_value=peer), \
+                 mock.patch.object(peer.file, 'read1', side_effect=error):
+                with self.assertRaisesRegex(m.InventoryError, '^' + code + '$') as failure:
+                    client.request('GET', '/')
+                self.assertNotIn('SECRET', str(failure.exception))
+            self.assertTrue(peer.file.closed)
+            self.assertTrue(peer.closed)
+        peer = WirePeer(wire(body))
+        client = m.Client(mock.Mock())
+        client.token = 'SYNTHETIC-TOKEN'
+        with mock.patch.object(client, 'connect', return_value=peer), \
+             mock.patch.object(client, 'timeout', side_effect=[10, m.InventoryError('DEADLINE')]):
+            with self.assertRaisesRegex(m.InventoryError, '^DEADLINE$'):
+                client.request('GET', '/')
+        self.assertTrue(peer.file.closed)
+        self.assertTrue(peer.closed)
+
+    def test_real_http_authentication_and_full_inventory_sequence(self):
+        api = FakeAPI()
+        expected = m.collect(api, 'SERVER-OPERATOR-SECRET')
+        paths = list(api.calls)
+        frames = [wire(b'{"error":0,"data":{"token":"a.b.c"}}', 'chunked')]
+        frames += [wire(json.dumps({'error': 0, 'data': api.request(method, path)}).encode(),
+                        'length' if i % 2 == 0 else 'chunked')
+                   for i, (method, path) in enumerate(paths)]
+        peers = [WirePeer(frame, 11) for frame in frames]
+        client = m.Client(mock.Mock())
+        with mock.patch.object(client, 'connect', side_effect=peers) as connect:
+            client.authenticate('SERVER-OPERATOR-SECRET', 'SYNTHETIC-PASSWORD')
+            self.assertEqual(m.collect(client, 'SERVER-OPERATOR-SECRET'), expected)
+            self.assertEqual(connect.call_count, len(frames))
+        self.assertTrue(all(p.closed and p.file.closed and p.timeouts_after_release == 0 for p in peers))
+
     def test_complete_sanitized_graph_and_no_authorization_claim(self):
         client = FakeAPI()
         out = m.collect(client, 'SERVER-OPERATOR-SECRET')
