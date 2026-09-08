@@ -6,6 +6,10 @@ by this package. Do not issue a run-as token or enter broker credentials yet.
 No assistant runtime change is included. This is a prerequisite to the actual
 Dashboard-context/broker proof, not completion of that proof.
 
+The original package was approved and merged in PR #26. This diagnostic/guard
+follow-up needs independent review and a newly hash-pinned staging packet;
+do not transfer the earlier helper digest with the revised file.
+
 ## 1. Accepted prerequisite and new safety finding
 
 On 8 September 2026 the owner appended complete outputs to the outside-Git
@@ -28,6 +32,9 @@ No rerun of that completed packet is requested.
 
 The next source review found an important distinction: **the versioned Dashboard
 Server API client constructs its HTTPS agent with `rejectUnauthorized: false`.**
+That agent is assigned to the axios instance used by both ordinary requests and
+authentication, including the credential-bearing
+`POST /security/user/authenticate[/run_as]` with configured broker Basic auth.
 The separate Python/curl proofs therefore cannot establish certificate
 verification by the actual Dashboard broker. Loopback reduces the exposure but
 does not turn an unverified connection into verified TLS. Do not claim otherwise
@@ -103,6 +110,21 @@ indicators present leave `effective_verification_proven=false`,
 `review_required=true`. A successful inventory exit is not an authorization pass.
 
 ## 4. Owner execution contract — after independent approval only
+
+Expected failures now have distinct static codes, without file contents, paths
+or exception text. They still stop execution with no partial inventory:
+
+| Code | Meaning |
+|---|---|
+| `PUBLIC_FILE_MISSING` | A fixed file or parent was not found during the read |
+| `PUBLIC_FILE_ACCESS_DENIED` | An operating-system permission check denied access |
+| `PUBLIC_FILE_IS_DIRECTORY` | A filesystem operation raised an is-directory error |
+| `SOURCE_ENCODING` | NUL or invalid UTF-8, consistently at all decoding entry points |
+
+A directory rejected earlier by the regular-file metadata guard still reports
+`UNTRUSTED_FILE_METADATA`. Other unexpected exceptions retain the generic STOP;
+these codes are error classifications, not diagnoses of the underlying cause.
+Do not relax permissions or change paths in response to a code without review.
 
 The author will then issue a separate, dated, hash-pinned public staging packet.
 Do not reuse or overwrite any prior Server collector stage. The packet must:
