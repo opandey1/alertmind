@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "analysisId": "alertmind-broker-tls-20260909",
+  "status": "design-awaiting-review",
+  "sourceEvidence": {
+    "kind": "document_collection",
+    "label": "Approved hash-matched Dashboard broker review and provenance",
+    "collectionSha256": "f06674210409fcc8aee6b4b11de277e1d533ab5dab2df44d8d25c9dc6ce9385e",
+    "artifactCount": 2,
+    "targetRevision": "37629a1",
+    "sourceDrift": "none",
+    "liveVmDrift": "unknown",
+    "identityMethod": "See context.md: two UTF-8 LF-normalized document hashes, ordered digest-two-spaces-path-LF manifest"
+  },
+  "assessment": {
+    "outcome": "local_remediation_preferred",
+    "summary": "An existing shared client provides the repair boundary; prepare a version-bound offline candidate after selection, not a new proxy architecture or live fix."
+  },
+  "constraints": {
+    "profile": "balanced-local-lab",
+    "nonNegotiables": ["No live changes or credentials in this package", "Preserve benchmark and existing RBAC/SSH evidence", "Standard TLS chain and hostname verification", "All internal and scoped requests covered", "No implicit exception or insecure rollback restart"],
+    "assumptions": ["No measured performance budget", "Future deployment may require Dashboard downtime", "Installed runtime/dependency versions require verification"]
+  },
+  "opportunities": [],
+  "localRemediationChoices": [
+    {"optionId": "version-bound-client", "title": "Version-bound local client fix", "effect": "addresses", "implementationStatus": "proposed-not-built", "tacticalFixRequired": true},
+    {"optionId": "vendor-compatible-fix", "title": "Supported upgrade or backport", "effect": "unknown", "implementationStatus": "compatible-artifact-not-established", "tacticalFixRequired": true},
+    {"optionId": "explicit-loopback-exception", "title": "Time/version-bound loopback exception", "effect": "unaffected", "implementationStatus": "not-approved", "tacticalFixRequired": true}
+  ],
+  "recommendation": "Recommend version-bound-client for the next offline package, after independent design review and owner selection; prefer a compatible supported vendor fix if established.",
+  "selectedOptionId": null,
+  "vendorResearch": {
+    "mainCommit": "a73417bc36794ed1175ca3cc8c6974c1a5322afa",
+    "coreVersion": "5.1.0",
+    "platformVersion": "3.6.0",
+    "compatibleReleasedFixEstablished": false,
+    "publishedChecksumIndependentlyRetrievedThisTurn": false,
+    "checksumRetrievalResult": "AccessDenied; Claude's prior reported match remains distinct"
+  },
+  "openQuestions": ["Packaged and live Node/axios identity", "Server certificate trust-anchor suitability", "Version-correct fixed-loopback resolver", "Root-controlled trust/startup guard", "Owner downtime and rollback posture"],
+  "brokerExecutionAuthorized": false,
+  "liveMutationAuthorized": false,
+  "findingClosed": false
+}
