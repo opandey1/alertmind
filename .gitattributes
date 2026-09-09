@@ -26,3 +26,7 @@ siem/rbac/collect_server_inventory.py text eol=lf
 siem/rbac/SERVER-AUTH-SHA256SUMS text eol=lf
 siem/rbac/collect_broker_code_inventory.py text eol=lf
 siem/rbac/BROKER-CODE-SHA256SUMS text eol=lf
+# New offline candidate assets only; no historical evidence normalization.
+siem/rbac/broker_tls/*.py text eol=lf
+siem/rbac/broker_tls/*.cjs text eol=lf
+siem/rbac/broker_tls/*.json text eol=lf

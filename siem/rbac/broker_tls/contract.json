@@ -1,0 +1,10 @@
+{
+  "package_sha256": "83f472d9e5f59b28b1abb6260c466e77b99ae427ce8c5f76203d847f2f598b6f",
+  "original_sha256": "d691047acfa9b9a779a94251c6b813e0296eaf53b3b202e89cb56b44eee48afb",
+  "candidate_sha256": "d76b98b673b8c3fd7d6f015e7d8783e45e5c1d996b69d0ed2c96dfc53615f868",
+  "policy_lf_sha256": "8847b5bec11cc279b207390504cef24eaff679b52d1f08d3ebf1363012a9e7b2",
+  "packaged_node_version": "18.19.0",
+  "packaged_linux_node_sha256": "157f76a2eff8bbe4017cfecdac5629b9e60c7a6106fed26ab6e2cda802b89cd0",
+  "packaged_node_header_sha256": "7fec24722b96de1a2adf54e60094080c537dd7189af664f507a17b59249acc36",
+  "files_digest": "16fc85e86aefb8f82b64df8aeee2b963f54d5295457801378c4534eb32bba5e9"
+}
