@@ -3,6 +3,12 @@
 This directory contains sanitized proof for the post-v1 least-privilege Wazuh
 integration.
 
+The [Dashboard broker provenance record](dashboard-broker-code-review-2026-09-09.json)
+supports the independently approved [static installed-byte TLS review](../../docs/reviews/dashboard-broker-control-flow-tls-2026-09-09.md)
+(PR #29). It is not live broker or handshake proof. The subsequent
+[TLS design](../../docs/hardening/broker-tls/hardening.md) is a proposal only;
+no remediation or exception has been deployed or approved by that document.
+
 **Current status:** The sanitized Phase 0 owner checklist and enrollment
 fingerprints in [`phase0-owner-checklist.md`](phase0-owner-checklist.md) were
 independently approved and merged. The pre-mapping check in
