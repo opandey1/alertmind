@@ -5,6 +5,7 @@ This reports literal source indicators, NOT effective authentication or TLS.
 No credentials/configuration, network calls, package changes or file writes.
 Every successful inventory still requires review before broker execution.
 """
+from contextlib import ExitStack
 import hashlib
 import json
 import os
@@ -13,7 +14,9 @@ import re
 import stat
 import sys
 
-ROOT = Path('/usr/share/wazuh-dashboard/plugins')
+DASHBOARD_ROOT = Path('/usr/share/wazuh-dashboard')
+ROOT = DASHBOARD_ROOT / 'plugins'
+SERVICE_NAME = 'wazuh-dashboard'
 UPSTREAM_COMMIT = '7659dead50782307faa1c0a313b1fd29d0b2c014'
 MAX_BYTES = 512 * 1024
 MAX_TOTAL_BYTES = 3 * 1024 * 1024
@@ -44,15 +47,38 @@ def metadata(st):
             st.st_size, st.st_mtime_ns, st.st_ctime_ns)
 
 
-def trusted(st, directory=False):
+def service_identity():
+    # Linux-only imports kept local so offline tests can import on Windows.
+    import pwd
+    import grp
+    try:
+        user = pwd.getpwnam(SERVICE_NAME)
+        group = grp.getgrnam(SERVICE_NAME)
+    except KeyError:
+        raise InventoryError('SERVICE_IDENTITY_UNAVAILABLE') from None
+    require(user.pw_name == SERVICE_NAME and group.gr_name == SERVICE_NAME
+            and user.pw_uid > 0 and group.gr_gid > 0
+            and user.pw_gid == group.gr_gid, 'SERVICE_IDENTITY_INVALID')
+    return (user.pw_uid, group.gr_gid)
+
+
+def allowed_owners(path, identity):
+    # Component-aware boundary: no prefix/sibling or ancestor exception.
+    if path == DASHBOARD_ROOT or DASHBOARD_ROOT in path.parents:
+        return ((0, 0), identity)
+    return ((0, 0),)
+
+
+def trusted(st, directory=False, owners=((0, 0),)):
     kind = stat.S_ISDIR if directory else stat.S_ISREG
-    require(kind(st.st_mode) and st.st_uid == 0 and not st.st_mode & 0o022,
+    require(kind(st.st_mode) and (st.st_uid, st.st_gid) in owners
+            and not st.st_mode & 0o022,
             'UNTRUSTED_FILE_METADATA')
 
 
-def read_public(path):
+def read_public(path, identity=None):
     try:
-        return _read_public(path)
+        return _read_public(path, identity)
     except FileNotFoundError:
         raise InventoryError('PUBLIC_FILE_MISSING') from None
     except PermissionError:
@@ -69,32 +95,52 @@ def decode_source(raw):
         raise InventoryError('SOURCE_ENCODING') from None
 
 
-def _read_public(path):
-    # Fixed root-owned tree: reject symlink components and group/world writes.
-    # O_NOFOLLOW plus descriptor/path equality guards the last component.
-    # Root can still change files; two passes are not an atomic snapshot.
-    require(path.is_absolute(), 'ABSOLUTE_PATH_REQUIRED')
-    for parent in reversed(path.parents):
-        trusted(parent.lstat(), directory=True)
-    before = path.lstat()
-    trusted(before)
-    require(0 < before.st_size <= MAX_BYTES, 'FILE_SIZE')
+def _read_public(path, identity=None):
+    require(path in tuple(ROOT / relative for relative in FILES.values()), 'FIXED_PATH_REQUIRED')
+    if identity is None:
+        identity = service_identity()
+    # Service-owned parents are mutable. Anchor each open to the preceding
+    # checked directory descriptor; O_NOFOLLOW applies to EVERY component.
+    # These observations still do not attest package authenticity or live code.
     flags = os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK
-    fd = os.open(path, flags)
-    try:
-        with os.fdopen(fd, 'rb') as source:
-            fd = None
-            trusted(os.fstat(source.fileno()))
-            require(metadata(before) == metadata(os.fstat(source.fileno())), 'FILE_CHANGED')
-            raw = source.read(MAX_BYTES + 1)
-            require(metadata(before) == metadata(os.fstat(source.fileno())), 'FILE_CHANGED')
-        require(metadata(before) == metadata(path.lstat()), 'FILE_CHANGED')
-        require(len(raw) == before.st_size and len(raw) <= MAX_BYTES, 'FILE_SIZE')
-        decode_source(raw)
-        return raw
-    finally:
-        if fd is not None:
-            os.close(fd)
+    with ExitStack() as stack:
+        parent_fd = None
+        directories = []
+        for parent in reversed(path.parents):
+            before = parent.lstat()
+            owners = allowed_owners(parent, identity)
+            trusted(before, directory=True, owners=owners)
+            fd = os.open(str(parent) if parent_fd is None else parent.name,
+                         flags | os.O_DIRECTORY, dir_fd=parent_fd)
+            stack.callback(os.close, fd)
+            opened = os.fstat(fd)
+            trusted(opened, directory=True, owners=owners)
+            require(metadata(before) == metadata(opened), 'DIRECTORY_CHANGED')
+            directories.append((parent, fd, before))
+            parent_fd = fd
+        before = path.lstat()
+        owners = allowed_owners(path, identity)
+        trusted(before, owners=owners)
+        require(0 < before.st_size <= MAX_BYTES, 'FILE_SIZE')
+        fd = os.open(path.name, flags, dir_fd=parent_fd)
+        try:
+            with os.fdopen(fd, 'rb') as source:
+                fd = None
+                opened = os.fstat(source.fileno())
+                trusted(opened, owners=owners)
+                require(metadata(before) == metadata(opened), 'FILE_CHANGED')
+                raw = source.read(MAX_BYTES + 1)
+                require(metadata(before) == metadata(os.fstat(source.fileno())), 'FILE_CHANGED')
+            require(metadata(before) == metadata(path.lstat()), 'FILE_CHANGED')
+            for parent, directory_fd, original in directories:
+                require(metadata(original) == metadata(os.fstat(directory_fd))
+                        == metadata(parent.lstat()), 'DIRECTORY_CHANGED')
+            require(len(raw) == before.st_size and len(raw) <= MAX_BYTES, 'FILE_SIZE')
+            decode_source(raw)
+            return raw
+        finally:
+            if fd is not None:
+                os.close(fd)
 
 
 def unique_object(pairs):
@@ -157,8 +203,15 @@ def summarize(blobs):
         'scoped_authentication_literal': 'asCurrentUser.authenticate' in texts['login_controller'],
     }
     return {
-        'inventory_version': 1,
+        'inventory_version': 2,
         'scope': 'installed public code only; NOT actual Dashboard context or broker execution',
+        'ownership_policy': {
+            'root_ancestors_required': True,
+            'dashboard_tree_allowed_owners': ['root:root', 'wazuh-dashboard:wazuh-dashboard'],
+            'service_owned_code_is_service_mutable': True,
+            'package_authenticity_proven': False,
+            'atomic_snapshot_proven': False,
+        },
         'upstream_reference_commit': UPSTREAM_COMMIT,
         'plugin_versions': {'wazuh': main['version'], 'wazuhCore': core['version'],
                             'securityDashboards': security['version']},
@@ -182,7 +235,10 @@ def summarize(blobs):
     }
 
 
-def collect(reader=read_public):
+def collect(reader=None):
+    identity = service_identity()
+    if reader is None:
+        reader = lambda path: read_public(path, identity)
     def snapshot():
         blobs, total = {}, 0
         for name, relative in FILES.items():
@@ -194,7 +250,10 @@ def collect(reader=read_public):
     first = snapshot()
     summary = summarize(first)
     require(first == snapshot(), 'SOURCE_DRIFT')
+    require(identity == service_identity(), 'SERVICE_IDENTITY_CHANGED')
     summary['two_pass_bytes_equal'] = True
+    summary['ownership_policy']['service_uid'] = identity[0]
+    summary['ownership_policy']['service_gid'] = identity[1]
     return summary
 
 
