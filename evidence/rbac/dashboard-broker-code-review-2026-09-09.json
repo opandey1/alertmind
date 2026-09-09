@@ -1,0 +1,60 @@
+{
+  "record_version": 1,
+  "review_date": "2026-09-09",
+  "scope": "Static public-code review; not live Dashboard execution or TLS acceptance",
+  "independent_review_status": "awaiting-review",
+  "repository_base": "a929703",
+  "owner_observation": {
+    "source": "Owner's chat output from BROKER-CODE-OWNERFIX-2026-09-09.md; curated transcription, not a raw console capture",
+    "collector_sha256": "5d385a59d90ce37d6b525012e9a8f0adf1cc6730a02fcdf37ff4bcc96a93afb5",
+    "inventory_version": 2,
+    "all_three_blocks_completed": true,
+    "two_pass_bytes_equal": true,
+    "service_uid": 126,
+    "service_gid": 128,
+    "plugin_versions": {"wazuhCore": "4.14.7-01", "wazuh": "4.14.7-01", "securityDashboards": "2.19.5.0"},
+    "all_twelve_literal_indicators": true,
+    "tls_classification": "explicit_false_text_present",
+    "reject_unauthorized_false_literal_count": 1,
+    "reject_unauthorized_true_literal_count": 0,
+    "service_owned_code_is_service_mutable": true,
+    "package_authenticity_proven": false,
+    "atomic_snapshot_proven": false,
+    "effective_verification_proven": false
+  },
+  "public_package": {
+    "url": "https://packages.wazuh.com/4.x/apt/pool/main/w/wazuh-dashboard/wazuh-dashboard_4.14.7-1_amd64.deb",
+    "bytes": 193952104,
+    "sha256": "83f472d9e5f59b28b1abb6260c466e77b99ae427ce8c5f76203d847f2f598b6f",
+    "retrieval": "HTTPS download; package not installed or executed",
+    "apt_signature_verified": false,
+    "extraction": "ar data.tar.xz; allowlisted regular-file members, maximum 512 KiB per source; no extractall; source maps not executed",
+    "member_prefix": "usr/share/wazuh-dashboard/plugins/"
+  },
+  "vm_report_matched_files": [
+    {"label": "core_manifest", "path": "wazuhCore/opensearch_dashboards.json", "bytes": 255, "sha256": "02f29df7ff3002ee1efe46f8e0394e91eca4d2f85ab33cfb9e7b2598beead763"},
+    {"label": "main_manifest", "path": "wazuh/opensearch_dashboards.json", "bytes": 600, "sha256": "510e0db513acd7398663050a2fca00eda8f1781c39e9a574801bb1816353cf88"},
+    {"label": "security_manifest", "path": "securityDashboards/opensearch_dashboards.json", "bytes": 467, "sha256": "9cdc02825372e646cbcfe2d2b741c7b11ea9a90948c047b7f4ceaacff3f37b1d"},
+    {"label": "core_plugin", "path": "wazuhCore/server/plugin.js", "bytes": 21113, "sha256": "df95f6138b746fb165f3949194f988a1670c3585ecd548254f54f2dbd6573624"},
+    {"label": "factory_selector", "path": "wazuhCore/server/services/security-factory/security-factory.js", "bytes": 9706, "sha256": "e8c5e652e35cd12a84be5f03c518b60bba3b6190e9d0f03d0a68884d047f9729"},
+    {"label": "context_factory", "path": "wazuhCore/server/services/security-factory/factories/opensearch-dashboards-security-factory.js", "bytes": 6535, "sha256": "1e01310dfb72263372db90706cdce7d7128773537d68ca4d0c4d16f4ba26c530"},
+    {"label": "broker_client", "path": "wazuhCore/server/services/server-api-client.js", "bytes": 25731, "sha256": "d691047acfa9b9a779a94251c6b813e0296eaf53b3b202e89cb56b44eee48afb"},
+    {"label": "login_route", "path": "wazuh/server/routes/wazuh-api.js", "bytes": 12130, "sha256": "89aa046c0f4c39eb1582416ba59ef97f7261323527d800bdac27810a1fdaf12d"},
+    {"label": "login_controller", "path": "wazuh/server/controllers/wazuh-api.js", "bytes": 114708, "sha256": "6e9618c5b1eaa1b1ae2a21e8f70e8614695c057e3836a2eca4def839d8bf8614"}
+  ],
+  "package_only_supporting_files_not_vm_matched": [
+    {"path": "wazuh/server/plugin.js", "bytes": 18077, "sha256": "e699eb126e711e02de5051cfc83aebde0ceef28c72f5024d7293825fa29480db"},
+    {"path": "wazuhCore/server/services/index.js", "bytes": 5125, "sha256": "f01ab25108e132303973e91f71bcc43b2a65bcabf205561a21d01fa033c22ea4"},
+    {"path": "wazuhCore/server/services/manage-hosts.js", "bytes": 41373, "sha256": "dd6bd718d6ab0c16c9b99f1570cbdd2a70ec9a13704e45afb6693a2f5d8fc785"}
+  ],
+  "author_results": {
+    "all_nine_lengths_and_hashes_match_owner_report": true,
+    "static_shared_nonverifying_https_agent": true,
+    "static_authentication_and_bearer_paths_use_that_client": true,
+    "installed_full_dependency_chain_verified": false,
+    "running_process_or_handshake_observed": false,
+    "broker_execution_authorized": false,
+    "mutation_authorized": false,
+    "tls_exception_approved": false
+  }
+}
