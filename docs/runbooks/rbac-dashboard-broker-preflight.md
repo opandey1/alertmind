@@ -1,6 +1,7 @@
 # Dashboard context and broker preflight
 
-**Status: local code-inventory package, awaiting independent review.** No live
+**Status: approved inventory completed; installed-byte static review awaiting
+independent review.** No live
 authentication, browser session, permission edit or service change is authorized
 by this package. Do not issue a run-as token or enter broker credentials yet.
 No assistant runtime change is included. This is a prerequisite to the actual
@@ -13,8 +14,19 @@ wazuh-dashboard:wazuh-dashboard ownership from /usr/share/wazuh-dashboard
 downward (directories 0750, files 0640, no displayed symlinks). The collector's
 root-only assumption was incompatible with that observation; this is not by
 itself evidence of compromise. Do not change VM ownership or permissions.
-This ownership correction needs independent review and a NEW hash-pinned
-staging packet. Preserve the failed packet/stage; do not replay or overwrite it.
+The ownership correction was approved and merged in PR #28 (`26b903b`, merge
+`a929703`). The owner completed all three blocks of the NEW
+`BROKER-CODE-OWNERFIX-2026-09-09.md` packet: inventory v2, both passes equal,
+all nine files, service UID/GID 126/128 and both final success STOP lines.
+Preserve the failed packet/stage; do not replay or overwrite it.
+
+The [9 September installed-byte review](../reviews/dashboard-broker-control-flow-tls-2026-09-09.md)
+now matches all nine reported hashes/sizes to the official package and traces
+the shared non-verifying HTTPS client through authentication and bearer requests.
+Three supporting dependency files are explicitly package-only, not VM matches.
+This author review awaits Claude; it does not prove live Dashboard behavior or
+authorize broker execution. Next is an explicit TLS-remediation/exception
+decision, not another run of the completed collector.
 
 ## 1. Accepted prerequisite and new safety finding
 
@@ -116,8 +128,9 @@ It has no HTTP, credential prompts, subprocesses, file writes or custom path opt
   package_authenticity_proven and atomic_snapshot_proven are always false.
   A compromised service account can change code while preserving allowed modes.
 
-The deployment layout is a hypothesis based on plugin IDs and server build
-paths. If a file is absent, inaccessible, symlinked, unusually large or the
+The nine-file layout was confirmed by the owner's 9 September inventory for
+this version; it is not a guarantee for other installations. If a file is absent,
+inaccessible, symlinked, unusually large or the
 version differs, **stop and review metadata**. Do not broaden paths, search
 private data, recursively dump code, change permissions or copy arbitrary files
 into the expected paths to manufacture a pass. An installation using bundles
@@ -153,7 +166,9 @@ A directory rejected earlier by the regular-file metadata guard still reports
 these codes are error classifications, not diagnoses of the underlying cause.
 Do not relax permissions or change paths in response to a code without review.
 
-The author will then issue a separate, dated, hash-pinned public staging packet.
+The owner completed the dated ownership-correction packet for this observation;
+do not rerun it. For a future separately approved inventory, the author must
+issue a separate, dated, hash-pinned public staging packet.
 Do not reuse or overwrite any prior Server collector stage. The packet must:
 
 1. Require Snapshot 1 available, a stable VM console, apps stopped and no package
