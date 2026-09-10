@@ -1,0 +1,38 @@
+{
+  "date": "2026-09-09",
+  "scope": "author-run offline candidate verification; not live remediation acceptance",
+  "status": "candidate implemented; deployment verification blocked",
+  "candidate_sha256": "d76b98b673b8c3fd7d6f015e7d8783e45e5c1d996b69d0ed2c96dfc53615f868",
+  "repeated_build_contract_match": true,
+  "extra_staged_file_rejected_before_client_load": true,
+  "review": {"delegated_investigation": "completed", "delegated_candidate_review": "unavailable: provider safety flag, no verdict", "parent_separate_review_pass": "completed", "claude_independent_review": "pending"},
+  "vendor_sha512_independently_matched": true,
+  "synthetic_runs": [
+    {"platform": "win32", "node": "18.19.0", "openssl": "3.0.12+quic", "axios": "1.12.2", "groups_passed": 14, "exit": 0},
+    {"platform": "win32", "node": "24.19.0", "openssl": "3.5.7", "axios": "1.12.2", "groups_passed": 14, "exit": 0}
+  ],
+  "node18_windows_executable_sha256": "770f43909f282d2ee020aa90fd580ee767fcdc7067bfa25d2095b56f5d74f0e9",
+  "node18_checksum_source": "https://nodejs.org/dist/v18.19.0/SHASUMS256.txt",
+  "original_control": "synthetic Basic credentials reached wrong-host TLS peer",
+  "candidate_negative_peers": {"wrong_hostname": 0, "untrusted": 0, "expired": 0},
+  "negative_counter_unit": "HTTP requests reaching fixture peers across shared entry paths",
+  "candidate_secondary_origin_requests": 0,
+  "candidate_proxy_requests": 0,
+  "mutations_detected": ["TLS verification disabled", "origin gate removed", "redirects enabled", "proxy inheritance restored"],
+  "legitimate_controls": ["scoped run_as and ordinary auth", "Basic and cookie bearer semantics", "XML and query inputs", "internal cold/warm cache", "forceRefresh", "401 refresh", "HTTP status and error data", "ECONNREFUSED"],
+  "default_ci": {"tests": 178, "files": 19, "new_builder_tests": 10, "exit": 0, "synthetic_network_fixture_included": false},
+  "frozen_verifier": {"checks": 26, "pass_lines_including_summary": 27, "exit": 0},
+  "commands": [
+    "python -B siem/rbac/broker_tls/build_candidate.py --deb <verified-public-deb> --output <new-scratch-directory>",
+    "python -B siem/rbac/broker_tls/run_fixture.py --stage <candidate-directory> --node <explicit-Node-executable> --run-synthetic",
+    "cd assistant; python -B -m unittest discover -s tests -p test_*.py",
+    "python -B measurement/verify_frozen_evidence.py",
+    "node --check siem/rbac/broker_tls/policy.cjs",
+    "node --check siem/rbac/broker_tls/test_client.cjs"
+  ],
+  "fixture_limits": ["synthetic public pin substituted in memory", "Linux trust metadata adapted, not native filesystem proof", "IPv4-first original control", "packaged Linux binary identified but not executed"],
+  "remaining_gates": ["independent review", "packaged Linux runtime and native filesystem validation", "actual Server certificate suitability", "performance and timeout acceptance", "startup drift guard and interruption-safe deployment/rollback package", "owner-approved downtime", "actual broker/admin/saved-object acceptance"],
+  "live_credentials_used": false,
+  "vm_modified": false,
+  "live_acceptance": false
+}
