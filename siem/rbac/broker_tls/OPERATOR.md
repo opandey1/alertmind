@@ -67,6 +67,16 @@ inventory pin, second pass, package/runtime identity, startup inhibition,
 private-backup validation, unknown-client hold and no-restart terminal state.
 These mutation runs are author checks, not additional unittest methods.
 
+The September 13 test-only follow-up pins exact parser error codes (including
+nested duplicate keys and all three non-finite JSON constants) and independently
+exercises expected length versus maximum length. The upper-bound case uses the
+runtime header target, whose exact size is intentionally unspecified, with all
+preceding reads valid. Removing any of those four guards must now fail the
+corresponding error-code assertion rather than pass on a later hash/contract
+error. The suite still contains twenty operator methods; production core and
+candidate bytes are unchanged. See
+[follow-up verification](operator-test-verification-2026-09-13.json).
+
 Historical TLS fixture verification files remain unchanged. Claude's September
 12 approval records the updated 16-group fixture passing on Linux Node 22.22.2
 with inherited proxy settings; it does not close the native operator gates.
