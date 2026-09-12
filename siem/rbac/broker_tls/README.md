@@ -89,11 +89,24 @@ anchor pin. Neither production candidate bytes nor `contract.json` are changed.
 The original control uses an IPv4-first DNS preference. The candidate supplies
 its own narrow resolver. Output reports these proof limits.
 
-Four mutation controls must lose their protection: verification set back to
-false, origin validation removed, redirects enabled and proxy inheritance
-restored. Rejection alone is insufficient: server counters establish that
-rejected peers/origins receive no application credentials and mutations cause
-observable arrivals. The harness never prints those credentials or raw requests.
+Six mutation controls must lose their protection: verification set back to
+false, origin validation removed, redirects enabled, proxy inheritance
+restored, load-time anchor hostname check removed, and fixed resolver removed.
+The last two use construction/callback assertions, not network leaks. For the
+transport controls, server counters establish that rejected peers/origins receive
+no application credentials and mutations cause observable arrivals. The harness
+never prints those credentials or raw requests.
+
+The September 12 follow-up adds a valid, correctly pinned wrong-SAN anchor and
+direct resolver checks (plain options, `all`, callback-only, and non-localhost
+rejection). Proxy cleanup and hostile tests cover standard and npm variable
+families in lower/uppercase, including exclusion settings. The HTTP-only proxy
+variables are checked against the actual dependency's HTTP resolver; they do
+not route this HTTPS-only client. `npm_config_no_proxy` is honored by the
+packaged dependency, whereas `npm_config_noproxy` is not. Windows environment
+names are case-insensitive; native Linux casing validation remains for review.
+The updated fixture has 16 groups; see [follow-up verification](verification-2026-09-12.json).
+The original [verification record](verification.json) preserves the 14-group run.
 
 Ten pure-Python builder guards run in ordinary CI with no download or network.
 The opt-in TLS fixture is **not** included in the CI badge's test count.
@@ -106,6 +119,12 @@ records the Linux binary digest. Package axios resolves its own nested
 The author tested official, hash-verified Windows Node 18.19.0 and also Node
 24.19.0; **neither is execution of the packaged Linux binary**. The package
 contains a fallback runtime too; the VM's selected runtime remains unobserved.
+
+Claude's September 10 approval of `e6c5419` reports the original 14-group fixture
+passing on Linux Node 22.22.2/OpenSSL 3.5.5 after clearing npm proxy settings.
+This is reviewer-reported Linux compatibility evidence, not execution of the
+packaged Node 18.19.0 or native root/no-follow filesystem proof. It does not
+approve live deployment or constitute a Linux run of this updated 16-group fixture.
 
 Before a live apply package: independently review this change, validate the
 packaged Linux runtime and native filesystem checks, establish suitability of

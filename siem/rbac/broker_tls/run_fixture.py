@@ -50,6 +50,7 @@ def fixtures():
             'wronghost': encode(issue('wrong.invalid', anchor)),
             'untrusted': encode(issue('localhost', other)),
             'expiredPeer': encode(issue('localhost', anchor, expired=True)),
+            'wrongHostAnchor': encode(issue('anchor-wrong.invalid', ca=True)),
             'expiredAnchor': encode(issue('localhost', expired=True, ca=True))}
 
 
