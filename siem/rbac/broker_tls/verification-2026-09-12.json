@@ -1,0 +1,36 @@
+{
+  "date": "2026-09-12",
+  "scope": "test-only follow-up to Claude's September 10 approve verdict",
+  "base_commit": "b82ffb6",
+  "candidate_policy_changed": false,
+  "candidate_sha256": "d76b98b673b8c3fd7d6f015e7d8783e45e5c1d996b69d0ed2c96dfc53615f868",
+  "historical_verification_preserved": "verification.json",
+  "synthetic_runs": [
+    {"platform": "win32", "node": "18.19.0", "openssl": "3.0.12+quic", "groups_passed": 16, "exit": 0},
+    {"platform": "win32", "node": "24.19.0", "openssl": "3.5.7", "groups_passed": 16, "exit": 0}
+  ],
+  "new_coverage": [
+    "startup cleanup of standard/npm proxy and exclusion names, lower and uppercase",
+    "independent HTTPS proxy-family cases: candidate makes zero proxy requests, mutation makes observable requests",
+    "HTTP-only proxy variables resolved by packaged dependency without claiming they route HTTPS",
+    "npm_config_no_proxy recognized; npm_config_noproxy ignored by packaged dependency",
+    "correctly pinned, valid wrong-SAN anchor rejected during construction",
+    "agent lookup present, exactly IPv4 localhost for plain/all/callback-only forms, non-localhost rejected"
+  ],
+  "mutation_controls": {"existing": 4, "new": ["load-time checkHost removed", "agent lookup removed"], "all_detected": true},
+  "external_startup_conditions_tested": ["npm proxy variables pointing at loopback port 1", "npm proxy plus wildcard exclusion variables"],
+  "default_ci": {"tests": 178, "files": 19, "exit": 0, "network_fixture_included": false},
+  "frozen_verifier": {"checks": 26, "pass_lines_including_summary": 27, "exit": 0},
+  "commands": [
+    "python -B siem/rbac/broker_tls/run_fixture.py --stage <unchanged approved stage> --node <explicit Node executable> --run-synthetic",
+    "node --check siem/rbac/broker_tls/test_client.cjs",
+    "cd assistant; python -B -m unittest discover -s tests -p test_*.py",
+    "python -B measurement/verify_frozen_evidence.py"
+  ],
+  "limits": ["Windows environment variable names are case-insensitive", "updated fixture not rerun on Linux by author", "Linux filesystem metadata remains adapted", "synthetic certificate pin is not live Server certificate", "packaged Linux Node 18.19.0 not executed"],
+  "reviewer_reported_prior_linux_run": {"source": "HANDOFF.md Claude 2026-09-10 02:18 +05:30", "commit": "e6c5419", "node": "22.22.2", "openssl": "3.5.5", "groups": 14, "updated_fixture": false},
+  "independent_followup_review": "pending",
+  "vm_accessed": false,
+  "live_credentials_used": false,
+  "live_acceptance": false
+}

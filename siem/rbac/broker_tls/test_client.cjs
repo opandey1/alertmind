@@ -44,11 +44,20 @@ const bindings = [];
 let count = 0;
 function pass(label) { count++; console.log('PASS ' + label); }
 // Remove ambient proxies for original control, then explicitly test hostile ones.
-for (const name of ['HTTP_PROXY','HTTPS_PROXY','ALL_PROXY','NO_PROXY','http_proxy','https_proxy','all_proxy','no_proxy']) delete process.env[name];
+const proxyNames = ['http_proxy','https_proxy','all_proxy','no_proxy',
+  'npm_config_http_proxy','npm_config_https_proxy','npm_config_proxy',
+  'npm_config_no_proxy','npm_config_noproxy'];
+function clearProxies() {
+  for (const name of proxyNames) {
+    delete process.env[name]; delete process.env[name.toUpperCase()];
+  }
+}
+clearProxies();
 assert.notEqual(process.env.NODE_TLS_REJECT_UNAUTHORIZED, '0');
 
 function certFs(mode='good') {
-  const pem = Buffer.from(mode === 'malformed' ? 'bad' : mode === 'expired' ? fixture.expiredAnchor.cert : fixture.anchor.cert);
+  const pem = Buffer.from(mode === 'malformed' ? 'bad' : mode === 'expired' ? fixture.expiredAnchor.cert :
+    mode === 'wrongHostAnchor' ? fixture.wrongHostAnchor.cert : fixture.anchor.cert);
   let calls = 0;
   function stat(file) {
     calls++;
@@ -109,6 +118,44 @@ async function denied(fn) {
 const auth = c => c._authenticate('one',{useRunAs:false});
 const read = c => c._request('GET','/agents',{}, {apiHostID:'one',token:'fixture-token-read'});
 
+function mutateOnce(text, anchor, replacement) {
+  assert.equal(text.split(anchor).length,2,'mutation requires exactly one anchor');
+  const changed=text.replace(anchor,replacement);
+  assert.notEqual(changed,text,'mutation must change bytes');
+  return changed;
+}
+function assertAnchorRejected(text) {
+  // Correct fingerprint + valid dates/metadata isolate the SAN-only branch.
+  const pin=sha(new crypto.X509Certificate(fixture.wrongHostAnchor.cert).raw);
+  assert.throws(()=>client(text,{trust:'wrongHostAnchor',pin}),/ALERTMIND_BROKER_POLICY/);
+}
+async function assertLookup(c) {
+  const lookup=c._axios.defaults.httpsAgent.options.lookup;
+  assert.equal(typeof lookup,'function','fixed resolver must be installed');
+  for (const host of ['localhost','wrong.invalid','127.0.0.1','LOCALHOST']) {
+    for (const shape of ['plain','all','callback-only']) {
+      let timer, calls=0;
+      try {
+        const result=await Promise.race([
+          new Promise(resolve=>{
+            const callback=(...args)=>{calls++;resolve(args);};
+            if(shape==='callback-only') lookup(host,callback);
+            else lookup(host,shape==='all'?{all:true}:{},callback);
+          }),
+          new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('LOOKUP_TIMEOUT')),1000);})
+        ]);
+        await new Promise(resolve=>setImmediate(resolve));
+        assert.equal(calls,1);
+        if(host!=='localhost') {
+          assert(result[0] instanceof Error); assert.equal(result[0].message,'ALERTMIND_BROKER_DNS');
+          assert.equal(result.length,1);
+        } else if(shape==='all') assert.deepEqual(result,[null,[{address:'127.0.0.1',family:4}]]);
+        else assert.deepEqual(result,[null,'127.0.0.1',4]);
+      } finally {clearTimeout(timer);}
+    }
+  }
+}
+
 async function main() {
   for(const mode of ['missing','malformed','owner','writable','symlink','changed','expired']) {
     const pin=mode==='expired' ? sha(new crypto.X509Certificate(fixture.expiredAnchor.cert).raw) : fixture.pin;
@@ -116,6 +163,14 @@ async function main() {
   }
   assert.throws(()=>client(source,{pin:'0'.repeat(64)}),/ALERTMIND_BROKER_POLICY/);
   pass('trust failure matrix (synthetic Linux metadata; no production trust loaded)');
+  assertAnchorRejected(source);
+  const hostMut=mutateOnce(source,"cert.checkHost('localhost', { subject: 'never' }) !== 'localhost'",'false');
+  assert.throws(()=>assertAnchorRejected(hostMut),assert.AssertionError);
+  pass('wrong-SAN pinned anchor rejected at construction; removing checkHost detected');
+  await assertLookup(client().c);
+  const lookupMut=mutateOnce(source,'rejectUnauthorized: true, ca: pem, lookup','rejectUnauthorized: true, ca: pem');
+  await assert.rejects(()=>assertLookup(client(lookupMut).c),assert.AssertionError);
+  pass('fixed resolver callback formats and non-localhost rejection; removing lookup detected');
 
   // Original demonstrates the defect on the very same wrong-host TLS fixture.
   let s=await server('wronghost'); arrivals=[];
@@ -173,13 +228,35 @@ async function main() {
   let proxyHits=0;
   const proxy=http.createServer((_req,res)=>{proxyHits++;res.writeHead(502);res.end();});
   await new Promise((r,j)=>{proxy.once('error',j);proxy.listen(55002,'127.0.0.1',r);});
-  process.env.HTTPS_PROXY='http://127.0.0.1:55002'; process.env.ALL_PROXY=process.env.HTTPS_PROXY;
-  await auth(c); await read(c); assert.equal(proxyHits,0); pass('hostile ambient proxy ignored; proxy arrivals=0');
+  const proxyUrl='http://127.0.0.1:55002';
+  const getProxy=realRequire('./node_modules/axios/node_modules/proxy-from-env').getProxyForUrl;
+  const proxyMut=client(mutateOnce(source,'config.proxy = false;', 'config.proxy = undefined;')).c;
+  for(const lower of ['https_proxy','all_proxy','http_proxy','npm_config_https_proxy','npm_config_proxy','npm_config_http_proxy']) {
+    for(const name of [lower,lower.toUpperCase()]) {
+      clearProxies(); process.env[name]=proxyUrl;
+      const beforeProxy=proxyHits;
+      await auth(c); await read(c); assert.equal(proxyHits,beforeProxy);
+      if(lower==='http_proxy' || lower==='npm_config_http_proxy') {
+        // HTTPS-only client: HTTP variable does not select an HTTPS proxy.
+        assert.equal(getProxy('http://localhost:55000/'),proxyUrl);
+        assert.equal(getProxy('https://localhost:55000/'),'');
+      } else {
+        assert.equal(getProxy('https://localhost:55000/'),proxyUrl);
+        try {await auth(proxyMut);} catch(_) {} assert(proxyHits>beforeProxy);
+      }
+    }
+  }
+  // Exclusions must not silently neutralize the proxy mutation on npm hosts.
+  for(const name of ['npm_config_no_proxy','NPM_CONFIG_NO_PROXY','no_proxy','NO_PROXY']) {
+    clearProxies(); process.env.npm_config_https_proxy=proxyUrl; process.env[name]='*';
+    assert.equal(getProxy('https://localhost:55000/'),'');
+  }
+  clearProxies(); process.env.npm_config_https_proxy=proxyUrl; process.env.npm_config_noproxy='*';
+  assert.equal(getProxy('https://localhost:55000/'),proxyUrl,'npm noproxy spelling is not read by this dependency');
+  clearProxies(); await close(proxy);
+  pass('standard/npm proxy families and casing ignored by candidate; HTTPS proxy mutations detected; exclusions isolated');
 
-  // Four deliberately vulnerable mutations must demonstrably lose a control.
-  const proxyMut=client(source.replace('config.proxy = false;', 'config.proxy = undefined;')).c;
-  try { await auth(proxyMut); } catch(_) {} assert(proxyHits>0);
-  delete process.env.HTTPS_PROXY; delete process.env.ALL_PROXY; await close(proxy);
+  // Existing redirect/origin/TLS mutations remain separate controls.
   const originMut=client(source.replace("if (typeof config.url !== 'string' ||", "if (false && (typeof config.url !== 'string' ||").replace('/[\\x00-\\x20\\x7f\\\\#]/.test(config.url)) fail();','/[\\x00-\\x20\\x7f\\\\#]/.test(config.url))) fail();').replace("if (url.origin !== 'https://localhost:55000' || url.username || url.password || url.hash) fail();",'')).c;
   originMut.manageHosts.get=async()=>({url:'https://localhost',port:55001,username:'fixture-user',password:'fixture-password'});
   try {await auth(originMut);} catch(_) {} assert(capture>0); capture=0;
