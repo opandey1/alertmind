@@ -1,0 +1,34 @@
+{
+  "date": "2026-09-12",
+  "base_commit": "5691d42",
+  "scope": "offline operator core; not an installer, live startup guard or durable rollback engine",
+  "python": "3.12.14",
+  "platform": "Windows",
+  "new_unit_tests": 20,
+  "full_suite": {"methods": 198, "files": 20, "exit": 0},
+  "frozen_verifier": {"exit": 0, "checks": 26, "pass_lines_with_summary": 27},
+  "mutation_checks": {
+    "run_by_author_in_memory": true,
+    "not_additional_ci_methods": true,
+    "detected": ["manifest files digest", "second byte-check pass", "package version", "selected runtime path", "startup inhibition", "private backup validation", "unknown installed client hold", "no-restart terminal state"]
+  },
+  "real_approved_stage": {
+    "manifest_bound_to_unchanged_contract": true,
+    "installed_targets_derived": 270,
+    "staged_client_and_dependency_files_verified": 268,
+    "runtime_targets_not_read": 2,
+    "installed_vm_files_read": 0,
+    "vendor_code_executed": false
+  },
+  "python_310_syntax": "parse only; not Python 3.10 execution",
+  "recovery_tests": "observation-state transitions and replay, not filesystem crashes or power loss",
+  "candidate_and_contract_changed": false,
+  "historical_evidence_changed": false,
+  "tls_fixture_rerun_this_cycle": false,
+  "native_metadata_and_live_adapters": "not implemented",
+  "atomic_install_and_durable_rollback": "not implemented",
+  "startup_authorized": false,
+  "live_mutation_authorized": false,
+  "vm_accessed": false,
+  "review_status": "awaiting independent review"
+}

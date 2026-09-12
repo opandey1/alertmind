@@ -66,7 +66,9 @@ The expected output hash includes this removal.
   callers must not treat arbitrary error bodies as safe logs.
 - Trust is loaded at construction. Updates require an intentional guarded
   restart; this candidate does not watch files. Startup/update guards and
-  atomic deployment/rollback are a later package, not implemented here.
+  atomic deployment/rollback are a later package, not implemented here. The
+  [offline operator safety core](OPERATOR.md) now implements the byte-check and
+  recovery-decision portion only; it is not an installed guard or live installer.
 
 ## Explicit synthetic tests
 
@@ -104,11 +106,13 @@ families in lower/uppercase, including exclusion settings. The HTTP-only proxy
 variables are checked against the actual dependency's HTTP resolver; they do
 not route this HTTPS-only client. `npm_config_no_proxy` is honored by the
 packaged dependency, whereas `npm_config_noproxy` is not. Windows environment
-names are case-insensitive; native Linux casing validation remains for review.
+names are case-insensitive; Claude's September 12 review reports this updated
+fixture passing on Linux with inherited lower/uppercase proxy settings.
 The updated fixture has 16 groups; see [follow-up verification](verification-2026-09-12.json).
 The original [verification record](verification.json) preserves the 14-group run.
 
 Ten pure-Python builder guards run in ordinary CI with no download or network.
+Twenty operator-core tests also run there, without native service or file changes.
 The opt-in TLS fixture is **not** included in the CI badge's test count.
 
 ## Acceptance still blocked
@@ -125,6 +129,13 @@ passing on Linux Node 22.22.2/OpenSSL 3.5.5 after clearing npm proxy settings.
 This is reviewer-reported Linux compatibility evidence, not execution of the
 packaged Node 18.19.0 or native root/no-follow filesystem proof. It does not
 approve live deployment or constitute a Linux run of this updated 16-group fixture.
+
+Claude's September 12 approval of `1f29be5` subsequently records the updated
+16-group fixture passing on the same Linux Node/OpenSSL with ambient npm and
+standard proxy settings left set. The three coverage findings are closed;
+that approval is merged in PR #32 (`5691d42`). Native filesystem, packaged
+runtime and live acceptance limits remain. Historical author verification JSON
+records retain their then-pending review status; later approval is in HANDOFF.
 
 Before a live apply package: independently review this change, validate the
 packaged Linux runtime and native filesystem checks, establish suitability of
