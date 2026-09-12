@@ -1,0 +1,39 @@
+{
+  "date": "2026-09-13",
+  "base_commit": "60c324f",
+  "scope": "test-only follow-up to Claude's approve of 5876638",
+  "changes": [
+    "exact anchored parser codes for malformed input, top-level and nested duplicate keys, NaN, Infinity and -Infinity",
+    "within-limit wrong length for a size-pinned client entry",
+    "oversized runtime header with size=None and valid preceding reads"
+  ],
+  "operator_methods": 20,
+  "full_suite": {"methods": 198, "files": 20, "exit": 0, "seconds": 6.436},
+  "frozen_verifier": {"exit": 0, "pass_lines_with_summary": 27},
+  "mutation_checks": {
+    "method": "four separate exact single-anchor in-memory edits; corresponding unmodified test method must fail by assertion, not error",
+    "all_detected": true,
+    "removed_guards": ["duplicate-key hook", "non-finite-number hook", "reader maximum size", "reader expected size"],
+    "not_additional_ci_methods": true
+  },
+  "environment": {
+    "platform": "Windows",
+    "python": "3.12.14",
+    "initial_attempts": "former temporary environment failed importing AppTest; source files absent, including pip launcher; no cause of removal established",
+    "fresh_environment": "alertmind-operator-ci-20260913",
+    "installation": "Linux-targeted requirements-ci.lock installed with --no-deps --require-hashes, plus two separate Windows wheels; dependency files unchanged",
+    "initial_resolving_install": "stopped in hash mode on unpinned Windows-only colorama dependency; not a Linux CI result",
+    "windows_supplements": [
+      {"name": "colorama", "version": "0.4.6", "wheel_sha256": "4f1d9991f5acc0ca119f9d443620b77f9d6b33703e51011c16baf57afb285fc6"},
+      {"name": "tzdata", "version": "2026.3", "wheel_sha256": "dc096730c87af6cab1b171c9d532be840741ff5d459015e7f6947bd7d7e54931"}
+    ],
+    "supplement_provenance": "versions matched former environment metadata; downloaded wheels hashed and rechecked before local install, not independently publisher-attested here",
+    "pip_check": "No broken requirements found"
+  },
+  "operator_core_changed": false,
+  "candidate_or_contract_changed": false,
+  "historical_evidence_changed": false,
+  "vm_accessed": false,
+  "live_acceptance": false,
+  "review_status": "awaiting independent review"
+}

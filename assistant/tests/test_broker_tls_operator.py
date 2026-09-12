@@ -78,9 +78,20 @@ class BrokerOperatorTests(unittest.TestCase):
         self.reader.assert_not_called()
 
     def test_manifest_size_encoding_shape_and_duplicate_keys(self):
-        for raw in (b'', b' ' * (o.MAX_MANIFEST + 1), b'\xff', b'[]',
-                    b'{"files":{},"files":{}}', b'{"x":NaN}'):
-            with self.subTest(raw=raw[:40]), self.assertRaises(o.OperatorError):
+        cases = (
+            (b'', 'MANIFEST_SIZE'),
+            (b' ' * (o.MAX_MANIFEST + 1), 'MANIFEST_SIZE'),
+            (b'\xff', 'MANIFEST_JSON'),
+            (b'[]', 'MANIFEST_SHAPE'),
+            (b'{"files":{},"files":{}}', 'MANIFEST_DUPLICATE_KEY'),
+            (b'{"files":{"x":1,"x":2}}', 'MANIFEST_DUPLICATE_KEY'),
+            (b'{"x":NaN}', 'MANIFEST_JSON'),
+            (b'{"x":Infinity}', 'MANIFEST_JSON'),
+            (b'{"x":-Infinity}', 'MANIFEST_JSON'),
+        )
+        for raw, code in cases:
+            # A later MANIFEST_CONTRACT failure must not hide a missing parser guard.
+            with self.subTest(raw=raw[:40]), self.assertRaisesRegex(o.OperatorError, '^' + code + '$'):
                 o.installed_checks(raw)
 
     def test_unknown_contract_cannot_self_authorize(self):
@@ -155,11 +166,29 @@ class BrokerOperatorTests(unittest.TestCase):
             self.assertIsNone(raised.exception.__cause__)
 
     def test_returned_reader_type_and_bounds_checked(self):
-        for value in ('candidate', None, b'x' * (2 * 1024 * 1024 + 1)):
+        checks = {check.path: check for check in o.installed_checks(self.raw())}
+        client = checks[o.CLIENT]
+        wrong_length = b'x'
+        self.assertLessEqual(len(wrong_length), client.limit)
+        self.assertNotEqual(len(wrong_length), client.size)
+        # This input violates only the exact-size clause, not the upper bound.
+        for value in ('candidate', None, wrong_length, b'x' * (client.limit + 1)):
             self.reader.side_effect = None
             self.reader.return_value = value
-            with self.assertRaisesRegex(o.OperatorError, 'ARTIFACT_SIZE'):
-                self.verify()
+            with self.subTest(kind=type(value).__name__, length=len(value) if value is not None else None):
+                with self.assertRaisesRegex(o.OperatorError, '^ARTIFACT_SIZE$'):
+                    self.verify()
+        # HEADER is a real runtime target with no exact size. Keep all earlier
+        # reads valid, so only its upper bound can produce ARTIFACT_SIZE here.
+        header = checks[o.HEADER]
+        self.assertIsNone(header.size)
+        oversized_header = b'x' * (header.limit + 1)
+        self.reader.reset_mock()
+        self.reader.side_effect = lambda path, limit: (
+            oversized_header if path == o.HEADER else self.installed[path])
+        with self.assertRaisesRegex(o.OperatorError, '^ARTIFACT_SIZE$'):
+            self.verify()
+        self.reader.assert_any_call(o.HEADER, header.limit)
 
     def test_recovery_requires_real_booleans_and_valid_digests(self):
         for kwargs in ({'dashboard_stopped': 1}, {'startup_inhibited': 'yes'},
