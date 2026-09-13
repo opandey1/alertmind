@@ -5,7 +5,8 @@ package. `operator_core.py` implements byte-integrity checks for a future
 pre-start guard and conservative rollback decisions. It has no command-line
 entry point, process execution, network access, filesystem writes or service
 operations. `operator_fs.py` adds a read-only Linux vendor-file reader; it has
-no CLI, network, writes or service operations. **No startup guard is installed
+no CLI, network, writes or service operations. `operator_bootstrap.py` loads the
+fixed root-controlled manifest and public certificate. **No startup guard is installed
 or operational on the VM.**
 
 The candidate and existing contract remain unchanged. The core repeats the
@@ -55,18 +56,65 @@ including ancestor entries. Detected replacement or drift fails closed and opene
 descriptors are closed on success or exception. The private traversal primitive
 accepts a test anchor; the production wrapper always opens `/`.
 
+The shared primitive independently requires a non-empty tuple of single ASCII
+components (no dot/dot-dot, separators, colon, controls, spaces or overlong names)
+and an integer bound between zero and 100 MiB. Validation happens before any IO,
+including for bootstrap callers. Root-owner lookup alone permits an empty tuple.
+
 Fixed native diagnostics are `FS_PLATFORM`, `FS_ROOT_REQUIRED`,
-`FS_SERVICE_IDENTITY`, `FS_TARGET`, `FS_METADATA`, `FS_SIZE`, `FS_CHANGED`,
+`FS_SERVICE_IDENTITY`, `FS_TARGET`, `FS_COMPONENTS`, `FS_BOUND`, `FS_METADATA`, `FS_SIZE`, `FS_CHANGED`,
 `FS_MISSING`, `FS_ACCESS`, `FS_SYMLINK`, `FS_NOT_DIRECTORY`, and `FS_IO`.
 Native OSError details are suppressed; a link observed by metadata inspection
 can yield `FS_METADATA` whereas an open-time ELOOP yields `FS_SYMLINK`.
 The existing core intentionally reduces callback failures to `ARTIFACT_READ`.
 
-This does not read a root-controlled manifest/guard/CA bootstrap, discover package
+The vendor reader does not discover package
 or launch settings, exclude unlisted modules, verify resolution, freeze mutable
 service-owned code, or authorize startup. Hashes remain the core's responsibility.
 Memory is bounded by a target's limit (100 MiB maximum for Node), with an additional
 bytes copy on return; memory/latency acceptance remains a deployment gate.
+There are 540 fresh identity lookup pairs in a two-pass, 270-target read:
+540 getpwnam calls plus 540 getgrnam calls. Actual NSS caching/remote-backend cost
+must be measured; this is not necessarily 540 network round trips. No identity
+cache or lookup bypass is introduced by this package.
+
+### Root-controlled bootstrap
+
+`operator_bootstrap.load_bootstrap()` exposes no path, pin or reader overrides.
+It reads two public files, with effective root and root:root ownership required
+at **every** component; no vendor/service ownership exception or NSS lookup:
+
+| Fixed file | Bound | Status |
+|---|---|---|
+| `/etc/alertmind/broker-tls/manifest.json` | 512 KiB | Proposed installer destination, not created here |
+| `/etc/wazuh-dashboard/certs/alertmind-server-api.pem` | 64 KiB | Same destination as the approved candidate, not installed here |
+
+The manifest is validated against the core's independent pins/file inventory,
+never trusted merely for residing in a root-owned directory. The certificate must
+be one PEM block with canonical valid Base64 and the exact accepted DER SHA-256
+`5037899c0818f8332b09fc144bd7bd72a3b2ca033f46dad56c67c284d611ce87`.
+Duplicate certificates, private-key blocks, surrounding data, malformed encoding
+and a different pin are rejected. Tests pin the destination and digest to policy.cjs;
+neither the candidate nor its trust pin changed.
+
+Each file is reread and revalidated on a second pass, then exact equality is
+required. A malformed manifest stops before the certificate read. The frozen
+result carries public bytes for later wiring, excludes them from its repr, and
+always carries `startup_authorized=False`. It is not a persistable authority or
+atomic snapshot. Pass its manifest to InstalledReader only inside the future
+trusted operator process; this slice does not trigger vendor reads itself.
+
+Bootstrap-specific codes are `BOOTSTRAP_TARGET`, `BOOTSTRAP_CERT_SIZE`,
+`BOOTSTRAP_CERT_PEM`, `BOOTSTRAP_CERT_PIN` and `BOOTSTRAP_CHANGED`; manifest and
+native reader rejections retain their existing fixed codes. No raw file bytes or
+OS errors are emitted by a CLI (there is no CLI).
+
+**Still not established:** X.509 current validity, SAN/hostname/revocation/TLS
+success, Dashboard-user readability of the future certificate, or trusted Python
+launch/import/code identity. An imported module cannot attest its own launch
+after the fact. The approved client still performs its own date/hostname checks
+at use. Root-controlled guard installation/import isolation, package/runtime/
+service observations and executable startup enforcement remain separate work.
 
 `recovery_step(observation)` returns one next action from fresh observations:
 
@@ -121,6 +169,14 @@ Wazuh, credentials or networking and do not execute packaged Node. The core's
 existing parser method also now rejects str, bytearray and memoryview manifests
 with the exact `MANIFEST_SIZE` code. Neither the TLS candidate nor pins changed.
 
+Claude's September 13 review ran that 214-method revision on Linux with zero
+skips, including its four native tests. The bootstrap follow-up has 226 methods
+in 22 files: eighteen reader methods (four Linux-only), ten new bootstrap methods,
+and the unchanged twenty core methods among them. It adds independent primitive
+component/bound tests and negative root-anchor/type cases to the existing tests;
+bootstrap tests use synthetic pinned public bytes, not live X.509 acceptance.
+Changed native code still needs fresh Linux reviewer/CI verification.
+
 Historical TLS fixture verification files remain unchanged. Claude's September
 12 approval records the updated 16-group fixture passing on Linux Node 22.22.2
 with inherited proxy settings; it does not close the native operator gates.
@@ -130,8 +186,9 @@ with inherited proxy settings; it does not close the native operator gates.
 1. Establish selected packaged Linux runtime and real Server certificate
    suitability without broker credentials; agree the 30-second timeout and
    performance acceptance criteria. Preserve the current public fingerprints.
-2. Review the new vendor reader and run its native Linux tests. Implement
-   root-controlled guard/manifest/trust bootstrap reads and wiring. Preserve
+2. Review the root-controlled manifest/certificate loader and rerun native Linux
+   traversal tests after shared-primitive changes. Implement trusted guard launch/
+   import bootstrap and deployment wiring. Preserve
    the distinction between root-controlled trust and service-mutable vendor code.
    Two equal byte passes cannot prevent edits after checking or attest running
    code. Verify the installed dependency resolution/file set too: matching listed

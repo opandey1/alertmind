@@ -53,13 +53,17 @@ class ReaderPolicyTests(unittest.TestCase):
 
     def test_exact_target_and_limit_before_native_io(self):
         reader = self.reader()
-        with patch.object(f, '_platform') as guard:
+        with patch.object(f, '_platform') as guard, patch.object(f, '_identity') as identity, patch.object(
+                f, '_read_native') as read:
             for path, limit in [('/etc/shadow', 99), (core.CLIENT + '/..', 99),
-                                (core.CLIENT, 100), (core.CLIENT, True), (None, 99)]:
+                                (core.CLIENT, 100), (core.CLIENT, True), (None, 99),
+                                ([], 99), (core.CLIENT, 99.0)]:
                 with self.subTest(path=path, limit=limit), self.assertRaisesRegex(
                         core.OperatorError, '^FS_TARGET$'):
                     reader(path, limit)
             guard.assert_not_called()
+            identity.assert_not_called()
+            read.assert_not_called()
 
     def test_dispatch_uses_fresh_identity_and_fixed_root_wrapper(self):
         reader = self.reader()
@@ -137,6 +141,8 @@ class ReaderPolicyTests(unittest.TestCase):
             self.assertEqual(f._owners(parts, service), ((0, 0),))
         for parts in [f.VENDOR, f.VENDOR + ('node', 'bin', 'node')]:
             self.assertEqual(f._owners(parts, service), ((0, 0), service))
+        with self.assertRaisesRegex(core.OperatorError, '^FS_COMPONENTS$'):
+            f._owners(f.VENDOR + ('..', '..', '..', 'etc', 'shadow'), service)
 
     def test_metadata_rejects_links_special_files_writes_and_wrong_owner(self):
         f._trusted(metadata(), False, ((0, 0),))
@@ -147,6 +153,39 @@ class ReaderPolicyTests(unittest.TestCase):
                    metadata(st_mode=stat.S_IFREG | 0o640 | bit) for bit in (0o002, 0o020, 0o2000, 0o4000)]:
             with self.assertRaisesRegex(core.OperatorError, '^FS_METADATA$'):
                 f._trusted(st, False, ((0, 0),))
+        for changes in ({'st_mode': stat.S_IFDIR | 0o777}, {'st_uid': 126, 'st_gid': 128}):
+            fs = FakeFS()
+            fs.nodes[10] = metadata(True, **changes)
+            with self.assertRaisesRegex(core.OperatorError, '^FS_METADATA$'):
+                self.run_fake(fs)
+            fs.open.assert_not_called()
+            fs.read.assert_not_called()
+
+    def test_primitive_components_rejected_before_any_io(self):
+        bad = ((), [], 'dir/file', ('dir', '..', 'file'), ('.', 'file'),
+               ('dir/file',), ('/etc',), ('dir', ''), ('a\\b',), ('a:b',),
+               ('a\x00b',), ('a\nb',), ('\ud800',), ('\u00e9',), (None,), ('x' * 256,), ('x',) * 129)
+        for parts in bad:
+            fs = FakeFS()
+            with self.subTest(parts=parts), patch.object(f, 'os', fs):
+                for call in (lambda: f._read_at(10, parts, 3, lambda p: ((0, 0),)),
+                             lambda: f._read_root_owned(parts, 3)):
+                    with self.assertRaisesRegex(core.OperatorError, '^FS_COMPONENTS$'):
+                        call()
+                fs.fstat.assert_not_called()
+                fs.stat.assert_not_called()
+                fs.open.assert_not_called()
+
+    def test_primitive_limit_rejected_before_any_io(self):
+        for limit in (None, True, 3.0, -1, f.MAX_READ + 1):
+            fs = FakeFS()
+            with self.subTest(limit=limit), patch.object(f, 'os', fs):
+                for call in (lambda: f._read_at(10, ('file',), limit, lambda p: ((0, 0),)),
+                             lambda: f._read_root_owned(('file',), limit)):
+                    with self.assertRaisesRegex(core.OperatorError, '^FS_BOUND$'):
+                        call()
+                fs.fstat.assert_not_called()
+                fs.open.assert_not_called()
 
     def run_fake(self, fs, limit=3):
         with patch.object(f, 'os', fs):
