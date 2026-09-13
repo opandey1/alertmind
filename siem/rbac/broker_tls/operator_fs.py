@@ -8,6 +8,7 @@ from contextlib import ExitStack
 import errno
 import os
 from pathlib import PurePosixPath
+import re
 import stat
 import sys
 
@@ -16,6 +17,7 @@ from .operator_core import installed_checks, require, OperatorError
 VENDOR = ('usr', 'share', 'wazuh-dashboard')
 SERVICE = 'wazuh-dashboard'
 CHUNK = 65536
+MAX_READ = 100 * 1024 * 1024
 
 
 def _platform():
@@ -41,7 +43,28 @@ def _identity():
 
 
 def _owners(parts, identity):
+    _components(parts, allow_empty=True)
     return ((0, 0), identity) if parts[:len(VENDOR)] == VENDOR else ((0, 0),)
+
+
+def _components(parts, *, allow_empty=False):
+    # Validate BEFORE opening even the first component, independently of the
+    # pinned-manifest caller. Absolute names and embedded separators must never
+    # bypass dir_fd. Empty is permitted only for the root ownership lookup.
+    require(type(parts) is tuple and (allow_empty or len(parts) > 0)
+            and len(parts) <= 128 and all(type(p) is str and p.isascii() and 0 < len(p) <= 255
+                and p not in ('.', '..') and not re.search(r'[/\\:\x00-\x20\x7f]', p)
+                for p in parts), 'FS_COMPONENTS')
+
+
+def _bound(limit):
+    require(type(limit) is int and 0 <= limit <= MAX_READ, 'FS_BOUND')
+
+
+def _os_error_code(error):
+    return {errno.ENOENT: 'FS_MISSING', errno.EACCES: 'FS_ACCESS',
+            errno.EPERM: 'FS_ACCESS', errno.ELOOP: 'FS_SYMLINK',
+            errno.ENOTDIR: 'FS_NOT_DIRECTORY'}.get(error.errno, 'FS_IO')
 
 
 def _stamp(st):
@@ -61,6 +84,8 @@ def _read_at(root_fd, parts, limit, owners_for):
     Tests can anchor a temporary tree without root or a Wazuh installation.
     Caller owns root_fd; all opened descendants close here, also on failure.
     """
+    _components(parts)
+    _bound(limit)
     flags = os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC
     with ExitStack() as stack:
         root_before = os.fstat(root_fd)
@@ -99,18 +124,30 @@ def _read_at(root_fd, parts, limit, owners_for):
 
 
 def _read_native(parts, limit, identity):
+    return _read_root(parts, limit, lambda p: _owners(p, identity))
+
+
+def _read_root_owned(parts, limit):
+    # No service-owner exception or NSS lookup on the bootstrap trust path.
+    return _read_root(parts, limit, lambda _: ((0, 0),))
+
+
+def _read_root(parts, limit, owners_for):
+    _components(parts)
+    _bound(limit)
     flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
     with ExitStack() as stack:
         root_fd = os.open('/', flags)
         stack.callback(os.close, root_fd)
-        return _read_at(root_fd, parts, limit, lambda p: _owners(p, identity))
+        return _read_at(root_fd, parts, limit, owners_for)
 
 
 class InstalledReader:
     """Callback for verify_installed_bytes; construction performs no filesystem IO.
 
     This Python process/caller must be trusted, not an adversarial plugin.
-    Bootstrap validation of guard/manifest/trust paths remains separate work.
+    Root-only manifest/trust loading is in operator_bootstrap; guard installation
+    and trusted process startup remain separate work.
     """
     def __init__(self, manifest):
         self._limits = {check.path: check.limit for check in installed_checks(manifest)}
@@ -123,7 +160,4 @@ class InstalledReader:
             identity = _identity()
             return _read_native(PurePosixPath(path).parts[1:], limit, identity)
         except OSError as error:
-            code = {errno.ENOENT: 'FS_MISSING', errno.EACCES: 'FS_ACCESS',
-                    errno.EPERM: 'FS_ACCESS', errno.ELOOP: 'FS_SYMLINK',
-                    errno.ENOTDIR: 'FS_NOT_DIRECTORY'}.get(error.errno, 'FS_IO')
-            raise OperatorError(code) from None
+            raise OperatorError(_os_error_code(error)) from None
