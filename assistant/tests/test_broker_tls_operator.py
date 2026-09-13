@@ -79,6 +79,9 @@ class BrokerOperatorTests(unittest.TestCase):
 
     def test_manifest_size_encoding_shape_and_duplicate_keys(self):
         cases = (
+            ('{}', 'MANIFEST_SIZE'),
+            (bytearray(b'{}'), 'MANIFEST_SIZE'),
+            (memoryview(b'{}'), 'MANIFEST_SIZE'),
             (b'', 'MANIFEST_SIZE'),
             (b' ' * (o.MAX_MANIFEST + 1), 'MANIFEST_SIZE'),
             (b'\xff', 'MANIFEST_JSON'),
