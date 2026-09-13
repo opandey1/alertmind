@@ -21,7 +21,8 @@ def values():
         ['wrapper', '--password=SECRET'], [], 0, 0, 0, 0, 0, 0, 0]],
         Environment=['SOME_SECRET=SECRET'], EnvironmentFiles=[], PassEnvironment=[],
         UnsetEnvironment=[], User='wazuh-dashboard', Group='wazuh-dashboard',
-        WorkingDirectory=core.BASE.rstrip('/'), RootDirectory='', RootImage='')
+        WorkingDirectory=core.BASE.rstrip('/'), RootDirectory='', RootImage='',
+        MainPID=123, ExecMainStartTimestampMonotonic=456)
 
 
 def reply(group, data):
@@ -30,6 +31,39 @@ def reply(group, data):
 
 
 class ServiceTests(unittest.TestCase):
+    def test_verified_tool_is_derived_from_executed_path(self):
+        with patch.object(s, 'BUSCTL', '/usr/local/bin/busctl'), patch.object(s.fs, '_platform'), patch.object(
+                s.fs, '_read_root_owned') as read:
+            s._check_tool()
+            read.assert_called_once_with(('usr', 'local', 'bin', 'busctl'), 16 * 1024 * 1024)
+        for path in ('relative', '/usr/../bin/busctl', '/usr//bin/busctl'):
+            with patch.object(s, 'BUSCTL', path), patch.object(s.fs, '_platform'), patch.object(
+                    s.fs, '_read_root_owned', side_effect=core.OperatorError('FS_COMPONENTS')), self.assertRaises(core.OperatorError):
+                s._check_tool()
+
+    def test_literal_unicode_separators_are_not_record_boundaries(self):
+        for char in ('\u2028', '\u2029', '\u0085'):
+            data = values()
+            data['Environment'] = ['X=before' + char + 'after']
+            raw = reply('Service', data)
+            literal = raw.replace(('\\u%04x' % ord(char)).encode(), char.encode())
+            self.assertEqual(s.parse_properties(raw, 'Service'), s.parse_properties(literal, 'Service'))
+        raw = reply('Unit', values())
+        self.assertEqual(s.parse_properties(raw, 'Unit'), s.parse_properties(raw[:-1], 'Unit'))
+        with self.assertRaisesRegex(core.OperatorError, '^SERVICE_SHAPE$'):
+            s.parse_properties(raw + b'\n', 'Unit')
+
+    def test_unknown_json_keys_and_invalid_pid_types_are_rejected(self):
+        raw = reply('Unit', values()).replace(b'{', b'{"extra":true,', 1)
+        with self.assertRaisesRegex(core.OperatorError, '^SERVICE_SHAPE$'):
+            s.parse_properties(raw, 'Unit')
+        for name, value in (('MainPID', True), ('MainPID', -1), ('MainPID', 2**32),
+                            ('ExecMainStartTimestampMonotonic', 2**64)):
+            data = values()
+            data[name] = value
+            with self.assertRaisesRegex(core.OperatorError, '^SERVICE_SHAPE$'):
+                s.parse_properties(reply('Service', data), 'Service')
+
     def observe(self, data=None, second=None):
         data = data or values()
         replies = [reply(g, v) for v in (data, second or data) for g in s.GROUPS]

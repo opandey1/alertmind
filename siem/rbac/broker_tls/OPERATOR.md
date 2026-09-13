@@ -10,7 +10,9 @@ fixed root-controlled manifest and public certificate. `operator_runtime.py`
 observes the package registry and pinned Node/header files without executing Node.
 `operator_service.py` adds fixed read-only local systemd queries through busctl;
 unlike the earlier libraries it can spawn that specific OS utility when invoked.
-It has no CLI or service mutation operation. **No startup guard is installed
+It has no CLI or service mutation operation. `operator_process.py` adds a separate
+running-process observation via fixed systemd queries and procfs reads; it is not
+a pre-start requirement. **No startup guard is installed
 or operational on the VM.**
 
 The candidate and existing contract remain unchanged. The core repeats the
@@ -247,13 +249,19 @@ Properties.Get, never LoadUnit, Set, reload, restart or a broker endpoint.
 The Linux/root capability gate and no-follow root:root read of the busctl file
 and ancestors precede execution. The host OS, tool and its libraries are trust
 assumptions, not independently pinned package-authenticity proof; this check
-does not prevent a privileged concurrent replacement before exec.
+does not prevent a privileged concurrent replacement before exec. The verified
+path components are now derived from the same BUSCTL path used by Popen, so a
+future maintained path change cannot silently leave verification on the old path.
 
-Each of two passes queries six Unit and ten Service properties, including
+Each of two passes queries six Unit and twelve Service properties, including
 ExecStartEx, explicit Environment, environment-file references, passed/unset
-names, user/group, working directory and alternate-root settings. Native typed
+names, user/group, working directory, alternate-root settings, MainPID and the
+main-process monotonic start timestamp. Native typed
 JSON is parsed strictly, including argument arrays, extended execution flags,
-integer widths, duplicate keys and exact property ordering. The format basis is
+integer widths, duplicate/extra keys and exact property ordering. Records are
+split on LF bytes; literal Unicode separators inside JSON values are not record
+boundaries. A single terminal LF is optional; extra empty records are rejected.
+The format basis is
 the [systemd D-Bus interface](https://github.com/systemd/systemd/blob/v257/man/org.freedesktop.systemd1.xml)
 and [busctl's get-property JSON implementation](https://github.com/systemd/systemd/blob/v257/src/busctl/busctl.c).
 Unsupported/missing properties fail closed; host-version compatibility remains
@@ -297,11 +305,72 @@ Fixed diagnostics: `SERVICE_TARGET`, `SERVICE_SIZE`, `SERVICE_JSON`,
 `SERVICE_IDENTITY`, `SERVICE_RELOAD_PENDING`, `SERVICE_TRANSITION`,
 `SERVICE_ENVIRONMENT`, `SERVICE_CHANGED`, plus the reused native reader codes.
 
-Current suite: 258 methods in 24 files, including sixteen service-observation
-methods and the same four Linux-only native reader tests. Service subprocess
-and bus replies are mocked in CI: no host system bus is contacted. Previous
-239-method Linux approval is not native execution of this new adapter. A fresh
-Linux review, including busctl framing and bounded pipe behavior, is required.
+### Running-process executable observations (separate from pre-start safety)
+
+`operator_process.observe_running_process()` derives MainPID only from the fixed
+service configuration query. It requires an active named service, nonzero start
+timestamp, and the expected configured user/group. Three full private manager
+reads bracket two procfs snapshots. There is no public caller-PID override.
+
+**Do not start an unpatched/unsafe Dashboard to make this check pass.** An absent
+process stops this observation. The future pre-start guard must work while no
+Dashboard process exists, and must not depend on this function. It is a later
+point-in-time acceptance/diagnostic component, not permission to run the broker.
+
+The implementation holds root, proc and PID-directory descriptors and opens
+stat, status, cmdline and environ relative to them with no-follow flags. Bounds
+are respectively 8 KiB, 64 KiB, 128 KiB and 1 MiB. Unlike normal files, procfs
+content is not required to have the size reported in st_size. Stat parsing handles
+parentheses/spaces/newlines in comm and checks the process start-time field;
+status requires all four UID and GID values to match the service identity.
+Unexpected credentials, unsupported state, malformed or oversized data stop.
+
+Only the kernel's `exe` magic link is deliberately followed, relative to the
+held PID descriptor. The link text must equal the pinned Node path without a
+deleted-file suffix; it is never reused as an open pathname. The opened backing
+executable is streamed through SHA-256 with a 100 MiB cap, checked against the
+existing independent Node pin, and checked for metadata/link drift. Proc start
+time and credentials are checked again. All descriptors close on success/failure.
+The [Linux procfs documentation](https://docs.kernel.org/filesystems/proc.html)
+describes these process files and the dead-process descriptor behavior.
+
+Both private proc snapshots (including raw arguments/environment, start time
+and executable inode) and the manager snapshots must agree. Only counts,
+argv0-path equality and a fixed runtime-variable-name indicator leave the public
+function, along with `process_executable_matches_pin=True`. This last flag means
+the observed backing executable matched the approved bytes during these reads;
+it does not mean loaded libraries, JIT code, modules or process memory are intact.
+`loaded_code_proven`, `effective_environment_proven` and `startup_authorized`
+remain false. A private snapshot suppresses argument/environment bytes in repr;
+do not serialize it, parser results or exception frame locals. No raw-data
+hashes, PID, credentials or variable names/values are exported in the summary.
+
+Trust/limits: host kernel, procfs mount, PID namespace, host OS tools and Python
+launch are assumed trusted; there is no hostile-root/kernel attestation, procfs
+mount-type or cgroup-membership proof. Access denials and process exit stop rather
+than changing permissions. Multiple reads are not atomic; an exec or process
+change between observations may be missed. Command-line storage can be changed by
+the target process, and procfs environment content is not all current setenv state
+or the provenance of inherited environment. Empty environment is an observation,
+not evidence of a safe one. Environment-source, wrapper/launch-file identity and
+module-resolution checks remain pending. Streaming file IO has byte bounds but
+no kernel-IO deadline; manager queries reuse the bounded helper. Performance and
+concurrent-update acceptance remain live deployment gates. No signals or ptrace
+are used against the Dashboard, and no executable is launched through procfs.
+
+New fixed diagnostics: `PROCESS_PID`, `PROCESS_STAT`, `PROCESS_IDENTITY`,
+`PROCESS_CMDLINE`, `PROCESS_ENVIRONMENT`, `PROCESS_TARGET`, `PROCESS_CHANGED`,
+`PROCESS_SIZE`, `PROCESS_EXECUTABLE`, `PROCESS_DIGEST`, `PROCESS_NOT_RUNNING`,
+`PROCESS_IO`; service and native trust codes are reused.
+
+Current suite: 277 methods in 25 files, including nineteen service methods and
+sixteen process methods. Seven require Linux: four native-reader tests and three
+self-process procfs/executable/descriptor tests. The latter inspect the test's own
+interpreter with test-only pins, not Wazuh; no Node execution or system bus call.
+Portable tests use syscall/manager doubles, including directory cleanup and drift.
+Fresh independent Linux review is required. Prior 258-method Linux and fake-tool
+approval is neither this revision's native verification nor real systemd framing
+compatibility. No live operator packet is released by this library change.
 
 Historical TLS fixture verification files remain unchanged. Claude's September
 12 approval records the updated 16-group fixture passing on Linux Node 22.22.2
@@ -319,8 +388,8 @@ with inherited proxy settings; it does not close the native operator gates.
    Two equal byte passes cannot prevent edits after checking or attest running
    code. Verify the installed dependency resolution/file set too: matching listed
    files alone does not exclude an extra module or a changed resolution path.
-3. Review the systemd configuration adapter, then complete process/runtime and
-   environment-source observations, wrapper/file identity and single broker host
+3. Review the process observer and native Linux tests, then complete
+   environment-source observations, wrapper/launch-file identity and single broker host
    observations privately. No arbitrary executable override, fallback Node or
    `NODE_OPTIONS` preload may bypass the intended guard. Do not export secrets.
 4. Build the root-controlled pre-start adapter and exact service drop-in from

@@ -7,6 +7,7 @@ The host OS, busctl/libraries and Python launch/import environment are trusted.
 from dataclasses import dataclass, field
 import json
 import os
+from pathlib import PurePosixPath
 import re
 import selectors
 import subprocess
@@ -26,7 +27,8 @@ GROUPS = {
     'Service': (('ExecStartEx', 'a(sasasttttuii)'), ('Environment', 'as'),
                 ('EnvironmentFiles', 'a(sb)'), ('PassEnvironment', 'as'),
                 ('UnsetEnvironment', 'as'), ('User', 's'), ('Group', 's'),
-                ('WorkingDirectory', 's'), ('RootDirectory', 's'), ('RootImage', 's')),
+                ('WorkingDirectory', 's'), ('RootDirectory', 's'), ('RootImage', 's'),
+                ('MainPID', 'u'), ('ExecMainStartTimestampMonotonic', 't')),
 }
 RISK_NAMES = frozenset(('NODE_OPTIONS', 'NODE_PATH', 'NODE_HOME', 'NODE',
                         'LD_PRELOAD', 'LD_LIBRARY_PATH', 'PATH'))
@@ -49,6 +51,8 @@ def _strings(value):
 
 
 def _valid(value, signature):
+    if signature in ('u', 't'):
+        return type(value) is int and 0 <= value < 2 ** (32 if signature == 'u' else 64)
     if signature == 's':
         return _string(value)
     if signature == 'b':
@@ -80,11 +84,14 @@ def parse_properties(raw, group):
     core.require(type(group) is str and group in GROUPS, 'SERVICE_TARGET')
     core.require(type(raw) is bytes and 0 < len(raw) <= MAX_REPLY, 'SERVICE_SIZE')
     try:
-        lines = raw.decode('utf-8').splitlines()
+        # busctl JSON records are LF-delimited, not Unicode-line-delimited.
+        lines = raw.split(b'\n')
+        if lines[-1] == b'':
+            lines.pop()
         core.require(len(lines) == len(GROUPS[group]), 'SERVICE_SHAPE')
         result = {}
         for line, (name, signature) in zip(lines, GROUPS[group]):
-            obj = json.loads(line, object_pairs_hook=_pairs,
+            obj = json.loads(line.decode('utf-8'), object_pairs_hook=_pairs,
                              parse_constant=lambda _: core.require(False, 'SERVICE_JSON'))
             core.require(type(obj) is dict and set(obj) == {'type', 'data'}
                          and obj['type'] == signature and _valid(obj['data'], signature), 'SERVICE_SHAPE')
@@ -185,6 +192,27 @@ def _summarize(values):
         len(values['DropInPaths']))
 
 
+def _check_tool():
+    fs._platform()
+    path = PurePosixPath(BUSCTL)
+    core.require(path.is_absolute() and str(path) == BUSCTL, 'SERVICE_TARGET')
+    try:
+        # Root-owned regular tool file/ancestors, NOT authenticity or
+        # dependency proof. The host OS toolchain is an explicit trust assumption.
+        fs._read_root_owned(path.parts[1:], 16 * 1024 * 1024)
+    except OSError as error:
+        raise core.OperatorError(fs._os_error_code(error)) from None
+
+
+def _read_configuration():
+    # Private data; callers must establish _check_tool first and never log it.
+    values = {}
+    for group in GROUPS:
+        values.update(parse_properties(_query(group), group))
+    _summarize(values)
+    return values
+
+
 def observe_service_configuration():
     """Fresh manager properties, not on-disk unit parsing or process attestation.
 
@@ -192,19 +220,9 @@ def observe_service_configuration():
     Two equal snapshots are not atomic and do not prevent later reconfiguration.
     Returns counts/fixed labels only; do not log intermediate parser return values.
     """
-    fs._platform()
-    try:
-        # Root-owned regular tool file/ancestors, NOT authenticity or
-        # dependency proof. The host OS toolchain is an explicit trust assumption.
-        fs._read_root_owned(('usr', 'bin', 'busctl'), 16 * 1024 * 1024)
-    except OSError as error:
-        raise core.OperatorError(fs._os_error_code(error)) from None
+    _check_tool()
     snapshots = []
     for _ in range(2):
-        values = {}
-        for group in GROUPS:
-            values.update(parse_properties(_query(group), group))
-        _summarize(values)
-        snapshots.append(values)
+        snapshots.append(_read_configuration())
     core.require(snapshots[0] == snapshots[1], 'SERVICE_CHANGED')
     return _summarize(snapshots[1])
