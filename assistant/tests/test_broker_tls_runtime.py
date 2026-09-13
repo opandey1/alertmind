@@ -73,6 +73,21 @@ class RuntimeTests(unittest.TestCase):
         with self.assertRaisesRegex(core.OperatorError, '^PACKAGE_STATUS_AMBIGUOUS$'):
             r.parse_package_status(status() + b'\n' + status(architecture='arm64'))
 
+    def test_whitespace_only_separator_policy_is_explicit(self):
+        self.assertEqual(r.parse_package_status(b'Package: unrelated\n \t\n' + status()), self.identity)
+        with self.assertRaisesRegex(core.OperatorError, '^PACKAGE_STATUS_FORMAT$'):
+            r.parse_package_status(b'Package: unrelated\nDescription: text\n \n continuation\n\n' + status())
+
+    def test_controls_and_invalid_utf8_in_unrelated_values_are_rejected(self):
+        for value in (b'bad\x00text', b'bad\x1ftext', b'bad\x7ftext', b'bad\xfftext'):
+            with self.subTest(value=value), self.assertRaisesRegex(core.OperatorError, '^PACKAGE_STATUS_FORMAT$'):
+                r.parse_package_status(status() + b'Description: ' + value + b'\n')
+
+    def test_unrelated_fields_never_enter_returned_identity(self):
+        result = r.parse_package_status(status() + b'Description: PRIVATE_VALUE\n X-Secret: PRIVATE_VALUE\n')
+        self.assertEqual(vars(result), dict(version=core.PACKAGE_VERSION, architecture='amd64', selection='install'))
+        self.assertNotIn('PRIVATE_VALUE', repr(result))
+
     def test_partial_removed_error_and_pending_states_rejected(self):
         for state in ('install ok half-configured', 'install reinstreq installed', 'deinstall ok installed',
                       'purge ok config-files', 'install ok triggers-pending', 'install ok unpacked', ''):
