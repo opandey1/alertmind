@@ -363,7 +363,7 @@ New fixed diagnostics: `PROCESS_PID`, `PROCESS_STAT`, `PROCESS_IDENTITY`,
 `PROCESS_SIZE`, `PROCESS_EXECUTABLE`, `PROCESS_DIGEST`, `PROCESS_NOT_RUNNING`,
 `PROCESS_IO`; service and native trust codes are reused.
 
-Current suite: 278 methods in 25 files, including nineteen service methods and
+Current suite: 290 methods in 26 files, including nineteen service methods and
 seventeen process methods. Seven require Linux: four native-reader tests and three
 procfs/executable/descriptor tests. These inspect the test process and a private
 copy of `/bin/cat` launched with a clean environment and mode 0500. The child
@@ -379,6 +379,66 @@ Historical TLS fixture verification files remain unchanged. Claude's September
 12 approval records the updated 16-group fixture passing on Linux Node 22.22.2
 with inherited proxy settings; it does not close the native operator gates.
 
+### Fixed launch-file observations (not executable selection)
+
+`operator_launch.observe_launch_files()` validates these three exact files with
+the existing descriptor-relative vendor reader. Each read is capped at its
+pinned length and must match both that length and SHA-256. The source is the
+already approved 4.14.7-1 amd64 package, SHA-256
+`83f472d9e5f59b28b1abb6260c466e77b99ae427ce8c5f76203d847f2f598b6f`.
+The author re-read that exact archive with `build_candidate.archive_bytes`, then
+streamed its tar members without extracting or executing them. Existing candidate
+manifest, package pin, dependency set and historical verification are unchanged.
+
+Paths below are relative to `/usr/share/wazuh-dashboard/`:
+
+| File | Bytes | SHA-256 |
+| --- | ---: | --- |
+| `bin/opensearch-dashboards` | 939 | `30993e61fae26ab0c7d73836fd510f1c9a54e9110a7e9c63edc9cbaff505f9d5` |
+| `bin/use_node` | 3531 | `e1ec334650c93f2a4869cd679f2ff5a434a580f2c9b0e15cc4ef4f826803c464` |
+| `src/cli/dist.js` | 1187 | `3425aafe16f4e139902826a4b929c61e74f930f2e7ef08cf7fe123cb81b7eefe` |
+
+Two complete file passes are bracketed by three package-identity reads and three
+full private manager snapshots. Package selection or manager changes stop the
+observation. RootDirectory/RootImage are rejected because host paths do not prove
+files inside those roots; other namespace settings are not comprehensively read.
+An inactive loaded service is allowed: no process, PID or unsafe startup is needed.
+Only fixed paths are read; an unknown configured command is never opened or run.
+Returned flags distinguish the configured wrapper path, exact single wrapper
+argv, explicit execution flags and a fixed set of environment-variable names.
+Raw arguments/environment and their hashes are not returned. Unknown commands or
+extra arguments can still produce an observation, but not a startup approval.
+
+Package-source review explains why byte identity alone is insufficient:
+
+- The first script derives OSD_HOME and invokes `bin/use_node`, supplying
+  OSD_PATH_CONF, OSD_NODE_OPTS_PREFIX, OSD_USE_NODE_JS_FILE_PATH and NODE_ENV.
+- `use_node` considers OSD_NODE_HOME, NODE_HOME, bundled Node, a fallback Node
+  directory and system Node lookup. It can execute bundled Node with `-v` during
+  selection; **do not execute the wrapper as a harmless inventory probe**.
+- It reads `${CONFIG_DIR}/node.options` through shell tools and builds arguments
+  from option variables. Shell interpretation, inherited environment and external
+  utilities are not verified by hashing the script. The name indicator includes
+  OSD variables but remains visibility only, not a complete allowlist.
+- The wrapper passes extensionless `/src/cli/dist`; this package contains
+  `dist.js`, which loads apm, setup_node_env/dist and cli. Pinning dist.js does not
+  prove Node chooses it, exclude a shadowing `dist` file, or verify its imports.
+
+`launch_bytes_match_pins=True` reports only these three backing-file byte checks.
+`selected_runtime_proven`, `effective_environment_proven`,
+`dependency_resolution_proven` and `startup_authorized` remain false. Existing
+root/service ownership policy is reused, not strengthened; service-owned files
+can still change after inspection. Reads are not atomic; syscall IO has byte
+bounds, not a kernel deadline. Full environment sources, shell/utility identity,
+unit files/drop-ins, import resolution and deployment remain later work.
+
+Fixed new diagnostics: `LAUNCH_SIZE`, `LAUNCH_DIGEST`, `LAUNCH_NAMESPACE`,
+`LAUNCH_CHANGED`; package, service and native reader codes are reused. No CLI,
+write, shell/Node/broker execution or live operator packet is introduced. Twelve
+new portable tests cover pins, bounded reads, both passes, drift, namespace,
+non-authorizing flags, unknown paths and sanitized errors using existing native
+reader contracts. They do not establish fresh live Linux/VM acceptance.
+
 ## Required next adapter package — not released here
 
 1. Establish selected packaged Linux runtime and real Server certificate
@@ -391,8 +451,8 @@ with inherited proxy settings; it does not close the native operator gates.
    Two equal byte passes cannot prevent edits after checking or attest running
    code. Verify the installed dependency resolution/file set too: matching listed
    files alone does not exclude an extra module or a changed resolution path.
-3. Review the process observer and native Linux tests, then complete
-   environment-source observations, wrapper/launch-file identity and single broker host
+3. Review the fixed launch-file observer, then complete
+   environment-source observations, full launch/dependency resolution and single broker host
    observations privately. No arbitrary executable override, fallback Node or
    `NODE_OPTIONS` preload may bypass the intended guard. Do not export secrets.
 4. Build the root-controlled pre-start adapter and exact service drop-in from
