@@ -363,10 +363,13 @@ New fixed diagnostics: `PROCESS_PID`, `PROCESS_STAT`, `PROCESS_IDENTITY`,
 `PROCESS_SIZE`, `PROCESS_EXECUTABLE`, `PROCESS_DIGEST`, `PROCESS_NOT_RUNNING`,
 `PROCESS_IO`; service and native trust codes are reused.
 
-Current suite: 277 methods in 25 files, including nineteen service methods and
-sixteen process methods. Seven require Linux: four native-reader tests and three
-self-process procfs/executable/descriptor tests. The latter inspect the test's own
-interpreter with test-only pins, not Wazuh; no Node execution or system bus call.
+Current suite: 278 methods in 25 files, including nineteen service methods and
+seventeen process methods. Seven require Linux: four native-reader tests and three
+procfs/executable/descriptor tests. These inspect the test process and a private
+copy of `/bin/cat` launched with a clean environment and mode 0500. The child
+waits on a test-owned pipe and is reaped before temporary-file cleanup. Test-only
+pins are used; no Wazuh, Node execution or system bus call. The shared CI Python
+executable's ownership/permissions are not assumed or changed.
 Portable tests use syscall/manager doubles, including directory cleanup and drift.
 Fresh independent Linux review is required. Prior 258-method Linux and fake-tool
 approval is neither this revision's native verification nor real systemd framing

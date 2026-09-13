@@ -1,9 +1,13 @@
-"""Offline process policies plus Linux-only self-process descriptor checks."""
+"""Offline policies plus Linux-only self/controlled-child procfs checks."""
 from dataclasses import asdict
 import hashlib
 import os
 from pathlib import Path
+import shutil
+import stat
+import subprocess
 import sys
+import tempfile
 import unittest
 from unittest.mock import Mock, patch
 
@@ -190,6 +194,27 @@ class ProcessTests(unittest.TestCase):
             p._executable(10, ((0, 0),))
         close.assert_called_once_with(20)
 
+    def test_executable_metadata_rejected_even_when_digest_matches(self):
+        # Isolate metadata policy: every later size/stamp/digest check would pass.
+        for changes in ({'st_mode': stat.S_IFREG | mode} for mode in
+                        (0o775, 0o757, 0o4755, 0o2755)):
+            self.reject_executable_metadata(changes)
+        self.reject_executable_metadata({'st_uid': 999, 'st_gid': 999})
+        self.reject_executable_metadata({'st_uid': 0, 'st_gid': 999})
+        self.reject_executable_metadata({'st_mode': stat.S_IFDIR | 0o755})
+
+    def reject_executable_metadata(self, changes):
+        st = metadata(st_size=4, **changes)
+        with self.subTest(changes=changes), patch.object(p.os, 'readlink', return_value=core.NODE), patch.object(
+                p.os, 'open', return_value=20), patch.object(p.os, 'fstat', return_value=st), patch.object(
+                p.os, 'stat', return_value=st), patch.object(p.os, 'read', side_effect=[b'fake', b'']) as read, patch.object(
+                p.os, 'close') as close, patch.dict(core.CONTRACT,
+                packaged_linux_node_sha256=hashlib.sha256(b'fake').hexdigest()):
+            with self.assertRaisesRegex(core.OperatorError, '^FS_METADATA$'):
+                p._executable(10, ((0, 0),))
+            read.assert_not_called()
+            close.assert_called_once_with(20)
+
     def setUp(self):
         # Match the existing native-reader policy tests' portable syscall doubles.
         for name, value in (('O_NOFOLLOW', 0x20000), ('O_DIRECTORY', 0x10000), ('O_NONBLOCK', 0x800), ('O_CLOEXEC', 0x80000)):
@@ -209,16 +234,38 @@ class NativeProcessTests(unittest.TestCase):
         finally:
             os.close(fd)
 
-    def test_real_self_executable_magic_link_and_streamed_digest(self):
-        path=os.readlink('/proc/self/exe')
-        digest=hashlib.sha256(Path('/proc/self/exe').read_bytes()).hexdigest()
-        fd=os.open('/proc/' + str(os.getpid()), os.O_RDONLY | os.O_DIRECTORY)
-        try:
-            with patch.object(core, 'NODE', path), patch.dict(core.CONTRACT, packaged_linux_node_sha256=digest):
-                self.assertEqual(p._executable(fd, ((0, 0), (os.getuid(), os.getgid()))),
-                                 (os.stat('/proc/self/exe').st_dev, os.stat('/proc/self/exe').st_ino))
-        finally:
-            os.close(fd)
+    def test_real_controlled_executable_magic_link_and_streamed_digest(self):
+        # setup-python's toolcache executable need not satisfy the Wazuh policy.
+        # Copy bytes only (not source metadata); never chmod the shared runtime.
+        # cat waits on our pipe, so there is no sleep/readiness timing dependency.
+        with tempfile.TemporaryDirectory(prefix='alertmind-proc-test-') as directory:
+            executable = Path(directory).resolve() / 'fixture-cat'
+            shutil.copyfile('/bin/cat', executable)
+            executable.chmod(0o500)
+            st = executable.stat()
+            self.assertEqual((st.st_uid, st.st_gid), (os.getuid(), os.getgid()))
+            self.assertEqual(stat.S_IMODE(st.st_mode), 0o500)
+            digest = hashlib.sha256(executable.read_bytes()).hexdigest()
+            child = subprocess.Popen([str(executable)], stdin=subprocess.PIPE,
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                env={'LC_ALL': 'C'}, close_fds=True)
+            try:
+                fd = os.open('/proc/' + str(child.pid), os.O_RDONLY | os.O_DIRECTORY)
+                try:
+                    self.assertIsNone(child.poll())
+                    with patch.object(core, 'NODE', str(executable)), patch.dict(
+                            core.CONTRACT, packaged_linux_node_sha256=digest):
+                        self.assertEqual(p._executable(fd, ((os.getuid(), os.getgid()),)),
+                                         (st.st_dev, st.st_ino))
+                finally:
+                    os.close(fd)
+            finally:
+                try:
+                    child.communicate(timeout=5)
+                except subprocess.TimeoutExpired:
+                    child.kill()  # Only the test-owned child; never a Wazuh PID.
+                    child.communicate()
+            self.assertEqual(child.returncode, 0)
 
     def test_unknown_proc_target_does_not_open_or_leak(self):
         before=len(os.listdir('/proc/self/fd'))
