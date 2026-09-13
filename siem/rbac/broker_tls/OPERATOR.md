@@ -6,7 +6,11 @@ pre-start guard and conservative rollback decisions. It has no command-line
 entry point, process execution, network access, filesystem writes or service
 operations. `operator_fs.py` adds a read-only Linux vendor-file reader; it has
 no CLI, network, writes or service operations. `operator_bootstrap.py` loads the
-fixed root-controlled manifest and public certificate. **No startup guard is installed
+fixed root-controlled manifest and public certificate. `operator_runtime.py`
+observes the package registry and pinned Node/header files without executing Node.
+`operator_service.py` adds fixed read-only local systemd queries through busctl;
+unlike the earlier libraries it can spawn that specific OS utility when invoked.
+It has no CLI or service mutation operation. **No startup guard is installed
 or operational on the VM.**
 
 The candidate and existing contract remain unchanged. The core repeats the
@@ -227,11 +231,77 @@ Additional fixed diagnostics: `PACKAGE_STATUS_SIZE`, `PACKAGE_STATUS_FORMAT`,
 `PACKAGE_ARCHITECTURE`, `PACKAGE_NOT_INSTALLED`, `PACKAGE_CHANGED`, `RUNTIME_SIZE`
 and `RUNTIME_DIGEST`; existing `PACKAGE_VERSION` and native errors are reused.
 
-This slice adds thirteen portable runtime/parser tests: 239 methods in 23 files,
-with the same four native tests requiring Linux. The previous 226-method revision
-was independently approved on Linux; that does not stand in for testing this
-revision. Bootstrap tests now cover manifest repr suppression, the component
-test isolates a non-empty list, and dotted-name bootstrap invocation works.
+The runtime/parser module now has sixteen methods. Whitespace-only lines are
+deliberately treated as stanza separators: a following orphan continuation is
+rejected, including in an unrelated package. That conservative availability
+tradeoff is tested, not silently relaxed. NUL/control bytes and invalid UTF-8 in
+unrelated values are explicitly rejected. Returned identity fields and repr are
+checked for data minimization; this does not promise memory zeroization or make
+retaining ignored values an observable output difference.
+
+### Systemd launch-configuration observations (not process attestation)
+
+`operator_service.observe_service_configuration()` queries a fixed, already
+loaded `wazuh-dashboard.service` object through `/usr/bin/busctl`. It uses only
+Properties.Get, never LoadUnit, Set, reload, restart or a broker endpoint.
+The Linux/root capability gate and no-follow root:root read of the busctl file
+and ancestors precede execution. The host OS, tool and its libraries are trust
+assumptions, not independently pinned package-authenticity proof; this check
+does not prevent a privileged concurrent replacement before exec.
+
+Each of two passes queries six Unit and ten Service properties, including
+ExecStartEx, explicit Environment, environment-file references, passed/unset
+names, user/group, working directory and alternate-root settings. Native typed
+JSON is parsed strictly, including argument arrays, extended execution flags,
+integer widths, duplicate keys and exact property ordering. The format basis is
+the [systemd D-Bus interface](https://github.com/systemd/systemd/blob/v257/man/org.freedesktop.systemd1.xml)
+and [busctl's get-property JSON implementation](https://github.com/systemd/systemd/blob/v257/src/busctl/busctl.c).
+Unsupported/missing properties fail closed; host-version compatibility remains
+to be established independently before release of a live operator packet.
+
+Four fixed helper processes run sequentially. Each reply has a 256 KiB cap and
+a five-second parent deadline, plus a one-second cleanup wait. The helper has
+no shell, no stdin, a fixed working directory, a minimal environment and no
+inherited file descriptors. Stderr is discarded. Timeout, overrun and errors
+kill/reap the helper and close the pipe; a cleanup failure is itself a STOP.
+This is not an absolute wall-time guarantee for blocked process creation or
+kernel IO. Flags request noninteractive/no-auto-start behavior; the safety
+boundary is the fixed Properties.Get operation on PID 1's known unit object,
+not a claim that every busctl version honors every flag for this subcommand.
+
+Only frozen counts, booleans and fixed classifications leave the public
+observation function. Raw arguments, environment values, file paths and user
+names are neither printed nor included in its repr. The parser necessarily
+returns private intermediate data to its caller: do not log that data. Raw
+values exist in memory; a future privileged launcher still needs core-dump,
+debugging and trusted-import controls. No credentials are requested here.
+
+Full private snapshots are compared, not just sanitized summaries. A pending
+daemon reload, transient state, wrong unit, malformed environment or any
+between-pass difference fails closed. Unknown executables or extra configuration
+are reported conservatively, not approved. `configured_executable=packaged_node`
+is only an exact configured path classification; a wrapper may select another
+runtime, and argv, execution flags, namespaces or additional environment sources
+can change behavior. The three flags `selected_runtime_proven`,
+`effective_environment_proven` and `startup_authorized` remain **false**.
+
+Not covered: manager environment, environment-file contents, PAM/credentials,
+wrapper execution, actual `/proc` executable/argv/environment, all unit properties,
+launch-file hashes, host architecture, broker configuration or runtime imports.
+No safe-environment conclusion follows from `runtime_override_named=False`; that
+flag detects only a small fixed list of explicit Environment names. No observed
+path is opened or executed. Equal passes are not an atomic systemd snapshot.
+
+Fixed diagnostics: `SERVICE_TARGET`, `SERVICE_SIZE`, `SERVICE_JSON`,
+`SERVICE_SHAPE`, `SERVICE_TIMEOUT`, `SERVICE_QUERY`, `SERVICE_CLEANUP`,
+`SERVICE_IDENTITY`, `SERVICE_RELOAD_PENDING`, `SERVICE_TRANSITION`,
+`SERVICE_ENVIRONMENT`, `SERVICE_CHANGED`, plus the reused native reader codes.
+
+Current suite: 258 methods in 24 files, including sixteen service-observation
+methods and the same four Linux-only native reader tests. Service subprocess
+and bus replies are mocked in CI: no host system bus is contacted. Previous
+239-method Linux approval is not native execution of this new adapter. A fresh
+Linux review, including busctl framing and bounded pipe behavior, is required.
 
 Historical TLS fixture verification files remain unchanged. Claude's September
 12 approval records the updated 16-group fixture passing on Linux Node 22.22.2
@@ -249,8 +319,8 @@ with inherited proxy settings; it does not close the native operator gates.
    Two equal byte passes cannot prevent edits after checking or attest running
    code. Verify the installed dependency resolution/file set too: matching listed
    files alone does not exclude an extra module or a changed resolution path.
-3. Review the fresh package/on-disk runtime observer, then implement effective
-   launch/environment, actual runtime selection and single broker host
+3. Review the systemd configuration adapter, then complete process/runtime and
+   environment-source observations, wrapper/file identity and single broker host
    observations privately. No arbitrary executable override, fallback Node or
    `NODE_OPTIONS` preload may bypass the intended guard. Do not export secrets.
 4. Build the root-controlled pre-start adapter and exact service drop-in from

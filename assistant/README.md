@@ -78,7 +78,7 @@ assistant/
 ├── requirements-ci.lock                  # hash-pinned Python 3.12 linux set used by offline CI
 ├── README.md · DESIGN_AND_CHANGELOG.md   # design decisions, review log, Q&A
 │
-├── tests/               # 239 unittest methods across 23 files
+├── tests/               # 258 unittest methods across 24 files
 │   ├── test_redact.py            # redaction proof (plants secrets, asserts none leak)
 │   ├── test_redaction_trace.py   # trace masks values; proof and production paths cannot diverge
 │   ├── test_injection.py         # recorded injection scenario (mock + real provider)
@@ -98,6 +98,7 @@ assistant/
 │   ├── test_broker_tls_operator_fs.py # native-reader policy/faults; four Linux temporary-tree tests
 │   ├── test_broker_tls_bootstrap.py # root-only manifest and pinned public-certificate loading
 │   ├── test_broker_tls_runtime.py # package identity and on-disk Node/header observations; no execution
+│   ├── test_broker_tls_service.py # fixed systemd queries, bounded transport and sanitized observations
 │   ├── test_broker_code_inventory.py # installed-code collector contract; no live broker proof
 │   ├── test_dashboard_inventory.py # sanitized local configuration collector
 │   ├── test_server_inventory.py  # Server API inventory parser/contract
@@ -115,7 +116,7 @@ assistant/
 ```bash
 cd assistant
 pip install -r requirements.txt
-python -m unittest discover -s tests -p "test_*.py"   # full suite — 239 tests
+python -m unittest discover -s tests -p "test_*.py"   # full suite — 258 tests
 python tests/test_redact.py                       # redaction proof (non-zero exit if a secret leaks)
 python tests/test_injection.py                    # recorded injection scenario (mock)
 python runner.py --provider mock --view operational
