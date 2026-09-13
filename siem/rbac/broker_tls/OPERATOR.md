@@ -43,6 +43,9 @@ packaged Linux Node are not claimed by these offline tests.
 paths and their fixed limits. Each read requires Linux descriptor capabilities,
 effective root and the named Dashboard service identity. There is no public
 alternate-root, ownership or identity override.
+The generic core manifest format admits Unicode paths; this native adapter does
+not. Construction now checks every derived target's components, rejecting an
+incompatible pinned inventory before any IO rather than during the first read.
 
 Traversal anchors at `/`, opens every component relative to its checked parent
 descriptor with no-follow flags, and retains those descriptors until final
@@ -84,6 +87,17 @@ cache or lookup bypass is introduced by this package.
 It reads two public files, with effective root and root:root ownership required
 at **every** component; no vendor/service ownership exception or NSS lookup:
 
+Installation compatibility is an explicit gate: bootstrap requires root:root,
+whereas the candidate requires root UID but does not constrain GID. A
+root:service-group 0750 directory can therefore pass the candidate and fail
+bootstrap. The proposed layout for **new public-only directories** is root:root
+0755 and for the public certificate/manifest leaves root:root 0644. Existing
+Dashboard configuration directories must first be inventoried and reviewed:
+**do not chown/chmod them, broaden access, or change the trust pin/path to make a
+check pass.** If this layout conflicts with existing protections, stop for a
+separately reviewed layout/candidate decision. No installer or permission change
+is included here, and public-file modes must never be copied to secret files.
+
 | Fixed file | Bound | Status |
 |---|---|---|
 | `/etc/alertmind/broker-tls/manifest.json` | 512 KiB | Proposed installer destination, not created here |
@@ -113,8 +127,8 @@ OS errors are emitted by a CLI (there is no CLI).
 success, Dashboard-user readability of the future certificate, or trusted Python
 launch/import/code identity. An imported module cannot attest its own launch
 after the fact. The approved client still performs its own date/hostname checks
-at use. Root-controlled guard installation/import isolation, package/runtime/
-service observations and executable startup enforcement remain separate work.
+at use. Root-controlled guard installation/import isolation, effective launch/
+runtime selection and executable startup enforcement remain separate work.
 
 `recovery_step(observation)` returns one next action from fresh observations:
 
@@ -177,6 +191,48 @@ component/bound tests and negative root-anchor/type cases to the existing tests;
 bootstrap tests use synthetic pinned public bytes, not live X.509 acceptance.
 Changed native code still needs fresh Linux reviewer/CI verification.
 
+### Fresh package and on-disk runtime observations
+
+`operator_runtime.observe_package_runtime(manifest_bytes)` validates the manifest
+and native target compatibility before reading anything. It then reads the fixed
+root:root `/var/lib/dpkg/status` database (32 MiB bound), requiring exactly one
+`wazuh-dashboard` record, version `4.14.7-1`, architecture `amd64`, no error flag
+and installed state. Both `install ok installed` and `hold ok installed` are
+accepted; partial, pending-trigger, removal and reinstall-required states fail.
+
+The bounded UTF-8 parser treats field names case-insensitively, rejects duplicate
+fields and target records, ignores descriptive continuation content, and rejects
+folded identity fields. Its format basis is [Debian's deb822 specification](https://manpages.debian.org/bookworm/dpkg-dev/deb822.5.en.html);
+the fixed database is documented by [dpkg-query](https://manpages.debian.org/bookworm/dpkg/dpkg-query.1.en.html).
+It is not a general deb822 library. Unrelated package details are never returned.
+
+Two passes read and hash only the approved Node binary and version header,
+through InstalledReader with the independent core pins. Three fresh package
+reads bracket those passes: package → Node/header → package → Node/header →
+package. A changed accepted package identity, mismatched bytes or failed read
+stops the observation. No subprocess is used, and Node is never executed.
+
+The immutable result contains only the validated package identity, the pinned
+Node version label, read/pass counts and **selected_runtime_proven=False** and
+**startup_authorized=False**. It does not claim the host architecture, the runtime
+the Dashboard selects, loaded code, launch environment, binary dependencies,
+package signature/provenance or whole-package integrity. The status file is a
+registry snapshot, not a dpkg lock or pending-update-journal check. Two passes
+do not prevent an update after the check. Memory/latency and package-update
+exclusion remain deployment gates; decoding/splitting the bounded database also
+requires additional memory beyond its raw byte bound.
+
+Additional fixed diagnostics: `PACKAGE_STATUS_SIZE`, `PACKAGE_STATUS_FORMAT`,
+`PACKAGE_STATUS_DUPLICATE`, `PACKAGE_STATUS_AMBIGUOUS`, `PACKAGE_STATUS_MISSING`,
+`PACKAGE_ARCHITECTURE`, `PACKAGE_NOT_INSTALLED`, `PACKAGE_CHANGED`, `RUNTIME_SIZE`
+and `RUNTIME_DIGEST`; existing `PACKAGE_VERSION` and native errors are reused.
+
+This slice adds thirteen portable runtime/parser tests: 239 methods in 23 files,
+with the same four native tests requiring Linux. The previous 226-method revision
+was independently approved on Linux; that does not stand in for testing this
+revision. Bootstrap tests now cover manifest repr suppression, the component
+test isolates a non-empty list, and dotted-name bootstrap invocation works.
+
 Historical TLS fixture verification files remain unchanged. Claude's September
 12 approval records the updated 16-group fixture passing on Linux Node 22.22.2
 with inherited proxy settings; it does not close the native operator gates.
@@ -193,8 +249,9 @@ with inherited proxy settings; it does not close the native operator gates.
    Two equal byte passes cannot prevent edits after checking or attest running
    code. Verify the installed dependency resolution/file set too: matching listed
    files alone does not exclude an extra module or a changed resolution path.
-3. Derive effective package, runtime, launch/environment and single broker host
-   settings privately. No arbitrary executable override, fallback Node or
+3. Review the fresh package/on-disk runtime observer, then implement effective
+   launch/environment, actual runtime selection and single broker host
+   observations privately. No arbitrary executable override, fallback Node or
    `NODE_OPTIONS` preload may bypass the intended guard. Do not export secrets.
 4. Build the root-controlled pre-start adapter and exact service drop-in from
    observed unit settings. Do not invent a unit override or silently overwrite

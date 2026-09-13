@@ -14,7 +14,10 @@ if str(ROOT) not in sys.path:
 from siem.rbac.broker_tls import operator_bootstrap as b
 from siem.rbac.broker_tls import operator_core as core
 from siem.rbac.broker_tls import operator_fs as f
-from test_broker_tls_operator_fs import FakeFS, metadata
+if __package__:
+    from .test_broker_tls_operator_fs import FakeFS, metadata
+else:
+    from test_broker_tls_operator_fs import FakeFS, metadata
 
 
 def pem(der):
@@ -119,6 +122,7 @@ class BootstrapTests(unittest.TestCase):
         self.assertEqual((result.checked_files, result.passes, result.startup_authorized), (2, 2, False))
         self.assertNotIn('fixture', repr(result))
         self.assertNotIn('CERTIFICATE', repr(result))
+        self.assertNotIn('original.cjs', repr(result))
         with self.assertRaises(AttributeError):
             result.startup_authorized = True
         self.assertEqual(len(f.InstalledReader(result.manifest)._limits), 3)

@@ -162,7 +162,7 @@ class ReaderPolicyTests(unittest.TestCase):
             fs.read.assert_not_called()
 
     def test_primitive_components_rejected_before_any_io(self):
-        bad = ((), [], 'dir/file', ('dir', '..', 'file'), ('.', 'file'),
+        bad = ((), [], ['dir', 'file'], 'dir/file', ('dir', '..', 'file'), ('.', 'file'),
                ('dir/file',), ('/etc',), ('dir', ''), ('a\\b',), ('a:b',),
                ('a\x00b',), ('a\nb',), ('\ud800',), ('\u00e9',), (None,), ('x' * 256,), ('x',) * 129)
         for parts in bad:
