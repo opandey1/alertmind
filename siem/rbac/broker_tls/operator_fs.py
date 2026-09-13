@@ -151,6 +151,10 @@ class InstalledReader:
     """
     def __init__(self, manifest):
         self._limits = {check.path: check.limit for check in installed_checks(manifest)}
+        # The core's general format allows Unicode. This native package supports
+        # ASCII components only: reject an incompatible inventory before any IO.
+        for path in self._limits:
+            _components(PurePosixPath(path).parts[1:])
 
     def __call__(self, path, limit):
         require(type(path) is str and type(limit) is int
