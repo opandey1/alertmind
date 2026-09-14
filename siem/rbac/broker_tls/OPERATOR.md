@@ -15,8 +15,9 @@ running-process observation via fixed systemd queries and procfs reads; it is no
 a pre-start requirement. **No startup guard is installed
 or operational on the VM.**
 
-The candidate and existing contract remain unchanged. The core repeats the
-reviewed pins deliberately; a CI test requires equality with `contract.json`.
+The September 14 trust-path revision changes the candidate and its contract.
+The core repeats the candidate pins deliberately; a CI test requires equality
+with `contract.json`. These new pins require independent review.
 Do not refresh either pin set automatically after a failed check.
 
 ## Implemented
@@ -93,21 +94,30 @@ cache or lookup bypass is introduced by this package.
 It reads two public files, with effective root and root:root ownership required
 at **every** component; no vendor/service ownership exception or NSS lookup:
 
-Installation compatibility is an explicit gate: bootstrap requires root:root,
-whereas the candidate requires root UID but does not constrain GID. A
-root:service-group 0750 directory can therefore pass the candidate and fail
-bootstrap. The proposed layout for **new public-only directories** is root:root
-0755 and for the public certificate/manifest leaves root:root 0644. Existing
-Dashboard configuration directories must first be inventoried and reviewed:
-**do not chown/chmod them, broaden access, or change the trust pin/path to make a
-check pass.** If this layout conflicts with existing protections, stop for a
-separately reviewed layout/candidate decision. No installer or permission change
-is included here, and public-file modes must never be copied to secret files.
+**September 14 layout decision, awaiting independent review:** the exact vendor
+4.14.7-1 package records `/etc/wazuh-dashboard` as service-owned 0750 and its
+postinst recursively reapplies service ownership to that tree and
+`/usr/share/wazuh-dashboard`. Root-only trust checks cannot pass that stock
+layout. The proposed certificate now lives under the separate `/etc/alertmind`
+tree, outside those two vendor-maintained prefixes; no vendor chown is bypassed
+and there is no fallback to the old path. The certificate DER pin is unchanged.
+
+Bootstrap still requires root:root; the candidate still requires root UID but
+does not constrain GID. A root:service-group 0750 directory can therefore pass
+the candidate and fail bootstrap. The proposed layout for **new public-only
+directories** is root:root 0755 and for public leaves root:root 0644, so the
+Dashboard can read the certificate without controlling it. Existing `/etc/alertmind`
+components must be inventoried before any future install; incompatible ownership,
+permissions, symlinks or contents remain a STOP, not permission to overwrite.
+**Do not chown/chmod vendor directories or broaden access to make checks pass.**
+No installer or permission change is included here. Public-file modes must never
+be copied to secret files. This addresses the known vendor-prefix conflict,
+not native readability, general upgrade safety or deployment acceptance.
 
 | Fixed file | Bound | Status |
 |---|---|---|
 | `/etc/alertmind/broker-tls/manifest.json` | 512 KiB | Proposed installer destination, not created here |
-| `/etc/wazuh-dashboard/certs/alertmind-server-api.pem` | 64 KiB | Same destination as the approved candidate, not installed here |
+| `/etc/alertmind/certs/alertmind-server-api.pem` | 64 KiB | Revised candidate destination; review pending, not installed here |
 
 The manifest is validated against the core's independent pins/file inventory,
 never trusted merely for residing in a root-owned directory. The certificate must
@@ -115,7 +125,10 @@ be one PEM block with canonical valid Base64 and the exact accepted DER SHA-256
 `5037899c0818f8332b09fc144bd7bd72a3b2ca033f46dad56c67c284d611ce87`.
 Duplicate certificates, private-key blocks, surrounding data, malformed encoding
 and a different pin are rejected. Tests pin the destination and digest to policy.cjs;
-neither the candidate nor its trust pin changed.
+the path change does not change this trust pin. Candidate/policy/file-inventory
+hashes are regenerated together; old manifests are rejected, not upgraded in
+place. Earlier dated verification records remain unchanged and apply only to
+their recorded candidate. Current results: [September 14 verification](verification-2026-09-14.json).
 
 Each file is reread and revalidated on a second pass, then exact equality is
 required. A malformed manifest stops before the certificate read. The frozen
@@ -163,7 +176,7 @@ Unknown state stays held; no backup, journal or success result is invented.
 
 ## Verification
 
-Twenty network-free core tests run in the ordinary regression suite. Eight deliberately
+Twenty-one network-free core tests run in the ordinary regression suite. Eight deliberately
 removed controls were additionally checked during author verification: manifest
 inventory pin, second pass, package/runtime identity, startup inhibition,
 private-backup validation, unknown-client hold and no-restart terminal state.
@@ -363,7 +376,7 @@ New fixed diagnostics: `PROCESS_PID`, `PROCESS_STAT`, `PROCESS_IDENTITY`,
 `PROCESS_SIZE`, `PROCESS_EXECUTABLE`, `PROCESS_DIGEST`, `PROCESS_NOT_RUNNING`,
 `PROCESS_IO`; service and native trust codes are reused.
 
-Current suite: 290 methods in 26 files, including nineteen service methods and
+Current suite: 292 methods in 26 files, including nineteen service methods and
 seventeen process methods. Seven require Linux: four native-reader tests and three
 procfs/executable/descriptor tests. These inspect the test process and a private
 copy of `/bin/cat` launched with a clean environment and mode 0500. The child

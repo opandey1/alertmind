@@ -56,20 +56,26 @@ clearProxies();
 assert.notEqual(process.env.NODE_TLS_REJECT_UNAUTHORIZED, '0');
 
 function certFs(mode='good') {
+  // The vendor-owned tree is deliberately absent. Only the independent root
+  // trust tree exists in this adapter; a policy path regression must fail.
+  const certificate = '/etc/alertmind/certs/alertmind-server-api.pem';
+  const paths = ['/', '/etc', '/etc/alertmind', '/etc/alertmind/certs', certificate];
   const pem = Buffer.from(mode === 'malformed' ? 'bad' : mode === 'expired' ? fixture.expiredAnchor.cert :
     mode === 'wrongHostAnchor' ? fixture.wrongHostAnchor.cert : fixture.anchor.cert);
   let calls = 0;
   function stat(file) {
+    assert(paths.includes(file), 'UNEXPECTED_CERTIFICATE_PATH');
     calls++;
     if (mode === 'missing') throw new Error('ENOENT');
     const isFile = file.endsWith('.pem');
-    return { uid: mode === 'owner' ? 123 : 0, dev: 1, ino: isFile ? 10 : file.length,
+    return { uid: mode === 'owner' || mode === 'owner:' + paths.indexOf(file) ? 123 : 0, dev: 1, ino: isFile ? 10 : file.length,
       mode: mode === 'writable' ? 0o777 : isFile ? 0o644 : 0o755,
       size: isFile ? pem.length : 1, mtimeMs: mode === 'changed' && calls > 5 ? 2 : 1, ctimeMs: 1,
       isFile:()=>isFile, isDirectory:()=>!isFile, isSymbolicLink:()=>mode === 'symlink' };
   }
   return { constants:{ O_NOFOLLOW: 131072, O_RDONLY:0 }, lstatSync:stat,
-    openSync:()=>17, fstatSync:()=>stat('/fixture.pem'), closeSync:()=>{},
+    openSync:file=>{ assert.equal(file,certificate); return 17; },
+    fstatSync:()=>stat(certificate), closeSync:()=>{},
     readSync:(_fd, b)=>{ pem.copy(b); return pem.length; } };
 }
 
@@ -157,6 +163,15 @@ async function assertLookup(c) {
 }
 
 async function main() {
+  for (let i=0; i<5; i++) assert.throws(()=>client(source,{trust:'owner:'+i}),/ALERTMIND_BROKER_POLICY/);
+  for (const changed of [
+    source.replace("const path = '/etc/alertmind/certs/", "const path = '/etc/wazuh-dashboard/certs/"),
+    source.replace("'/etc/alertmind', '/etc/alertmind/certs'", "'/etc/wazuh-dashboard', '/etc/wazuh-dashboard/certs'")
+  ]) {
+    assert.notEqual(changed,source);
+    assert.throws(()=>client(changed),/ALERTMIND_BROKER_POLICY/);
+  }
+  pass('root trust tree enforced; service ownership at each depth and old path/ancestor regressions rejected');
   for(const mode of ['missing','malformed','owner','writable','symlink','changed','expired']) {
     const pin=mode==='expired' ? sha(new crypto.X509Certificate(fixture.expiredAnchor.cert).raw) : fixture.pin;
     assert.throws(()=>client(source,{trust:mode,pin}),/ALERTMIND_BROKER_POLICY/);

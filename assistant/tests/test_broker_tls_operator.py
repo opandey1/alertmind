@@ -61,6 +61,19 @@ class BrokerOperatorTests(unittest.TestCase):
         expected = json.loads((ROOT / 'siem/rbac/broker_tls/contract.json').read_text())
         self.assertEqual(self.production_contract, expected)
 
+    def test_previous_vendor_tree_contract_is_not_accepted(self):
+        # Historical pins are deliberate constants, not refreshed from the
+        # current contract. Test each obsolete field independently.
+        previous = {
+            'candidate_sha256': 'd76b98b673b8c3fd7d6f015e7d8783e45e5c1d996b69d0ed2c96dfc53615f868',
+            'policy_lf_sha256': '8847b5bec11cc279b207390504cef24eaff679b52d1f08d3ebf1363012a9e7b2',
+            'files_digest': '16fc85e86aefb8f82b64df8aeee2b963f54d5295457801378c4534eb32bba5e9',
+        }
+        with patch.object(o, 'CONTRACT', self.production_contract):
+            for key, value in previous.items():
+                with self.subTest(key=key), self.assertRaisesRegex(o.OperatorError, '^MANIFEST_CONTRACT$'):
+                    o.installed_checks(json.dumps(dict(self.production_contract, **{key: value}, files={})).encode())
+
     def test_intact_files_require_two_passes_but_never_authorize_startup(self):
         result = self.verify()
         self.assertEqual(result, {'byte_integrity_passed': True, 'checked_files': 4,

@@ -49,8 +49,19 @@ class BootstrapTests(unittest.TestCase):
         policy = (ROOT / 'siem/rbac/broker_tls/policy.cjs').read_text(encoding='utf-8')
         self.assertIn("const pin = '" + pin + "'", policy)
         self.assertIn("const path = '" + b.CERTIFICATE_PATH + "'", policy)
+        self.assertEqual(b.CERTIFICATE_PATH, '/etc/alertmind/certs/alertmind-server-api.pem')
+        self.assertIn("const paths = ['/', '/etc', '/etc/alertmind', '/etc/alertmind/certs', path];", policy)
+        self.assertNotIn('/etc/wazuh-dashboard', policy)
         self.assertEqual(b.MANIFEST_PATH, '/etc/alertmind/broker-tls/manifest.json')
         self.assertEqual(set(b.FILES), {'manifest', 'certificate'})
+
+    def test_certificate_dispatch_uses_independent_root_tree_not_vendor_reader(self):
+        with patch.object(f, '_platform'), patch.object(f, '_identity') as identity, patch.object(
+                f, '_read_native') as vendor, patch.object(f, '_read_root_owned', return_value=b'public') as read:
+            self.assertEqual(b.read_bootstrap_file('certificate'), b'public')
+            read.assert_called_once_with(('etc', 'alertmind', 'certs', 'alertmind-server-api.pem'), 65536)
+            vendor.assert_not_called()
+            identity.assert_not_called()
 
     def test_labels_rejected_before_filesystem_access(self):
         with patch.object(f, '_platform') as platform:

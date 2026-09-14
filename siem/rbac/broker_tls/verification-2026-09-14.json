@@ -1,0 +1,59 @@
+{
+  "date": "2026-09-14",
+  "scope": "offline root-controlled trust-path revision; not installed or live accepted",
+  "base_commit": "e3a8e6c",
+  "reason": "vendor postinst reapplies service ownership to /etc/wazuh-dashboard; retain root-only trust outside that tree",
+  "certificate_path": "/etc/alertmind/certs/alertmind-server-api.pem",
+  "certificate_der_sha256_unchanged": "5037899c0818f8332b09fc144bd7bd72a3b2ca033f46dad56c67c284d611ce87",
+  "package_sha256": "83f472d9e5f59b28b1abb6260c466e77b99ae427ce8c5f76203d847f2f598b6f",
+  "candidate_sha256": "fe721feb8599293853e10d33823e68ff72df001be00382e3701d5da645aba28f",
+  "policy_lf_sha256": "a8313d5c4475911cc17eeb252f724319c19d048ee02c2869f17892bf7cb9fca4",
+  "files_digest": "7b071e4d9397f0a6eedc17c316ce4966e73d0f9644d445c42bcce72f488c5c2c",
+  "generated_manifest_sha256": "0f7b8a4b2c3155dbc83bb2dcaa2ef4880450b808f10c5f98d42064cd8f95238e",
+  "build": {
+    "fresh_package_build_exit": 0,
+    "new_output_directory": true,
+    "manifest_files": 269,
+    "installed_targets": 270,
+    "changed_file_entries": ["candidate.cjs"],
+    "generated_client_delta": "exactly three /etc/wazuh-dashboard to /etc/alertmind substitutions",
+    "old_real_manifest_rejection": "MANIFEST_CONTRACT"
+  },
+  "synthetic_runs": [
+    {"platform": "win32", "node": "18.19.0", "openssl": "3.0.12+quic", "groups_passed": 17, "exit": 0},
+    {"platform": "win32", "node": "24.19.0", "openssl": "3.5.7", "groups_passed": 17, "exit": 0}
+  ],
+  "synthetic_python": {"version": "3.12.14", "cryptography": "50.0.1"},
+  "new_coverage": [
+    "bootstrap dispatch independently requires the fixed root-controlled certificate tree, not the vendor reader",
+    "candidate and bootstrap paths agree with the explicit new path and ancestor list",
+    "each of the three old contract fields independently rejects with MANIFEST_CONTRACT",
+    "actual-client metadata adapter only recognizes the new root tree",
+    "service ownership at each of five path depths rejected separately",
+    "separate certificate-path and ancestor-list regressions to the vendor tree rejected"
+  ],
+  "mutation_controls": {"existing": 6, "new_path_regressions": 2, "all_detected": true},
+  "default_ci_local": {"python": "3.12.14", "platform": "win32", "tests": 292, "files": 26, "passed": 285, "linux_only_skipped": 7, "exit": 0, "network_fixture_included": false},
+  "frozen_verifier": {"checks": 26, "pass_lines_including_summary": 27, "exit": 0},
+  "commands": [
+    "python -B siem/rbac/broker_tls/build_candidate.py --deb <approved exact package> --output <new directory>",
+    "python -B siem/rbac/broker_tls/run_fixture.py --stage <new directory> --node <explicit Node executable> --run-synthetic",
+    "cd assistant; python -B -m unittest discover -s tests -p test_*.py",
+    "python -B measurement/verify_frozen_evidence.py"
+  ],
+  "historical_verification_preserved": ["verification.json", "verification-2026-09-12.json"],
+  "limits": [
+    "Linux ownership/no-follow metadata in Node fixture is adapted, not native proof",
+    "new candidate not executed on Linux by author; seven native Python tests need reviewer/CI execution",
+    "packaged Linux Node 18.19.0 not executed",
+    "synthetic pin substituted in memory only; real certificate suitability/readability not established",
+    "root-controlled directory layout is proposed, not created",
+    "old approvals and verification records apply to their previous candidate hashes",
+    "no general upgrade safety, installed guard, effective environment or live broker acceptance established"
+  ],
+  "independent_review": "pending",
+  "vm_accessed": false,
+  "live_credentials_used": false,
+  "live_mutation_authorized": false,
+  "live_acceptance": false
+}
