@@ -45,11 +45,18 @@ The expected output hash includes this removal.
 
 ## Candidate boundary
 
+The September 14 revision moves the proposed public trust file outside the
+vendor-owned configuration tree. Its new candidate and contract need independent
+review; it is not installed. The previous candidate remains historical evidence,
+not a compatible manifest for this revision. See
+[trust-path verification](verification-2026-09-14.json) and the
+[layout decision](OPERATOR.md#root-controlled-bootstrap).
+
 - One shared HTTPS agent verifies the certificate and hostname using a bounded,
   pinned public Server certificate. No Indexer CA, private key, permissive
   identity callback, ambient trust fallback or per-request insecure fallback.
 - The fixed Linux trust path is
-  `/etc/wazuh-dashboard/certs/alertmind-server-api.pem`. All ancestors must be
+  `/etc/alertmind/certs/alertmind-server-api.pem`. All ancestors must be
   root-owned, non-symlink directories without group/other write permission;
   the final file has equivalent checks and a no-follow open/readback check.
   This does not contain root or an already compromised Node process.
@@ -108,11 +115,16 @@ not route this HTTPS-only client. `npm_config_no_proxy` is honored by the
 packaged dependency, whereas `npm_config_noproxy` is not. Windows environment
 names are case-insensitive; Claude's September 12 review reports this updated
 fixture passing on Linux with inherited lower/uppercase proxy settings.
-The updated fixture has 16 groups; see [follow-up verification](verification-2026-09-12.json).
+That previous fixture had 16 groups; see [follow-up verification](verification-2026-09-12.json).
 The original [verification record](verification.json) preserves the 14-group run.
+The current fixture has 17 groups: its filesystem adapter accepts only the new
+fixed trust tree, rejects service ownership independently at each depth, and
+rejects separate regressions of the certificate path and ancestor list. Metadata
+is still synthetic, not native Linux proof. Earlier Linux approvals cover the
+earlier candidate only; this changed candidate needs a new independent review.
 
 Ten pure-Python builder guards run in ordinary CI with no download or network.
-Twenty operator-core tests also run there, without native service or file changes.
+Twenty-one operator-core tests also run there, without native service or file changes.
 The opt-in TLS fixture is **not** included in the CI badge's test count.
 
 ## Acceptance still blocked

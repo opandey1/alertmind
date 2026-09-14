@@ -2,13 +2,13 @@
 function alertmindBrokerPolicy() {
   const fs = require('fs');
   const crypto = require('crypto');
-  const path = '/etc/wazuh-dashboard/certs/alertmind-server-api.pem';
+  const path = '/etc/alertmind/certs/alertmind-server-api.pem';
   const pin = '5037899c0818f8332b09fc144bd7bd72a3b2ca033f46dad56c67c284d611ce87';
   const fail = () => { throw new Error('ALERTMIND_BROKER_POLICY'); };
   let pem;
   // Root ownership and no non-root writers prevent service-owned path swaps.
   // Root compromise and an already compromised Node process are not contained.
-  const paths = ['/', '/etc', '/etc/wazuh-dashboard', '/etc/wazuh-dashboard/certs', path];
+  const paths = ['/', '/etc', '/etc/alertmind', '/etc/alertmind/certs', path];
   const before = [];
   let fd;
   try {

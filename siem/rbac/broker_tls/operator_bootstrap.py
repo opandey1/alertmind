@@ -16,7 +16,7 @@ from . import operator_fs as fs
 from .operator_core import MAX_MANIFEST, OperatorError, installed_checks, require, sha
 
 MANIFEST_PATH = '/etc/alertmind/broker-tls/manifest.json'
-CERTIFICATE_PATH = '/etc/wazuh-dashboard/certs/alertmind-server-api.pem'
+CERTIFICATE_PATH = '/etc/alertmind/certs/alertmind-server-api.pem'
 CERTIFICATE_SHA256 = '5037899c0818f8332b09fc144bd7bd72a3b2ca033f46dad56c67c284d611ce87'
 MAX_CERTIFICATE = 65536
 FILES = MappingProxyType({
