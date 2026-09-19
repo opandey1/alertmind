@@ -54,7 +54,7 @@ class LaunchTests(unittest.TestCase):
         self.assertEqual((result.checked_files, result.passes, result.service_reads, result.package_reads), (3, 2, 3, 3))
         self.assertNotIn('SECRET', repr(result) + str(asdict(result)))
         self.assertEqual(set(asdict(result)), {'configured_wrapper_path', 'configured_wrapper_argv_only',
-            'explicit_execution_flags', 'wrapper_environment_override_named', 'checked_files', 'passes',
+            'explicit_execution_flags', 'inline_wrapper_environment_override_named', 'checked_files', 'passes',
             'service_reads', 'package_reads', 'launch_bytes_match_pins', 'selected_runtime_proven',
             'effective_environment_proven', 'dependency_resolution_proven', 'startup_authorized'})
 
@@ -125,12 +125,29 @@ class LaunchTests(unittest.TestCase):
         config['Environment'] = ['OSD_NODE_HOME=/PRIVATE']
         result = self.observe(configs=[config] * 3)
         self.assertFalse(result.configured_wrapper_path or result.configured_wrapper_argv_only)
-        self.assertTrue(result.explicit_execution_flags and result.wrapper_environment_override_named)
+        self.assertTrue(result.explicit_execution_flags and result.inline_wrapper_environment_override_named)
         config['ExecStartEx'] = []
         config['Environment'] = ['UNLISTED=SECRET']
         result = self.observe(configs=[config] * 3)
-        self.assertFalse(result.configured_wrapper_path or result.wrapper_environment_override_named)
+        self.assertFalse(result.configured_wrapper_path or result.inline_wrapper_environment_override_named)
         self.assertFalse(result.effective_environment_proven)
+
+    def test_multiple_commands_do_not_classify_first_wrapper_as_selected(self):
+        config = values()
+        config['ExecStartEx'][0][1] = [l.WRAPPER]
+        config['ExecStartEx'].append(['/PRIVATE', ['/PRIVATE'], [], 0, 0, 0, 0, 0, 0, 0])
+        result = self.observe(configs=[config] * 3)
+        self.assertFalse(result.configured_wrapper_path)
+        self.assertFalse(result.configured_wrapper_argv_only)
+
+    def test_inline_name_does_not_claim_environment_files_or_inheritance(self):
+        config = values()
+        config['EnvironmentFiles'] = [['/PRIVATE', True]]
+        config['PassEnvironment'] = ['NODE_OPTIONS']
+        result = self.observe(configs=[config] * 3)
+        self.assertFalse(result.inline_wrapper_environment_override_named)
+        self.assertFalse(result.effective_environment_proven)
+        self.assertFalse(hasattr(result, 'wrapper_environment_override_named'))
 
 
 if __name__ == '__main__':

@@ -46,8 +46,8 @@ The expected output hash includes this removal.
 ## Candidate boundary
 
 The September 14 revision moves the proposed public trust file outside the
-vendor-owned configuration tree. Its new candidate and contract need independent
-review; it is not installed. The previous candidate remains historical evidence,
+vendor-owned configuration tree. Claude approved the rebuilt candidate and
+contract; PR #41 merged them. It is not installed. The previous candidate remains historical evidence,
 not a compatible manifest for this revision. See
 [trust-path verification](verification-2026-09-14.json) and the
 [layout decision](OPERATOR.md#root-controlled-bootstrap).
@@ -121,7 +121,9 @@ The current fixture has 17 groups: its filesystem adapter accepts only the new
 fixed trust tree, rejects service ownership independently at each depth, and
 rejects separate regressions of the certificate path and ancestor list. Metadata
 is still synthetic, not native Linux proof. Earlier Linux approvals cover the
-earlier candidate only; this changed candidate needs a new independent review.
+earlier candidate only. Claude's September 14 review subsequently reports all
+17 groups on Linux Node 22.22.2 for the new candidate and 292/292 Python tests.
+The fixture still adapts certificate metadata; no native/live acceptance follows.
 
 Ten pure-Python builder guards run in ordinary CI with no download or network.
 Twenty-one operator-core tests also run there, without native service or file changes.

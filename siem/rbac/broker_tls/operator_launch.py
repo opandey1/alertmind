@@ -41,7 +41,7 @@ class LaunchObservation:
     configured_wrapper_path: bool
     configured_wrapper_argv_only: bool
     explicit_execution_flags: bool
-    wrapper_environment_override_named: bool
+    inline_wrapper_environment_override_named: bool
     checked_files: int = field(default=3, init=False)
     passes: int = field(default=2, init=False)
     service_reads: int = field(default=3, init=False)
