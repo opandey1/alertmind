@@ -1,9 +1,11 @@
 """Constrain explicit unit launch sources without starting the Dashboard.
 
 This is a read-only check of selected systemd properties. It excludes a PAM
-session and an explicit executable search path, but does not read the manager's
-own environment, vendor wrapper variables or the final process environment.
-It cannot authorize a start. Private property values stay private.
+session, custom executable search path, dynamic user and configured service
+directory sources. It reports whether systemd login variables are enabled,
+but does not read the manager's own environment, vendor wrapper variables or
+the final process environment. It cannot authorize a start. Private property
+values stay private.
 """
 from dataclasses import dataclass, field
 
@@ -23,6 +25,10 @@ def _constrain(config):
     core.require(config['UnsetEnvironment'] == [], 'UNIT_SOURCE_UNSET_ENV')
     core.require(config['PAMName'] == '', 'UNIT_SOURCE_PAM')
     core.require(config['ExecSearchPath'] == [], 'UNIT_SOURCE_SEARCH_PATH')
+    core.require(config['DynamicUser'] is False, 'UNIT_SOURCE_DYNAMIC_USER')
+    core.require(all(config[name] == [] for name in (
+        'RuntimeDirectory', 'StateDirectory', 'CacheDirectory',
+        'LogsDirectory', 'ConfigurationDirectory')), 'UNIT_SOURCE_DIRECTORIES')
     core.require(config['User'] == 'wazuh-dashboard'
                  and config['Group'] == 'wazuh-dashboard'
                  and config['WorkingDirectory'] == core.BASE.rstrip('/'),
@@ -31,10 +37,13 @@ def _constrain(config):
 
 @dataclass(frozen=True)
 class UnitSourcesObservation:
+    login_variables_enabled: bool
     exact_wrapper_argv: bool = field(default=True, init=False)
     explicit_unit_environment_empty: bool = field(default=True, init=False)
     pam_session_disabled: bool = field(default=True, init=False)
     exec_search_path_empty: bool = field(default=True, init=False)
+    dynamic_user_disabled: bool = field(default=True, init=False)
+    directory_environment_sources_empty: bool = field(default=True, init=False)
     passes: int = field(default=2, init=False)
     service_reads: int = field(default=2, init=False)
     manager_inheritance_proven: bool = field(default=False, init=False)
@@ -56,4 +65,6 @@ def observe_unit_sources():
     second = launch._configuration()
     _constrain(second)
     core.require(first == second, 'UNIT_SOURCE_CHANGED')
-    return UnitSourcesObservation()
+    # With User= set, SetLoginEnvironment=true creates HOME/LOGNAME/SHELL.
+    # Reporting that fact is not an effective-environment or startup proof.
+    return UnitSourcesObservation(login_variables_enabled=second['SetLoginEnvironment'])

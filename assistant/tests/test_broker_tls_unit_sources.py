@@ -34,9 +34,11 @@ class UnitSourcesTests(unittest.TestCase):
 
     def test_exact_two_pass_result_is_frozen_and_non_authorizing(self):
         result = self.observe()
-        self.assertEqual(asdict(result), dict(exact_wrapper_argv=True,
+        self.assertEqual(asdict(result), dict(login_variables_enabled=True,
+            exact_wrapper_argv=True,
             explicit_unit_environment_empty=True, pam_session_disabled=True,
-            exec_search_path_empty=True, passes=2, service_reads=2,
+            exec_search_path_empty=True, dynamic_user_disabled=True,
+            directory_environment_sources_empty=True, passes=2, service_reads=2,
             manager_inheritance_proven=False, selected_config_source_proven=False,
             effective_environment_proven=False, startup_authorized=False))
         with self.assertRaises(AttributeError):
@@ -81,6 +83,30 @@ class UnitSourcesTests(unittest.TestCase):
             self.observe([config, config])
         self.assertEqual(str(caught.exception), 'UNIT_SOURCE_SEARCH_PATH')
         self.assertNotIn('SECRET', str(caught.exception))
+
+    def test_directory_environment_sources_reject_without_open_or_value_leak(self):
+        for name in ('RuntimeDirectory', 'StateDirectory', 'CacheDirectory',
+                     'LogsDirectory', 'ConfigurationDirectory'):
+            config = base(); config[name] = ['PRIVATE_SECRET']
+            with self.subTest(name=name), self.assertRaises(core.OperatorError) as caught:
+                self.observe([config, config])
+            self.assertEqual(str(caught.exception), 'UNIT_SOURCE_DIRECTORIES')
+            self.assertNotIn('SECRET', str(caught.exception))
+
+    def test_dynamic_user_rejects_even_with_named_service_user(self):
+        config = base(); config['DynamicUser'] = True
+        with self.assertRaisesRegex(core.OperatorError, '^UNIT_SOURCE_DYNAMIC_USER$'):
+            self.observe([config, config])
+
+    def test_login_environment_is_visible_not_a_safety_gate(self):
+        config = base(); config['SetLoginEnvironment'] = False
+        result = self.observe([config, config])
+        self.assertFalse(result.login_variables_enabled)
+        self.assertFalse(result.effective_environment_proven)
+        self.assertFalse(result.startup_authorized)
+        changed = base()
+        with self.assertRaisesRegex(core.OperatorError, '^UNIT_SOURCE_CHANGED$'):
+            self.observe([config, changed])
 
     def test_wrong_service_identity_or_working_directory_rejects(self):
         for key, value in (('User', 'root'), ('Group', 'root'), ('WorkingDirectory', '/PRIVATE')):

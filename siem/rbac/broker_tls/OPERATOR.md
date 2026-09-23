@@ -267,11 +267,11 @@ does not prevent a privileged concurrent replacement before exec. The verified
 path components are now derived from the same BUSCTL path used by Popen, so a
 future maintained path change cannot silently leave verification on the old path.
 
-Each of two passes queries six Unit and twelve Service properties, including
+Each of two passes queries six Unit and twenty-one Service properties, including
 ExecStartEx, explicit Environment, environment-file references, passed/unset
-names, user/group, working directory, alternate-root settings, MainPID and the
-main-process monotonic start timestamp. Native typed
-JSON is parsed strictly, including argument arrays, extended execution flags,
+names, login-environment and directory settings, user/group, working directory,
+alternate-root settings, MainPID and the main-process monotonic start timestamp.
+Native typed JSON is parsed strictly, including argument arrays, extended execution flags,
 integer widths, duplicate/extra keys and exact property ordering. Records are
 split on LF bytes; literal Unicode separators inside JSON values are not record
 boundaries. A single terminal LF is optional; extra empty records are rejected.
@@ -377,7 +377,7 @@ New fixed diagnostics: `PROCESS_PID`, `PROCESS_STAT`, `PROCESS_IDENTITY`,
 `PROCESS_SIZE`, `PROCESS_EXECUTABLE`, `PROCESS_DIGEST`, `PROCESS_NOT_RUNNING`,
 `PROCESS_IO`; service and native trust codes are reused.
 
-Current suite: 328 methods in 29 files, including nineteen service methods,
+Current suite: 331 methods in 29 files, including nineteen service methods,
 nine manager-environment methods and seventeen process methods. Seven require
 Linux: four native-reader tests and three procfs/executable/descriptor tests.
 These inspect the test process and a private copy of `/bin/cat` launched with
@@ -511,34 +511,47 @@ check of the loaded unit's explicit launch fields. It requires one exact
 Dashboard wrapper command with only its own argv[0], no extended execution
 flags, empty inline `Environment`, `EnvironmentFiles`, `PassEnvironment` and
 `UnsetEnvironment`, empty `PAMName` and `ExecSearchPath`, and the expected
-Dashboard user, group and working directory. The [systemd v257 execution
+Dashboard user, group and working directory. It now also rejects `DynamicUser`
+and any configured `RuntimeDirectory`, `StateDirectory`, `CacheDirectory`,
+`LogsDirectory` or `ConfigurationDirectory`. The [systemd v257 execution
 settings](https://raw.githubusercontent.com/systemd/systemd/v257/man/systemd.exec.xml)
 identify PAM sessions as a possible variable source and `ExecSearchPath` as a
-PATH selector. RootDirectory/RootImage, a pending daemon reload or a malformed
-manager reply also stop the check through the existing service reader.
+PATH selector; service-directory settings can generate path variables.
+RootDirectory/RootImage, a pending daemon reload or a malformed manager reply
+also stop the check through the existing service reader.
 
 Two complete private manager snapshots must match. The fixed busctl target,
 root/tool gate and bounded reads are reused; configured paths and values are
 never opened, run, logged or returned. The result contains only fixed booleans
 and counts. It works with an inactive loaded unit and does not need MainPID.
-An extra argument, command, flag, explicit environment source, PAM service or
-search path returns a static error. No PAM configuration or configured path is
-opened. This is deliberately strict: a legitimate local customization requires
-separate review instead of silent acceptance.
+An extra argument, command, flag, explicit environment source, PAM service,
+search path, dynamic user or directory source returns a static error. No PAM
+configuration or configured path is opened. This is deliberately strict: a
+legitimate local customization requires separate review instead of silent
+acceptance. The exact typed `SetLoginEnvironment` value is reported as
+`login_variables_enabled`; it is **not** a gate. With the required `User=`,
+systemd may set `HOME`, `LOGNAME` and `SHELL` by default, so silently asserting
+their absence would be wrong. A true value still yields no environment or
+startup approval.
 
 The result proves only that these *queried unit fields* met this policy at the
-time of observation. Manager defaults/inheritance, other unit mechanisms,
-wrapper-created or process environment, shell expansion, selected
-`node.options` source, imports and later edits are unresolved. Therefore
+time of observation. Manager defaults/inheritance, other unit mechanisms and
+generated variables (including `PATH` and `INVOCATION_ID`), credential directives,
+socket activation, wrapper-created or process environment, shell expansion,
+selected `node.options` source, imports and later edits are unresolved. It does
+not request `SetCredential*` payloads; the already queried inline `Environment`
+field may itself contain secrets and remains private in memory. Therefore
 `manager_inheritance_proven`, `selected_config_source_proven`,
 `effective_environment_proven` and `startup_authorized` remain false even
 on success. This is not a startup gate or a broker authorization decision.
-Nine portable tests cover the exact command, each explicit source, PAM and
-search-path rejection, identity, namespace/tool gates, an inactive unit and
+Twelve portable tests cover the exact command, each explicit source, PAM and
+search-path rejection, generated-directory sources, dynamic user and login
+visibility, identity, namespace/tool gates, an inactive unit and
 between-pass drift. No new native Linux or VM acceptance is claimed. New
 static codes are `UNIT_SOURCE_EXEC`, `UNIT_SOURCE_INLINE_ENV`,
 `UNIT_SOURCE_ENV_FILE`, `UNIT_SOURCE_PASS_ENV`,
 `UNIT_SOURCE_UNSET_ENV`, `UNIT_SOURCE_PAM`, `UNIT_SOURCE_SEARCH_PATH`,
+`UNIT_SOURCE_DYNAMIC_USER`, `UNIT_SOURCE_DIRECTORIES`,
 `UNIT_SOURCE_IDENTITY`, `UNIT_SOURCE_CHANGED`.
 
 ### Manager-wide exported environment

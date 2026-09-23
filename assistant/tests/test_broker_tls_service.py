@@ -21,6 +21,9 @@ def values():
         ['wrapper', '--password=SECRET'], [], 0, 0, 0, 0, 0, 0, 0]],
         Environment=['SOME_SECRET=SECRET'], EnvironmentFiles=[], PassEnvironment=[],
         UnsetEnvironment=[], PAMName='', ExecSearchPath=[],
+        DynamicUser=False, SetLoginEnvironment=True, RuntimeDirectory=[],
+        StateDirectory=[], CacheDirectory=[], LogsDirectory=[],
+        ConfigurationDirectory=[],
         User='wazuh-dashboard', Group='wazuh-dashboard',
         WorkingDirectory=core.BASE.rstrip('/'), RootDirectory='', RootImage='',
         MainPID=123, ExecMainStartTimestampMonotonic=456)
@@ -185,7 +188,11 @@ class ServiceTests(unittest.TestCase):
         data['ExecStartEx'] = [['x', [], [], 2**64-1, 0, 0, 0, 2**32-1, -2**31, 2**31-1]]
         self.assertEqual(s.parse_properties(reply('Service', data), 'Service')['ExecStartEx'], data['ExecStartEx'])
         for key, bad in (('PAMName', []), ('PAMName', 'bad\x00value'),
-                         ('ExecSearchPath', '/SECRET'), ('ExecSearchPath', [42])):
+                         ('ExecSearchPath', '/SECRET'), ('ExecSearchPath', [42]),
+                         ('DynamicUser', 1), ('SetLoginEnvironment', 'true'),
+                         ('RuntimeDirectory', '/SECRET'), ('StateDirectory', [42]),
+                         ('CacheDirectory', '/SECRET'), ('LogsDirectory', [42]),
+                         ('ConfigurationDirectory', '/SECRET')):
             data = values()
             data[key] = bad
             with self.subTest(key=key), self.assertRaisesRegex(core.OperatorError, '^SERVICE_SHAPE$'):
