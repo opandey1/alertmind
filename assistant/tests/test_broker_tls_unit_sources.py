@@ -35,7 +35,8 @@ class UnitSourcesTests(unittest.TestCase):
     def test_exact_two_pass_result_is_frozen_and_non_authorizing(self):
         result = self.observe()
         self.assertEqual(asdict(result), dict(exact_wrapper_argv=True,
-            explicit_unit_environment_empty=True, passes=2, service_reads=2,
+            explicit_unit_environment_empty=True, pam_session_disabled=True,
+            exec_search_path_empty=True, passes=2, service_reads=2,
             manager_inheritance_proven=False, selected_config_source_proven=False,
             effective_environment_proven=False, startup_authorized=False))
         with self.assertRaises(AttributeError):
@@ -68,6 +69,18 @@ class UnitSourcesTests(unittest.TestCase):
                 self.observe([config, config])
             self.assertEqual(str(caught.exception), code)
             self.assertNotIn('SECRET', str(caught.exception))
+
+    def test_pam_session_rejects_without_opening_its_configuration(self):
+        config = base(); config['PAMName'] = 'SECRET'
+        with self.assertRaisesRegex(core.OperatorError, '^UNIT_SOURCE_PAM$'):
+            self.observe([config, config])
+
+    def test_exec_search_path_rejects_without_echoing_path(self):
+        config = base(); config['ExecSearchPath'] = ['/PRIVATE/SECRET']
+        with self.assertRaises(core.OperatorError) as caught:
+            self.observe([config, config])
+        self.assertEqual(str(caught.exception), 'UNIT_SOURCE_SEARCH_PATH')
+        self.assertNotIn('SECRET', str(caught.exception))
 
     def test_wrong_service_identity_or_working_directory_rejects(self):
         for key, value in (('User', 'root'), ('Group', 'root'), ('WorkingDirectory', '/PRIVATE')):
