@@ -28,7 +28,11 @@ GROUPS = {
     'Service': (('ExecStartEx', 'a(sasasttttuii)'), ('Environment', 'as'),
                 ('EnvironmentFiles', 'a(sb)'), ('PassEnvironment', 'as'),
                 ('UnsetEnvironment', 'as'), ('PAMName', 's'),
-                ('ExecSearchPath', 'as'), ('User', 's'), ('Group', 's'),
+                ('ExecSearchPath', 'as'), ('DynamicUser', 'b'),
+                ('SetLoginEnvironment', 'b'), ('RuntimeDirectory', 'as'),
+                ('StateDirectory', 'as'), ('CacheDirectory', 'as'),
+                ('LogsDirectory', 'as'), ('ConfigurationDirectory', 'as'),
+                ('User', 's'), ('Group', 's'),
                 ('WorkingDirectory', 's'), ('RootDirectory', 's'), ('RootImage', 's'),
                 ('MainPID', 'u'), ('ExecMainStartTimestampMonotonic', 't')),
 }
