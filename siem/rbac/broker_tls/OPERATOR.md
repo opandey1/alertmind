@@ -377,7 +377,7 @@ New fixed diagnostics: `PROCESS_PID`, `PROCESS_STAT`, `PROCESS_IDENTITY`,
 `PROCESS_SIZE`, `PROCESS_EXECUTABLE`, `PROCESS_DIGEST`, `PROCESS_NOT_RUNNING`,
 `PROCESS_IO`; service and native trust codes are reused.
 
-Current suite: 310 methods in 27 files, including nineteen service methods and
+Current suite: 317 methods in 28 files, including nineteen service methods and
 seventeen process methods. Seven require Linux: four native-reader tests and three
 procfs/executable/descriptor tests. These inspect the test process and a private
 copy of `/bin/cat` launched with a clean environment and mode 0500. The child
@@ -503,6 +503,37 @@ The launch observer's flag is now `inline_wrapper_environment_override_named`
 Two added launch tests isolate multiple ExecStart rows and the inline-only scope,
 bringing that module to fourteen tests. No production caller used the old name.
 
+### Explicit unit launch-source boundary
+
+`operator_unit_sources.observe_unit_sources()` makes a separate, read-only
+check of the loaded unit's explicit launch fields. It requires one exact
+Dashboard wrapper command with only its own argv[0], no extended execution
+flags, empty inline `Environment`, `EnvironmentFiles`, `PassEnvironment` and
+`UnsetEnvironment`, and the expected Dashboard user, group and working
+directory. RootDirectory/RootImage, a pending daemon reload or a malformed
+manager reply also stop the check through the existing service reader.
+
+Two complete private manager snapshots must match. The fixed busctl target,
+root/tool gate and bounded reads are reused; configured paths and values are
+never opened, run, logged or returned. The result contains only fixed booleans
+and counts. It works with an inactive loaded unit and does not need MainPID.
+An extra argument, command, flag or explicit environment source returns a
+static error. This is deliberately strict: a legitimate local customization
+requires separate review instead of silent acceptance.
+
+The result proves only that these *queried unit fields* met this policy at the
+time of observation. Manager defaults/inheritance, other unit mechanisms,
+wrapper-created or process environment, shell expansion, selected
+`node.options` source, imports and later edits are unresolved. Therefore
+`manager_inheritance_proven`, `selected_config_source_proven`,
+`effective_environment_proven` and `startup_authorized` remain false even
+on success. This is not a startup gate or a broker authorization decision.
+Seven portable tests cover the exact command, each explicit source, identity,
+namespace/tool gates, an inactive unit and between-pass drift. No new native
+Linux or VM acceptance is claimed. New static codes are `UNIT_SOURCE_EXEC`,
+`UNIT_SOURCE_INLINE_ENV`, `UNIT_SOURCE_ENV_FILE`, `UNIT_SOURCE_PASS_ENV`,
+`UNIT_SOURCE_UNSET_ENV`, `UNIT_SOURCE_IDENTITY`, `UNIT_SOURCE_CHANGED`.
+
 ## Required next adapter package — not released here
 
 1. Establish selected packaged Linux runtime and real Server certificate
@@ -515,10 +546,10 @@ bringing that module to fourteen tests. No production caller used the old name.
    Two equal byte passes cannot prevent edits after checking or attest running
    code. Verify the installed dependency resolution/file set too: matching listed
    files alone does not exclude an extra module or a changed resolution path.
-3. Review the fixed launch-file observer, then complete
-   remaining environment-source observations (environment files/inheritance,
-   prefix/argv and actual conffile selection), full launch/dependency resolution and single broker host
-   observations privately. No arbitrary executable override, fallback Node or
+3. Review the fixed launch-file and explicit unit-source observers, then
+   inspect manager/inherited and wrapper-created environment, prefix options,
+   selected conffile, full launch/dependency resolution and single broker host
+   privately. No arbitrary executable override, fallback Node or
    `NODE_OPTIONS` preload may bypass the intended guard. Do not export secrets.
 4. Build the root-controlled pre-start adapter and exact service drop-in from
    observed unit settings. Do not invent a unit override or silently overwrite
