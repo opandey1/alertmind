@@ -52,6 +52,9 @@ class BootstrapTests(unittest.TestCase):
         self.assertEqual(b.CERTIFICATE_PATH, '/etc/alertmind/certs/alertmind-server-api.pem')
         self.assertIn("const paths = ['/', '/etc', '/etc/alertmind', '/etc/alertmind/certs', path];", policy)
         self.assertNotIn('/etc/wazuh-dashboard', policy)
+        design = (ROOT / 'docs/hardening/broker-tls/hardening.md').read_text(encoding='utf-8')
+        self.assertIn(b.CERTIFICATE_PATH, design)
+        self.assertNotIn('/etc/wazuh-dashboard/certs/alertmind-server-api.pem', design)
         self.assertEqual(b.MANIFEST_PATH, '/etc/alertmind/broker-tls/manifest.json')
         self.assertEqual(set(b.FILES), {'manifest', 'certificate'})
 

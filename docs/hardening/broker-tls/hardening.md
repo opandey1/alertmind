@@ -98,7 +98,11 @@ repair proposal, not authorization to patch the VM or accept an exception.
   `_authenticateInternalUser` and `_requestAsInternalUser`, including 401 refresh.
   No per-request fallback or silent trust-store fallback on errors.
 - Read one bounded public Server certificate from a proposed root-controlled
-  path, `/etc/wazuh-dashboard/certs/alertmind-server-api.pem`. Do not read the
+  path, `/etc/alertmind/certs/alertmind-server-api.pem`. The September 14
+  reviewed correction (`35fdccb`, merged in PR #41) moved it outside the
+  vendor's service-owned configuration tree; root-only checks and the
+  certificate fingerprint are unchanged. This is still a proposed destination,
+  not an installed file. Do not read the
   private key or grant Dashboard access to `/var/ossec` private directories.
   Require one PEM certificate, expected fingerprint and validity; trust-anchor
   suitability for the installed Node/OpenSSL is tested before adoption. If the

@@ -17,7 +17,8 @@ or operational on the VM.**
 
 The September 14 trust-path revision changes the candidate and its contract.
 The core repeats the candidate pins deliberately; a CI test requires equality
-with `contract.json`. These new pins require independent review.
+with `contract.json`. Claude approved those pins on September 14; PR #41
+merged them. This is offline review, not deployment approval.
 Do not refresh either pin set automatically after a failed check.
 
 ## Implemented
@@ -94,7 +95,7 @@ cache or lookup bypass is introduced by this package.
 It reads two public files, with effective root and root:root ownership required
 at **every** component; no vendor/service ownership exception or NSS lookup:
 
-**September 14 layout decision, awaiting independent review:** the exact vendor
+**September 14 layout decision, approved by Claude and merged in PR #41:** the exact vendor
 4.14.7-1 package records `/etc/wazuh-dashboard` as service-owned 0750 and its
 postinst recursively reapplies service ownership to that tree and
 `/usr/share/wazuh-dashboard`. Root-only trust checks cannot pass that stock
@@ -117,7 +118,7 @@ not native readability, general upgrade safety or deployment acceptance.
 | Fixed file | Bound | Status |
 |---|---|---|
 | `/etc/alertmind/broker-tls/manifest.json` | 512 KiB | Proposed installer destination, not created here |
-| `/etc/alertmind/certs/alertmind-server-api.pem` | 64 KiB | Revised candidate destination; review pending, not installed here |
+| `/etc/alertmind/certs/alertmind-server-api.pem` | 64 KiB | Reviewed candidate destination; not installed here |
 
 The manifest is validated against the core's independent pins/file inventory,
 never trusted merely for residing in a root-owned directory. The certificate must
@@ -376,7 +377,7 @@ New fixed diagnostics: `PROCESS_PID`, `PROCESS_STAT`, `PROCESS_IDENTITY`,
 `PROCESS_SIZE`, `PROCESS_EXECUTABLE`, `PROCESS_DIGEST`, `PROCESS_NOT_RUNNING`,
 `PROCESS_IO`; service and native trust codes are reused.
 
-Current suite: 292 methods in 26 files, including nineteen service methods and
+Current suite: 310 methods in 27 files, including nineteen service methods and
 seventeen process methods. Seven require Linux: four native-reader tests and three
 procfs/executable/descriptor tests. These inspect the test process and a private
 copy of `/bin/cat` launched with a clean environment and mode 0500. The child
@@ -452,6 +453,56 @@ new portable tests cover pins, bounded reads, both passes, drift, namespace,
 non-authorizing flags, unknown paths and sanitized errors using existing native
 reader contracts. They do not establish fresh live Linux/VM acceptance.
 
+### Fixed node.options content policy (not the effective environment)
+
+`operator_node_options.observe_node_options()` reads only
+`/etc/wazuh-dashboard/node.options`, capped at 16 KiB. It does not follow an
+observed `OSD_PATH_CONF`, environment-file path or argument. Two reads are parsed
+independently and compared byte-for-byte, bracketed by three fresh package and
+private manager snapshots. Alternate RootDirectory/RootImage namespaces reject
+before file reads. Missing files fail closed, even though the wrapper treats a
+missing conffile as optional. An inactive service is supported; no PID is needed.
+
+The shared descriptor-relative, no-follow bounded reader is reused with a narrow
+owner policy: root:root above `/etc/wazuh-dashboard`, root:root or the named
+Dashboard UID/GID pair inside that exact tree. It retains regular-file, mode,
+set-ID and replacement/drift checks. The general vendor reader and root-only
+manifest/certificate policy are unchanged. Service-owned configuration remains
+service-mutable; equal reads are neither an atomic snapshot nor a lock.
+
+The policy is content-based, not a hash of this editable conffile. It permits:
+
+- Exactly one active `--unhandled-rejections=warn` (the shipped active setting).
+- Optionally one `--max-old-space-size=4096` (the exact shipped commented example).
+- ASCII LF text, blank space/tab lines and comments beginning with `#` in column
+  zero. No final LF is required. Each active line must be one exact token.
+
+Unknown options, other values, duplicates, loaders/preloads, debug/CA switches,
+quotes, escapes, expansion/globbing, inline or indented comments, active-token
+whitespace, CRLF, non-ASCII and control bytes reject with static codes. This is
+intentionally narrower than Node syntax; changing memory values or other flags
+requires separate policy review, not a blind hash refresh. Allowing the vendor's
+4 GiB example is not a capacity recommendation or live performance acceptance.
+Stock 4.14.7-1 `use_node` removes only `^#` lines then uses `xargs` and unquoted
+shell expansion. The restricted grammar avoids their quoting/token ambiguities;
+the observer never runs those tools, the wrapper or Node to parse the file.
+
+Only an option count, fixed read counts and flags are returned. `content_policy_passed`
+is narrow: `selected_source_proven`, `effective_environment_proven` and
+`startup_authorized` are always false. `OSD_PATH_CONF`, environment files,
+inherited variables, prefix options and command arguments can still alter what
+the wrapper selects or passes to Node. Those sources remain the next slice;
+this result cannot authorize a start or substitute for their review.
+
+New codes: `NODE_OPTIONS_SIZE`, `NODE_OPTIONS_FORMAT`, `NODE_OPTIONS_OPTION`,
+`NODE_OPTIONS_DUPLICATE`, `NODE_OPTIONS_REQUIRED`, `NODE_OPTIONS_CHANGED`;
+existing package/namespace/native errors are reused. Sixteen portable tests use
+synthetic files, ownership and manager data; no new native/live acceptance claim.
+The launch observer's flag is now `inline_wrapper_environment_override_named`
+(old ambiguous name removed); it still inspects only inline `Environment=`.
+Two added launch tests isolate multiple ExecStart rows and the inline-only scope,
+bringing that module to fourteen tests. No production caller used the old name.
+
 ## Required next adapter package — not released here
 
 1. Establish selected packaged Linux runtime and real Server certificate
@@ -465,7 +516,8 @@ reader contracts. They do not establish fresh live Linux/VM acceptance.
    code. Verify the installed dependency resolution/file set too: matching listed
    files alone does not exclude an extra module or a changed resolution path.
 3. Review the fixed launch-file observer, then complete
-   environment-source observations, full launch/dependency resolution and single broker host
+   remaining environment-source observations (environment files/inheritance,
+   prefix/argv and actual conffile selection), full launch/dependency resolution and single broker host
    observations privately. No arbitrary executable override, fallback Node or
    `NODE_OPTIONS` preload may bypass the intended guard. Do not export secrets.
 4. Build the root-controlled pre-start adapter and exact service drop-in from
