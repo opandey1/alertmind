@@ -377,10 +377,11 @@ New fixed diagnostics: `PROCESS_PID`, `PROCESS_STAT`, `PROCESS_IDENTITY`,
 `PROCESS_SIZE`, `PROCESS_EXECUTABLE`, `PROCESS_DIGEST`, `PROCESS_NOT_RUNNING`,
 `PROCESS_IO`; service and native trust codes are reused.
 
-Current suite: 317 methods in 28 files, including nineteen service methods and
-seventeen process methods. Seven require Linux: four native-reader tests and three
-procfs/executable/descriptor tests. These inspect the test process and a private
-copy of `/bin/cat` launched with a clean environment and mode 0500. The child
+Current suite: 326 methods in 29 files, including nineteen service methods,
+nine manager-environment methods and seventeen process methods. Seven require
+Linux: four native-reader tests and three procfs/executable/descriptor tests.
+These inspect the test process and a private copy of `/bin/cat` launched with
+a clean environment and mode 0500. The child
 waits on a test-owned pipe and is reaped before temporary-file cleanup. Test-only
 pins are used; no Wazuh, Node execution or system bus call. The shared CI Python
 executable's ownership/permissions are not assumed or changed.
@@ -534,6 +535,35 @@ Linux or VM acceptance is claimed. New static codes are `UNIT_SOURCE_EXEC`,
 `UNIT_SOURCE_INLINE_ENV`, `UNIT_SOURCE_ENV_FILE`, `UNIT_SOURCE_PASS_ENV`,
 `UNIT_SOURCE_UNSET_ENV`, `UNIT_SOURCE_IDENTITY`, `UNIT_SOURCE_CHANGED`.
 
+### Manager-wide exported environment
+
+`operator_manager_environment.observe_manager_environment()` separately queries
+the fixed `org.freedesktop.systemd1.Manager.Environment` D-Bus property. Per the
+[systemd v257 interface](https://raw.githubusercontent.com/systemd/systemd/v257/man/org.freedesktop.systemd1.xml),
+this is the manager environment block passed to executed services. The adapter
+reuses the bounded, clean-environment busctl subprocess and root/tool check; no
+caller can select a different object or property. It parses two complete private
+replies and accepts only equal, empty lists. Any nonempty export, including a
+benign-looking variable, requires explicit review instead of an implicit
+allowlist. Malformed names, duplicates, unexpected signatures or shapes and
+between-read drift fail with static codes. No raw entry, secret or name is
+returned or included in an error.
+
+This is deliberately narrower than claiming the final process environment.
+The systemd [execution-environment documentation](https://raw.githubusercontent.com/systemd/systemd/v257/man/systemd.exec.xml)
+describes other sources, including service-generated variables, unit settings,
+manager-process inheritance via `PassEnvironment=`, PAM and final unset rules.
+The separate unit-source check requires `PassEnvironment=[]`, but these checks
+are not an atomic combined gate; wrapper-created variables, actual selected
+conffile, imports and future edits remain unresolved. A successful result
+keeps `unit_environment_proven`, `wrapper_environment_proven`,
+`effective_environment_proven` and `startup_authorized` false. This module does
+not query the VM, start a service or authorize broker requests. Nine portable
+tests use synthetic manager replies only; stock Ubuntu/Wazuh behavior has not
+been observed. New diagnostics are `MANAGER_ENV_SIZE`, `MANAGER_ENV_FORMAT`,
+`MANAGER_ENV_SHAPE`, `MANAGER_ENV_ENTRY`, `MANAGER_ENV_CHANGED` and
+`MANAGER_ENV_PRESENT`; existing fixed-tool/query codes are reused.
+
 ## Required next adapter package — not released here
 
 1. Establish selected packaged Linux runtime and real Server certificate
@@ -546,11 +576,12 @@ Linux or VM acceptance is claimed. New static codes are `UNIT_SOURCE_EXEC`,
    Two equal byte passes cannot prevent edits after checking or attest running
    code. Verify the installed dependency resolution/file set too: matching listed
    files alone does not exclude an extra module or a changed resolution path.
-3. Review the fixed launch-file and explicit unit-source observers, then
-   inspect manager/inherited and wrapper-created environment, prefix options,
-   selected conffile, full launch/dependency resolution and single broker host
-   privately. No arbitrary executable override, fallback Node or
-   `NODE_OPTIONS` preload may bypass the intended guard. Do not export secrets.
+3. Review the fixed launch-file, explicit unit-source and manager-export
+   observers, then inspect remaining manager-process/PAM and wrapper-created
+   environment, prefix options, selected conffile, full launch/dependency
+   resolution and single broker host privately. No arbitrary executable
+   override, fallback Node or `NODE_OPTIONS` preload may bypass the intended
+   guard. Do not export secrets.
 4. Build the root-controlled pre-start adapter and exact service drop-in from
    observed unit settings. Do not invent a unit override or silently overwrite
    existing drop-ins. A guard failure must prevent background/internal broker
