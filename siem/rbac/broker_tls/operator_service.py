@@ -19,6 +19,7 @@ from . import operator_fs as fs
 BUSCTL = '/usr/bin/busctl'
 UNIT = 'wazuh-dashboard.service'
 OBJECT = '/org/freedesktop/systemd1/unit/wazuh_2ddashboard_2eservice'
+MANAGER_OBJECT = '/org/freedesktop/systemd1'
 MAX_REPLY = 256 * 1024
 TIMEOUT = 5
 GROUPS = {
@@ -102,12 +103,29 @@ def parse_properties(raw, group):
 
 
 def _query(group):
-    """Bounded pipe read, finite wait, fixed command and clean child environment."""
+    """Query only the fixed service object and allowlisted property group."""
     core.require(type(group) is str and group in GROUPS, 'SERVICE_TARGET')
+    return _run_query(group)
+
+
+def _query_manager_environment():
+    """Read one fixed Manager property; never pass a caller-selected target."""
+    return _run_query('Manager.Environment')
+
+
+def _run_query(target):
+    """Bounded fixed-property read, finite wait and clean child environment."""
+    core.require(type(target) is str, 'SERVICE_TARGET')
+    if target == 'Manager.Environment':
+        obj, interface, properties = (MANAGER_OBJECT,
+            'org.freedesktop.systemd1.Manager', ('Environment',))
+    else:
+        core.require(target in GROUPS, 'SERVICE_TARGET')
+        obj, interface, properties = (OBJECT, 'org.freedesktop.systemd1.' + target,
+                                      tuple(name for name, _ in GROUPS[target]))
     command = [BUSCTL, '--system', '--json=short', '--no-pager', '--timeout=5',
                '--auto-start=no', '--allow-interactive-authorization=no', 'get-property',
-               'org.freedesktop.systemd1', OBJECT, 'org.freedesktop.systemd1.' + group,
-               *(name for name, _ in GROUPS[group])]
+               'org.freedesktop.systemd1', obj, interface, *properties]
     proc = None
     try:
         deadline = time.monotonic() + TIMEOUT
