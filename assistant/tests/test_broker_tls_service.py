@@ -20,7 +20,8 @@ def values():
         NeedDaemonReload=False, ExecStartEx=[[core.BASE + 'bin/opensearch-dashboards',
         ['wrapper', '--password=SECRET'], [], 0, 0, 0, 0, 0, 0, 0]],
         Environment=['SOME_SECRET=SECRET'], EnvironmentFiles=[], PassEnvironment=[],
-        UnsetEnvironment=[], User='wazuh-dashboard', Group='wazuh-dashboard',
+        UnsetEnvironment=[], PAMName='', ExecSearchPath=[],
+        User='wazuh-dashboard', Group='wazuh-dashboard',
         WorkingDirectory=core.BASE.rstrip('/'), RootDirectory='', RootImage='',
         MainPID=123, ExecMainStartTimestampMonotonic=456)
 
@@ -183,6 +184,12 @@ class ServiceTests(unittest.TestCase):
                 s.parse_properties(reply('Service', data), 'Service')
         data['ExecStartEx'] = [['x', [], [], 2**64-1, 0, 0, 0, 2**32-1, -2**31, 2**31-1]]
         self.assertEqual(s.parse_properties(reply('Service', data), 'Service')['ExecStartEx'], data['ExecStartEx'])
+        for key, bad in (('PAMName', []), ('PAMName', 'bad\x00value'),
+                         ('ExecSearchPath', '/SECRET'), ('ExecSearchPath', [42])):
+            data = values()
+            data[key] = bad
+            with self.subTest(key=key), self.assertRaisesRegex(core.OperatorError, '^SERVICE_SHAPE$'):
+                s.parse_properties(reply('Service', data), 'Service')
 
     def test_target_allowlist_precedes_process_creation(self):
         for group in ('Manager', '../Unit', [], None):

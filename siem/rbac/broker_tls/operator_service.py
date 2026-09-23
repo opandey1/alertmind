@@ -27,7 +27,8 @@ GROUPS = {
              ('FragmentPath', 's'), ('DropInPaths', 'as'), ('NeedDaemonReload', 'b')),
     'Service': (('ExecStartEx', 'a(sasasttttuii)'), ('Environment', 'as'),
                 ('EnvironmentFiles', 'a(sb)'), ('PassEnvironment', 'as'),
-                ('UnsetEnvironment', 'as'), ('User', 's'), ('Group', 's'),
+                ('UnsetEnvironment', 'as'), ('PAMName', 's'),
+                ('ExecSearchPath', 'as'), ('User', 's'), ('Group', 's'),
                 ('WorkingDirectory', 's'), ('RootDirectory', 's'), ('RootImage', 's'),
                 ('MainPID', 'u'), ('ExecMainStartTimestampMonotonic', 't')),
 }

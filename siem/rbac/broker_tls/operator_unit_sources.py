@@ -1,8 +1,9 @@
 """Constrain explicit unit launch sources without starting the Dashboard.
 
-This is a read-only check of selected systemd properties. It does not read the
-manager's inherited environment, vendor wrapper variables, or the final process
-environment and cannot authorize a start. Private property values stay private.
+This is a read-only check of selected systemd properties. It excludes a PAM
+session and an explicit executable search path, but does not read the manager's
+own environment, vendor wrapper variables or the final process environment.
+It cannot authorize a start. Private property values stay private.
 """
 from dataclasses import dataclass, field
 
@@ -20,6 +21,8 @@ def _constrain(config):
     core.require(config['EnvironmentFiles'] == [], 'UNIT_SOURCE_ENV_FILE')
     core.require(config['PassEnvironment'] == [], 'UNIT_SOURCE_PASS_ENV')
     core.require(config['UnsetEnvironment'] == [], 'UNIT_SOURCE_UNSET_ENV')
+    core.require(config['PAMName'] == '', 'UNIT_SOURCE_PAM')
+    core.require(config['ExecSearchPath'] == [], 'UNIT_SOURCE_SEARCH_PATH')
     core.require(config['User'] == 'wazuh-dashboard'
                  and config['Group'] == 'wazuh-dashboard'
                  and config['WorkingDirectory'] == core.BASE.rstrip('/'),
@@ -30,6 +33,8 @@ def _constrain(config):
 class UnitSourcesObservation:
     exact_wrapper_argv: bool = field(default=True, init=False)
     explicit_unit_environment_empty: bool = field(default=True, init=False)
+    pam_session_disabled: bool = field(default=True, init=False)
+    exec_search_path_empty: bool = field(default=True, init=False)
     passes: int = field(default=2, init=False)
     service_reads: int = field(default=2, init=False)
     manager_inheritance_proven: bool = field(default=False, init=False)
