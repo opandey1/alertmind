@@ -1,9 +1,11 @@
 # Server/Dashboard read-only implementation gate
 
 **Status:** Local configuration and corrected Server-admin inventory completed
-from owner-reported output. The next [Dashboard broker preflight package](rbac-dashboard-broker-preflight.md)
-awaits independent review. No live mutation is authorized by this package. No application
-runtime change is included. The authenticated analyst profile is still absent.
+from owner-reported output. Broker TLS remediation remains offline and has not
+been deployed or accepted on the actual Dashboard path. The offline
+`socanalyst` preview below is not a live-change package. No live mutation is
+authorized by this package. No application runtime change is included. The
+authenticated analyst profile is still absent.
 
 **Baseline:** PR #21 (`41105a9`) merged the independently approved transport and
 service-credential rollback record (`32557ae`, `1850093`). Do not repeat that
@@ -159,6 +161,50 @@ Wazuh 4.14.7 provides run-as token issuance and a processed-current-policy read
 endpoint. The future proof must inspect the policy of the **actual Dashboard
 human context**, not infer it from the broker's direct administrator token.
 ([4.14.7 API specification](https://github.com/wazuh/wazuh/blob/v4.14.7/api/api/spec/spec.yaml))
+
+### Offline-only human read-only preview
+
+[`plan_socanalyst_readonly.py`](../../siem/rbac/plan_socanalyst_readonly.py)
+is an import-only, pure-Python preview for reviewed, sanitized inventory
+summaries and an in-memory Dashboard read-only-role list. It has no CLI, HTTP,
+filesystem, service-control or credential path. The output preserves the role
+list exactly and appends `alertmind_socanalyst_ro` only if absent. It names the
+intended built-in Server role and mapping but emits **no Server rule payload**:
+the Dashboard's actual authorization-context key and all overlapping rules
+remain unproven. A numeric role ID in an older Server inventory is never used
+as a durable target. The preview always reports `mutation_authorized: false`.
+
+It rejects a changed Server inventory contract, unexpected RBAC mode/policies,
+missing broker `run_as`, existing target-rule name, extra Server service user,
+multiple Dashboard hosts, absent/invalid role list, disabled broker loopback,
+changed multitenancy or disagreement between the inventory membership flags
+and the supplied role list. A passing synthetic test or preview means only that
+the *proposal* is internally consistent. It cannot prove freshness, broker TLS,
+real Dashboard context, effective analyst permissions, or live rollback safety.
+Do not transfer or run this preview on the VM as an operator packet.
+
+Before any executable package, record and independently review all of these
+distinct gates:
+
+1. Broker TLS remediation installed and accepted on the actual Dashboard path;
+   no credential-bearing run-as request before this gate.
+2. Fresh, bounded observation of the Dashboard's actual human auth context and
+   every Server rule that can match it. Confirm the exact field/value predicate,
+   unique built-in `readonly` role and its current ID/policies. Do not derive a
+   predicate from a browser parameter or assume `username` and `user_name`
+   are interchangeable.
+3. Fresh Indexer `socanalyst`/`assistant-svc` role and mapping readbacks, agent
+   001/002 DLS, scoped `own_index`, and agent enrollment fingerprints. Preserve
+   all existing privileges and the assistant service credential.
+4. Fresh administrator continuity, both required saved dashboards and Wazuh
+   service-health baselines. Agree an interruption-safe private backup and
+   exact compare-before-edit/rollback plan before a write.
+5. Explicit owner acceptance that Wazuh's built-in Server `readonly` exposes
+   broader read information than the Indexer alert DLS. If not accepted,
+   redesign the Server role rather than representing it as agent-scoped.
+6. Independent review and separate approval of the exact version-bound
+   mutation and safe positive/negative acceptance tests. Until then there is
+   no rule payload, Dashboard edit or service restart to execute.
 
 ## 4. Planned minimal change set — not executable yet
 

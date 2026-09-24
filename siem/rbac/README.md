@@ -28,6 +28,19 @@ approved index namespace, DLS query, canonical principal/role names and the
 non-secret enrollment fingerprints current when agent IDs `001` and `002`
 were approved. Re-enrollment invalidates that binding until reviewed again.
 
+### 2026-09-24 offline human-access preview
+
+[`plan_socanalyst_readonly.py`](plan_socanalyst_readonly.py) is a pure,
+import-only review aid for the future human Dashboard/Server change. It checks
+the sanitized inventory contract and previews preservation of the Dashboard
+read-only role list with `alertmind_socanalyst_ro` appended if missing. It
+deliberately produces no Server rule payload or live authorization. Its
+blockers remain open regardless of a passing preview; see the
+[Server/Dashboard gate](../../docs/runbooks/rbac-server-dashboard-readonly.md).
+It is not a VM staging artifact and has no transfer manifest. Historical
+staging/drill descriptions below must not be treated as current VM liveness;
+the accepted checkpoint status is in `HANDOFF.md`.
+
 Committed Phase 1A artifacts and the Phase 1B correction package:
 
 - `scope-contract.json` — non-executable source of approved names and scope;
