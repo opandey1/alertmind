@@ -267,8 +267,10 @@ does not prevent a privileged concurrent replacement before exec. The verified
 path components are now derived from the same BUSCTL path used by Popen, so a
 future maintained path change cannot silently leave verification on the old path.
 
-Each of two passes queries six Unit and twenty-seven Service properties, including
-ExecStartEx and six auxiliary-command arrays, explicit Environment,
+Each of two passes queries seven Unit and thirty-three Service properties, including
+ExecStartEx and six auxiliary-command arrays, the inverse `TriggeredBy` edges,
+`OpenFile`, file-descriptor-store capacity/count, extra descriptor names and
+standard-input mode/name, explicit Environment,
 environment-file references, passed/unset names, login-environment and
 directory settings, user/group, working directory,
 alternate-root settings, MainPID and the main-process monotonic start timestamp.
@@ -297,7 +299,8 @@ observation function. Raw arguments, environment values, file paths and user
 names are neither printed nor included in its repr. The parser necessarily
 returns private intermediate data to its caller: do not log that data. Raw
 values exist in memory; a future privileged launcher still needs core-dump,
-debugging and trusted-import controls. No credentials are requested here.
+debugging and trusted-import controls. No credential or standard-input payload
+property is requested here.
 
 Full private snapshots are compared, not just sanitized summaries. A pending
 daemon reload, transient state, wrong unit, malformed environment or any
@@ -378,7 +381,7 @@ New fixed diagnostics: `PROCESS_PID`, `PROCESS_STAT`, `PROCESS_IDENTITY`,
 `PROCESS_SIZE`, `PROCESS_EXECUTABLE`, `PROCESS_DIGEST`, `PROCESS_NOT_RUNNING`,
 `PROCESS_IO`; service and native trust codes are reused.
 
-Current suite: 333 methods in 29 files, including nineteen service methods,
+Current suite: 338 methods in 29 files, including twenty-two service methods,
 nine manager-environment methods and seventeen process methods. Seven require
 Linux: four native-reader tests and three procfs/executable/descriptor tests.
 These inspect the test process and a private copy of `/bin/cat` launched with
@@ -518,7 +521,15 @@ their arguments remain private. It also requires empty inline `Environment`,
 and `ExecSearchPath`, and the expected
 Dashboard user, group and working directory. It now also rejects `DynamicUser`
 and any configured `RuntimeDirectory`, `StateDirectory`, `CacheDirectory`,
-`LogsDirectory` or `ConfigurationDirectory`. The [systemd v257 execution
+`LogsDirectory` or `ConfigurationDirectory`. It also rejects any observed
+`TriggeredBy` edge, `OpenFile` entry, nonzero file-descriptor-store capacity
+or occupancy, extra descriptor name, or standard input other than `null`
+with an empty descriptor name. These properties represent selected routes by
+which the service could receive files, sockets or input despite its exact
+command line. `TriggeredBy` covers more than socket units, so a nonempty
+list stops for review rather than being classified as a socket. The
+[systemd v257 service interface](https://raw.githubusercontent.com/systemd/systemd/v257/man/org.freedesktop.systemd1.xml)
+defines the queried signatures. The [systemd v257 execution
 settings](https://raw.githubusercontent.com/systemd/systemd/v257/man/systemd.exec.xml)
 identify PAM sessions as a possible variable source and `ExecSearchPath` as a
 PATH selector; service-directory settings can generate path variables.
@@ -530,8 +541,11 @@ root/tool gate and bounded reads are reused; configured paths and values are
 never opened, run, logged or returned. The result contains only fixed booleans
 and counts. It works with an inactive loaded unit and does not need MainPID.
 An extra argument, auxiliary command, flag, explicit environment source, PAM
-service, search path, dynamic user or directory source returns a static error. No PAM
-configuration or configured path is opened. This is deliberately strict: a
+service, search path, dynamic user, directory source or selected descriptor
+input returns a static error. No PAM configuration or configured path is
+opened. `StandardInputData` and credential payload properties are intentionally
+not queried, since they can contain secrets. A non-null input mode stops
+without a payload read. This is deliberately strict: a
 legitimate local customization requires separate review instead of silent
 acceptance. A future trusted pre-start guard would itself appear in
 `ExecStartPreEx`; this baseline policy must be replaced by an independently
@@ -545,22 +559,25 @@ startup approval.
 The result proves only that these *queried unit fields* met this policy at the
 time of observation. Manager defaults/inheritance, other unit mechanisms and
 generated variables (including `PATH` and `INVOCATION_ID`), credential directives,
-socket activation, wrapper-created or process environment, shell expansion,
+unqueried descriptor/output mechanisms, complete socket activation state,
+wrapper-created or process environment, shell expansion,
 selected `node.options` source, imports and later edits are unresolved. It does
 not request `SetCredential*` payloads; the already queried inline `Environment`
 field may itself contain secrets and remains private in memory. Therefore
 `manager_inheritance_proven`, `selected_config_source_proven`,
 `effective_environment_proven` and `startup_authorized` remain false even
 on success. This is not a startup gate or a broker authorization decision.
-Fourteen portable tests cover the exact command, six auxiliary command arrays,
+Sixteen portable tests cover the exact command, six auxiliary command arrays,
 each explicit source, PAM and search-path rejection, generated-directory sources,
-dynamic user and login
+dynamic user, selected descriptor/trigger inputs and login
 visibility, identity, namespace/tool gates, an inactive unit and
 between-pass drift. No new native Linux or VM acceptance is claimed. New
 static codes are `UNIT_SOURCE_EXEC`, `UNIT_SOURCE_AUX_EXEC`, `UNIT_SOURCE_INLINE_ENV`,
 `UNIT_SOURCE_ENV_FILE`, `UNIT_SOURCE_PASS_ENV`,
 `UNIT_SOURCE_UNSET_ENV`, `UNIT_SOURCE_PAM`, `UNIT_SOURCE_SEARCH_PATH`,
 `UNIT_SOURCE_DYNAMIC_USER`, `UNIT_SOURCE_DIRECTORIES`,
+`UNIT_SOURCE_TRIGGER`, `UNIT_SOURCE_OPEN_FILE`, `UNIT_SOURCE_FD_STORE`,
+`UNIT_SOURCE_EXTRA_FDS`, `UNIT_SOURCE_STDIN`,
 `UNIT_SOURCE_IDENTITY`, `UNIT_SOURCE_CHANGED`.
 
 ### Manager-wide exported environment

@@ -17,7 +17,7 @@ from siem.rbac.broker_tls import operator_service as s
 def values():
     return dict(Id=s.UNIT, LoadState='loaded', ActiveState='active',
         FragmentPath='/usr/lib/systemd/system/wazuh-dashboard.service', DropInPaths=[],
-        NeedDaemonReload=False, ExecConditionEx=[], ExecStartPreEx=[],
+        NeedDaemonReload=False, TriggeredBy=[], ExecConditionEx=[], ExecStartPreEx=[],
         ExecStartEx=[[core.BASE + 'bin/opensearch-dashboards',
         ['wrapper', '--password=SECRET'], [], 0, 0, 0, 0, 0, 0, 0]],
         ExecStartPostEx=[], ExecReloadEx=[], ExecStopEx=[], ExecStopPostEx=[],
@@ -26,6 +26,9 @@ def values():
         DynamicUser=False, SetLoginEnvironment=True, RuntimeDirectory=[],
         StateDirectory=[], CacheDirectory=[], LogsDirectory=[],
         ConfigurationDirectory=[],
+        OpenFile=[], FileDescriptorStoreMax=0, NFileDescriptorStore=0,
+        ExtraFileDescriptorNames=[], StandardInput='null',
+        StandardInputFileDescriptorName='',
         User='wazuh-dashboard', Group='wazuh-dashboard',
         WorkingDirectory=core.BASE.rstrip('/'), RootDirectory='', RootImage='',
         MainPID=123, ExecMainStartTimestampMonotonic=456)
@@ -111,7 +114,9 @@ class ServiceTests(unittest.TestCase):
         data.update(Environment=['NODE_OPTIONS=SECRET'], EnvironmentFiles=[['/SECRET', True]],
                     PassEnvironment=['SECRET'], UnsetEnvironment=['SECRET=value'],
                     User='SECRET', Group='SECRET', RootDirectory='/SECRET',
-                    DropInPaths=['/SECRET'], WorkingDirectory='/SECRET')
+                    DropInPaths=['/SECRET'], WorkingDirectory='/SECRET',
+                    TriggeredBy=['SECRET.socket'], OpenFile=[['/SECRET', 'SECRET', 0]],
+                    StandardInputFileDescriptorName='SECRET')
         data['ExecStartEx'][0][2] = ['ignore-failure']
         result = self.observe(data)
         self.assertTrue(result.runtime_override_named and result.exec_flags_present and result.alternate_root_present)
@@ -135,10 +140,12 @@ class ServiceTests(unittest.TestCase):
             self.assertEqual(self.observe(data).active_state, state)
 
     def test_full_private_snapshot_change_not_only_summary_is_rejected(self):
-        second = values()
-        second['Environment'] = ['SOME_SECRET=CHANGED']
-        with self.assertRaisesRegex(core.OperatorError, '^SERVICE_CHANGED$'):
-            self.observe(second=second)
+        for key, changed in (('Environment', ['SOME_SECRET=CHANGED']),
+                             ('TriggeredBy', ['SECRET.socket']),
+                             ('OpenFile', [['/SECRET', 'SECRET', 0]])):
+            second = values(); second[key] = changed
+            with self.subTest(key=key), self.assertRaisesRegex(core.OperatorError, '^SERVICE_CHANGED$'):
+                self.observe(second=second)
 
     def test_environment_entries_require_unique_valid_names(self):
         for entries in (['no-equals'], ['BAD-NAME=x'], ['A=1', 'A=2']):
@@ -209,13 +216,40 @@ class ServiceTests(unittest.TestCase):
             with self.subTest(key=key), self.assertRaisesRegex(core.OperatorError, '^SERVICE_SHAPE$'):
                 s.parse_properties(reply('Service', data), 'Service')
 
+    def test_descriptor_property_shapes_are_typed_and_bounded(self):
+        data = values()
+        data['OpenFile'] = [['/PRIVATE/SECRET', 'hidden', 2**64 - 1]]
+        self.assertEqual(s.parse_properties(reply('Service', data), 'Service')['OpenFile'], data['OpenFile'])
+        for key, bad in (('TriggeredBy', 'socket'), ('TriggeredBy', [42])):
+            changed = values(); changed[key] = bad
+            with self.subTest(key=key, bad=bad), self.assertRaisesRegex(core.OperatorError, '^SERVICE_SHAPE$'):
+                s.parse_properties(reply('Unit', changed), 'Unit')
+        for key, bad in (('OpenFile', 'secret'), ('OpenFile', [['/PRIVATE/SECRET', 'name']]),
+                         ('OpenFile', [['/PRIVATE/SECRET', 'name', True]]),
+                         ('OpenFile', [['/PRIVATE/SECRET', 'name', -1]]),
+                         ('OpenFile', [['/PRIVATE/SECRET', 'name', 2**64]]),
+                         ('OpenFile', [['bad\npath', 'name', 0]]),
+                         ('FileDescriptorStoreMax', True), ('NFileDescriptorStore', -1),
+                         ('ExtraFileDescriptorNames', 'secret'), ('StandardInput', []),
+                         ('StandardInputFileDescriptorName', 'bad\x00name')):
+            changed = values(); changed[key] = bad
+            with self.subTest(key=key, bad=bad), self.assertRaisesRegex(core.OperatorError, '^SERVICE_SHAPE$'):
+                s.parse_properties(reply('Service', changed), 'Service')
+
+    def test_query_allowlist_never_requests_raw_credential_or_stdin_data(self):
+        names = {name for group in s.GROUPS.values() for name, _ in group}
+        self.assertIn('StandardInput', names)
+        self.assertIn('OpenFile', names)
+        self.assertFalse(names & {'StandardInputData', 'SetCredential', 'SetCredentialEncrypted',
+                                  'LoadCredential', 'LoadCredentialEncrypted'})
+
     def test_target_allowlist_precedes_process_creation(self):
         for group in ('Manager', '../Unit', [], None):
             with patch.object(s.subprocess, 'Popen') as popen, self.assertRaisesRegex(core.OperatorError, '^SERVICE_TARGET$'):
                 s._query(group)
             popen.assert_not_called()
 
-    def run_query(self, chunks, *, exit_code=0, select_ready=True, wait_error=None):
+    def run_query(self, chunks, *, group='Unit', exit_code=0, select_ready=True, wait_error=None):
         self.proc = Mock()
         self.proc.stdout.fileno.return_value = 19
         self.proc.poll.return_value = exit_code
@@ -227,7 +261,7 @@ class ServiceTests(unittest.TestCase):
                 s.time, 'monotonic', return_value=10):
             factory.return_value.__enter__.return_value = selector
             try:
-                return s._query('Unit')
+                return s._query(group)
             finally:
                 self.call = popen.call_args
 
@@ -245,6 +279,16 @@ class ServiceTests(unittest.TestCase):
         self.assertEqual(kw['stderr'], subprocess.DEVNULL)
         self.assertEqual(kw['stdin'], subprocess.DEVNULL)
         self.proc.stdout.close.assert_called_once_with()
+
+    def test_service_query_requests_descriptor_metadata_not_payloads(self):
+        self.run_query([b'abc', b''], group='Service')
+        command = self.call.args[0]
+        self.assertEqual(command[8:11], ['org.freedesktop.systemd1', s.OBJECT,
+                                         'org.freedesktop.systemd1.Service'])
+        self.assertEqual(command[11:], [name for name, _ in s.GROUPS['Service']])
+        self.assertIn('OpenFile', command)
+        self.assertIn('StandardInput', command)
+        self.assertNotIn('StandardInputData', command)
 
     def test_timeout_nonzero_and_oversize_do_not_return_partial_data(self):
         for chunks, options, code in (([], {'select_ready': False}, 'SERVICE_TIMEOUT'),
