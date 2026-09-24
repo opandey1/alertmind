@@ -10,8 +10,10 @@ from pathlib import PurePosixPath
 from . import operator_core as core
 from . import operator_fs as fs
 from . import operator_launch as launch
+from . import operator_manager_environment as manager_env
 from . import operator_runtime as runtime
 from . import operator_service as service
+from . import operator_unit_sources as unit_sources
 
 CONFIG_PARTS = ('etc', 'wazuh-dashboard')
 OPTIONS_PARTS = CONFIG_PARTS + ('node.options',)
@@ -108,6 +110,13 @@ def _check_use_node(raw):
                      for number, expected in PIPELINE_LINES), 'NODE_PIPELINE_CONTRACT')
 
 
+def _require_empty_manager_export():
+    # Reuse the fixed-property, bounded query and private parser. Do not
+    # return an environment entry or echo one in a diagnostic.
+    core.require(not manager_env._parse(service._query_manager_environment()),
+                 'MANAGER_ENV_PRESENT')
+
+
 @dataclass(frozen=True)
 class NodeOptionsObservation:
     option_count: int
@@ -115,7 +124,10 @@ class NodeOptionsObservation:
     passes: int = field(default=2, init=False)
     service_reads: int = field(default=3, init=False)
     package_reads: int = field(default=3, init=False)
+    manager_export_reads: int = field(default=2, init=False)
     content_policy_passed: bool = field(default=True, init=False)
+    queried_unit_sources_constrained: bool = field(default=True, init=False)
+    manager_global_export_empty: bool = field(default=True, init=False)
     wrapper_bytes_match_pin: bool = field(default=True, init=False)
     wrapper_literal_config_assignment: bool = field(default=True, init=False)
     wrapper_literal_prefix_assignment: bool = field(default=True, init=False)
@@ -128,18 +140,21 @@ class NodeOptionsObservation:
 
 
 def observe_node_options():
-    """Bracket two fixed three-file passes with package and manager snapshots.
+    """Bracket pinned files with exact unit and manager-export observations.
 
-    Proves only the wrapper's literal assignments, not that the fixed conffile
-    is selected at runtime. Does not follow EnvironmentFiles, read inherited/
-    process environment or prove the effective prefix. Never executes scripts.
-    File/service/package equality is not atomic and cannot prevent later edits.
+    Constrains only queried unit sources and the manager's exported block.
+    Proves wrapper literals, not that the conffile is selected at runtime.
+    Does not read manager-process/generated/complete process environment or
+    prove the effective prefix. Never executes scripts. Equal snapshots are
+    not atomic and cannot prevent later edits.
     """
     service._check_tool()
     try:
         identity = fs._identity()
         package = runtime.read_package_identity()
         config = launch._configuration()
+        unit_sources._constrain(config)
+        _require_empty_manager_export()
         previous = None
         for _ in range(2):
             _check_wrapper(_read_wrapper(identity))
@@ -149,7 +164,10 @@ def observe_node_options():
             core.require(previous is None or raw == previous, 'NODE_OPTIONS_CHANGED')
             previous = raw
             core.require(runtime.read_package_identity() == package, 'PACKAGE_CHANGED')
-            core.require(launch._configuration() == config, 'NODE_OPTIONS_CHANGED')
+            current = launch._configuration()
+            unit_sources._constrain(current)
+            core.require(current == config, 'NODE_OPTIONS_CHANGED')
+        _require_empty_manager_export()
         return NodeOptionsObservation(count)
     except OSError as error:
         raise core.OperatorError(fs._os_error_code(error)) from None
