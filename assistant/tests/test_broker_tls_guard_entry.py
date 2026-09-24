@@ -6,7 +6,7 @@ from io import StringIO
 from pathlib import Path
 import stat
 import sys
-from types import SimpleNamespace as NS
+from types import CodeType, SimpleNamespace as NS
 import unittest
 from unittest.mock import Mock, patch
 
@@ -276,6 +276,65 @@ class GuardEntryTests(unittest.TestCase):
         with patch.object(entry, 'os', fs), self.assertRaisesRegex(
                 entry.GuardLaunchError, '^GUARD_BUNDLE_SIZE$'):
             entry._verify_bundle_at(10)
+
+    def test_bundle_returns_only_held_verified_bytes_in_fixed_order(self):
+        fs = FakeOS()
+        with patch.object(entry, 'os', fs):
+            sources = entry._verify_bundle_at(10)
+        self.assertIs(type(sources), tuple)
+        self.assertEqual([name for name, _ in sources],
+                         [name for name, _, _ in entry.PINNED_MODULES])
+        for name, raw in sources:
+            self.assertIs(type(raw), bytes)
+            self.assertEqual(raw, (Path(entry.__file__).parent / name).read_bytes())
+        fs.contents[20] = b'changed after the descriptor read'
+        self.assertEqual(sources[0][1],
+                         (Path(entry.__file__).parent / sources[0][0]).read_bytes())
+
+    def test_compile_uses_held_bytes_without_import_or_execution(self):
+        fs = FakeOS()
+        with patch.object(entry, 'os', fs):
+            sources = entry._verify_bundle_at(10)
+        before = {name for name in sys.modules if name.startswith('siem.rbac.broker_tls.operator_')}
+        compiled = entry._compile_verified_bundle(sources)
+        self.assertEqual([name for name, _ in compiled], [name for name, _ in sources])
+        self.assertTrue(all(type(code) is CodeType and
+                            code.co_filename == '<alertmind-guard>/' + name
+                            for name, code in compiled))
+        self.assertEqual(before, {name for name in sys.modules
+                                  if name.startswith('siem.rbac.broker_tls.operator_')})
+        marker = b"raise RuntimeError('SENTINEL_NOT_EXECUTED')\n"
+        with patch.object(entry, 'PINNED_MODULES',
+                          (('operator_sentinel.py', len(marker), hashlib.sha256(marker).hexdigest()),)):
+            code = entry._compile_verified_bundle((('operator_sentinel.py', marker),))
+        self.assertIs(type(code[0][1]), CodeType)
+
+    def test_compile_rejects_wrong_set_bytes_and_syntax_with_static_codes(self):
+        fs = FakeOS()
+        with patch.object(entry, 'os', fs):
+            sources = entry._verify_bundle_at(10)
+        cases = ((sources[:-1], 'GUARD_COMPILE_SET'),
+                 ((('wrong.py', sources[0][1]),) + sources[1:], 'GUARD_COMPILE_SET'),
+                 (((sources[0][0], b'SECRET_CHANGED'),) + sources[1:], 'GUARD_COMPILE_BYTES'))
+        for changed, code in cases:
+            with self.subTest(code=code), self.assertRaisesRegex(
+                    entry.GuardLaunchError, '^' + code + '$') as caught:
+                entry._compile_verified_bundle(changed)
+            self.assertNotIn('SECRET', str(caught.exception))
+        invalid = b'def broken(:\n'
+        with patch.object(entry, 'PINNED_MODULES',
+                          (('operator_syntax.py', len(invalid), hashlib.sha256(invalid).hexdigest()),)):
+            with self.assertRaisesRegex(entry.GuardLaunchError, '^GUARD_COMPILE$') as caught:
+                entry._compile_verified_bundle((('operator_syntax.py', invalid),))
+        self.assertTrue(caught.exception.__suppress_context__)
+
+    def test_public_entry_compiles_but_retains_permanent_nonzero_result(self):
+        fs = FakeOS()
+        fake_sys = isolated_sys()
+        with patch.object(entry, 'os', fs), patch.object(entry, 'sys', fake_sys):
+            self.assertEqual(entry.main(), 1)
+        self.assertEqual(fake_sys.stderr.getvalue(), 'GUARD_NOT_READY\n')
+        self.assertEqual(fs.close.call_count, 25)
 
     def test_bundle_rejects_later_name_or_metadata_drift(self):
         fs = FakeOS()

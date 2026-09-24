@@ -154,7 +154,7 @@ def _scan_exact_names(fd, expected):
 
 
 def _verify_bundle_at(root_fd):
-    """Read but NEVER compile/import/execute a fixed root-controlled source set.
+    """Return held verified bytes; NEVER import or execute the source set.
 
     The fixed pins bind to LF repository source, not an installer or a live
     package. This is a point-in-time check after entry code has already run.
@@ -176,6 +176,7 @@ def _verify_bundle_at(root_fd):
             parent = opened
         expected_names = {'guard_entry.py'} | {name for name, _, _ in PINNED_MODULES}
         _scan_exact_names(parent, expected_names)
+        sources = []
         for name, size, digest in PINNED_MODULES:
             before = os.stat(name, dir_fd=parent, follow_symlinks=False)
             _trusted(before, False)
@@ -186,6 +187,7 @@ def _verify_bundle_at(root_fd):
             raw = _read_exact(opened, size)
             _require(hashlib.sha256(raw).hexdigest() == digest,
                      'GUARD_BUNDLE_DIGEST')
+            sources.append((name, raw))
             _require(_stamp(before) == _stamp(os.fstat(opened)) ==
                      _stamp(os.stat(name, dir_fd=parent, follow_symlinks=False)),
                      'GUARD_CHANGED')
@@ -198,6 +200,33 @@ def _verify_bundle_at(root_fd):
                      _stamp(os.stat(name, dir_fd=ancestor, follow_symlinks=False)),
                      'GUARD_CHANGED')
         _require(_stamp(root_before) == _stamp(os.fstat(root_fd)), 'GUARD_CHANGED')
+        return tuple(sources)
+
+
+def _compile_verified_bundle(sources):
+    """Compile exact held bytes without executing or registering any module.
+
+    The code objects are discarded by the current entrypoint. A future loader
+    must use these objects rather than reopening a path and must independently
+    establish interpreter/stdlib and import-system trust before execution.
+    """
+    _require(type(sources) is tuple and len(sources) == len(PINNED_MODULES),
+             'GUARD_COMPILE_SET')
+    compiled = []
+    for received, (name, size, digest) in zip(sources, PINNED_MODULES):
+        _require(type(received) is tuple and len(received) == 2 and
+                 received[0] == name and type(received[1]) is bytes,
+                 'GUARD_COMPILE_SET')
+        raw = received[1]
+        _require(len(raw) == size and hashlib.sha256(raw).hexdigest() == digest,
+                 'GUARD_COMPILE_BYTES')
+        try:
+            code = compile(raw, '<alertmind-guard>/' + name, 'exec',
+                           flags=0, dont_inherit=True, optimize=0)
+        except (SyntaxError, ValueError, TypeError, OverflowError, MemoryError):
+            raise GuardLaunchError('GUARD_COMPILE') from None
+        compiled.append((name, code))
+    return tuple(compiled)
 
 
 def _check_entry():
@@ -207,7 +236,7 @@ def _check_entry():
                      os.O_NOFOLLOW | os.O_CLOEXEC)
         try:
             _check_entry_at(fd)
-            _verify_bundle_at(fd)
+            _compile_verified_bundle(_verify_bundle_at(fd))
         finally:
             os.close(fd)
     except OSError:

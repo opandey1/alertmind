@@ -148,7 +148,8 @@ complete environment proof or permission to start the service for inspection.
 The [guard-entry candidate](OPERATOR.md#candidate-guard-entry-boundary--fail-closed-not-deployable)
 adds fifteen portable tests for an isolated root Python launch, a no-follow
 entry-path recheck and an exact thirteen-module source capsule with byte pins.
-It does not import or execute the capsule and always exits nonzero. No source
+It holds and compiles verified bytes but does not import or execute the capsule;
+the code objects are discarded and it always exits nonzero. No source
 bundle is installed and there is no systemd drop-in; do not deploy it alone.
 The opt-in TLS fixture is **not** included in the CI badge's test count.
 
