@@ -482,12 +482,20 @@ not a fresh VM observation.
 The observer does not follow an observed environment-file path or argument.
 It establishes the wrapper's **literal** config assignment and prefix, not that
 this wrapper executes or that its assignments become the process's effective
-environment. Two reads of each file are checked independently; the conffile is
-also compared byte-for-byte across passes. Three fresh package and private
-manager snapshots bracket those reads. Alternate RootDirectory/RootImage
-namespaces reject before file reads. Missing files fail closed, even though
-the wrapper treats a missing conffile as optional. An inactive service is
-supported; no PID is needed.
+environment. It now also applies the existing exact-argv/queried-unit-source
+policy to all three private service snapshots, and requires two empty
+`Manager.Environment` replies around the file reads. An alternate unit command,
+explicit environment source, auxiliary command, non-payload credential source
+or nonempty global export stops with an existing fixed diagnostic. These
+checks share one bracketed observation instead of relying on separate observer
+results from unrelated times. No raw property values are returned.
+
+Two reads of each file are checked independently; the conffile is also
+compared byte-for-byte across passes. Three fresh package and private service
+snapshots bracket those reads. Alternate RootDirectory/RootImage namespaces
+reject before file reads. Missing files fail closed, even though the wrapper
+treats a missing conffile as optional. An inactive service is supported; no
+PID is needed. The reads are not atomic or a launch lock.
 
 The shared descriptor-relative, no-follow bounded reader is reused with a narrow
 owner policy: root:root above `/etc/wazuh-dashboard`, root:root or the named
@@ -514,25 +522,27 @@ shell expansion. The restricted grammar avoids their quoting/token ambiguities;
 the observer never runs those tools, the wrapper or Node to parse the file.
 
 Only an option count, fixed read counts and flags are returned.
-`content_policy_passed`, `wrapper_bytes_match_pin`,
+`content_policy_passed`, `queried_unit_sources_constrained`,
+`manager_global_export_empty`, `wrapper_bytes_match_pin`,
 `wrapper_literal_config_assignment`, `wrapper_literal_prefix_assignment`,
 `launcher_bytes_match_pin` and `source_contract_passed` are narrow checks;
 `selected_source_proven`,
 `effective_prefix_proven`, `effective_environment_proven` and
-`startup_authorized` are always false. The exact configured wrapper/argv is
-checked separately, not combined into a trusted launch proof. Inherited
-`NODE_OPTIONS` and `OSD_NODE_OPTS`, external shell tools, shell expansion,
-runtime selection, later file edits and complete process environment remain
-open. This result cannot authorize a start or substitute for their review.
+`startup_authorized` are always false. The combined snapshot still does not
+resolve manager-process/generated variables, embedded credential payloads,
+other socket/descriptor paths, inherited `NODE_OPTIONS` or `OSD_NODE_OPTS`,
+external shell tools, shell expansion, runtime selection, later file edits or
+the complete process environment. It is not a trusted launch proof or startup
+permission.
 
 Codes: `NODE_OPTIONS_SIZE`, `NODE_OPTIONS_FORMAT`, `NODE_OPTIONS_OPTION`,
 `NODE_OPTIONS_DUPLICATE`, `NODE_OPTIONS_REQUIRED`, `NODE_OPTIONS_CHANGED`,
 `NODE_PIPELINE_TARGET`, `NODE_PIPELINE_SIZE`, `NODE_PIPELINE_DIGEST` and
 `NODE_PIPELINE_CONTRACT`, plus `NODE_WRAPPER_TARGET`, `NODE_WRAPPER_SIZE`,
 `NODE_WRAPPER_DIGEST` and `NODE_WRAPPER_CONTRACT`; existing
-package/namespace/native errors are reused. Twenty-three portable tests use
-synthetic files, ownership, pinned scripts and manager
-data; no new native/live acceptance claim.
+package/namespace/native, `UNIT_SOURCE_*` and `MANAGER_ENV_*` errors are reused.
+Twenty-eight portable tests use synthetic files, ownership, pinned scripts,
+unit snapshots and manager exports; no new native/live acceptance claim.
 The launch observer's flag is now `inline_wrapper_environment_override_named`
 (old ambiguous name removed); it still inspects only inline `Environment=`.
 Two added launch tests isolate multiple ExecStart rows and the inline-only scope,

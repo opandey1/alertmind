@@ -45,23 +45,35 @@ def synthetic_wrapper():
 WRAPPER_SOURCE = synthetic_wrapper()
 WRAPPER_SOURCE_CHECK = core.FileCheck(n.WRAPPER_PATH, core.sha(WRAPPER_SOURCE),
                                       len(WRAPPER_SOURCE), len(WRAPPER_SOURCE))
+EMPTY_EXPORT = b'{"type":"as","data":[]}\n'
+PRIVATE_EXPORT = b'{"type":"as","data":["NODE_OPTIONS=SECRET"]}\n'
+
+
+def clean_config():
+    config = values()
+    config['ExecStartEx'][0][1] = [n.WRAPPER_PATH]
+    config['Environment'] = []
+    return config
 
 
 class NodeOptionsTests(unittest.TestCase):
-    def observe(self, *, configs=None, packages=None, chunks=None, sources=None, wrappers=None):
+    def observe(self, *, configs=None, packages=None, chunks=None, sources=None,
+                wrappers=None, exports=None):
         package = runtime.PackageIdentity(core.PACKAGE_VERSION, 'amd64', 'install')
         with patch.object(n, 'USE_NODE_CHECK', SOURCE_CHECK), patch.object(
                 n, 'WRAPPER_CHECK', WRAPPER_SOURCE_CHECK), patch.object(
                 n.service, '_check_tool') as tool, patch.object(
                 n.fs, '_identity', return_value=(126, 128)) as identity, patch.object(
                 n.runtime, 'read_package_identity', side_effect=packages or [package] * 3) as registry, patch.object(
-                n.service, '_read_configuration', side_effect=configs or [values()] * 3) as manager, patch.object(
+                n.service, '_read_configuration', side_effect=configs or [clean_config()] * 3) as manager, patch.object(
+                n.service, '_query_manager_environment', side_effect=exports or [EMPTY_EXPORT] * 2) as export, patch.object(
                 n, '_read_options', side_effect=chunks or [WARN] * 2) as reader, patch.object(
                 n, '_read_use_node', side_effect=sources or [SOURCE] * 2) as launcher, patch.object(
                 n, '_read_wrapper', side_effect=wrappers or [WRAPPER_SOURCE] * 2) as wrapper:
             result = n.observe_node_options()
             self.assertEqual(registry.call_count, 3)
             self.assertEqual(manager.call_count, 3)
+            self.assertEqual(export.call_count, 2)
             self.assertEqual([c.args for c in reader.call_args_list], [((126, 128),)] * 2)
             self.assertEqual([c.args for c in launcher.call_args_list], [((126, 128),)] * 2)
             self.assertEqual([c.args for c in wrapper.call_args_list], [((126, 128),)] * 2)
@@ -275,7 +287,9 @@ class NodeOptionsTests(unittest.TestCase):
     def test_two_pass_counts_minimized_frozen_non_authorizing_result(self):
         result = self.observe(chunks=[WARN + HEAP] * 2)
         self.assertEqual(asdict(result), dict(option_count=2, checked_files=3, passes=2,
-            service_reads=3, package_reads=3, content_policy_passed=True,
+            service_reads=3, package_reads=3, manager_export_reads=2,
+            content_policy_passed=True, queried_unit_sources_constrained=True,
+            manager_global_export_empty=True,
             wrapper_bytes_match_pin=True, wrapper_literal_config_assignment=True,
             wrapper_literal_prefix_assignment=True,
             launcher_bytes_match_pin=True, source_contract_passed=True,
@@ -287,14 +301,65 @@ class NodeOptionsTests(unittest.TestCase):
             with self.assertRaises(AttributeError):
                 setattr(result, name, True)
 
-    def test_inactive_service_and_unobserved_alternate_source_never_authorize(self):
-        config = values()
-        config.update(ActiveState='inactive', MainPID=0, ExecMainStartTimestampMonotonic=0,
-                      Environment=['OSD_PATH_CONF=/PRIVATE'], EnvironmentFiles=[['/PRIVATE', True]],
-                      PassEnvironment=['NODE_OPTIONS'])
+    def test_inactive_service_still_does_not_authorize(self):
+        config = clean_config()
+        config.update(ActiveState='inactive', MainPID=0, ExecMainStartTimestampMonotonic=0)
         result = self.observe(configs=[config] * 3)
         self.assertFalse(result.selected_source_proven or result.effective_environment_proven or result.startup_authorized)
-        self.assertNotIn('PRIVATE', repr(result))
+
+    def test_alternate_unit_sources_reject_before_file_read(self):
+        for key, value, code in (
+                ('Environment', ['NODE_OPTIONS=SECRET'], 'UNIT_SOURCE_INLINE_ENV'),
+                ('EnvironmentFiles', [['/PRIVATE/SECRET', True]], 'UNIT_SOURCE_ENV_FILE'),
+                ('PassEnvironment', ['NODE_OPTIONS'], 'UNIT_SOURCE_PASS_ENV'),
+                ('ExecStartPreEx', [['/PRIVATE/SECRET', ['/PRIVATE/SECRET'], [], 0, 0, 0, 0, 0, 0, 0]],
+                 'UNIT_SOURCE_AUX_EXEC')):
+            config = clean_config(); config[key] = value
+            with self.subTest(key=key), patch.object(n.service, '_check_tool'), patch.object(
+                    n.fs, '_identity', return_value=(126, 128)), patch.object(
+                    n.runtime, 'read_package_identity'), patch.object(
+                    n.service, '_read_configuration', return_value=config), patch.object(
+                    n.service, '_query_manager_environment') as export, patch.object(
+                    n, '_read_wrapper') as wrapper, self.assertRaisesRegex(
+                    core.OperatorError, '^' + code + '$') as caught:
+                n.observe_node_options()
+            export.assert_not_called(); wrapper.assert_not_called()
+            self.assertNotIn('SECRET', str(caught.exception))
+
+    def test_alternate_unit_source_appearing_on_later_snapshot_rejects(self):
+        for index in (1, 2):
+            configs = [clean_config() for _ in range(3)]
+            configs[index]['EnvironmentFiles'] = [['/PRIVATE/SECRET', True]]
+            with self.subTest(index=index), self.assertRaisesRegex(
+                    core.OperatorError, '^UNIT_SOURCE_ENV_FILE$') as caught:
+                self.observe(configs=configs)
+            self.assertNotIn('SECRET', str(caught.exception))
+
+    def test_manager_export_must_be_empty_at_both_brackets(self):
+        for exports in ([PRIVATE_EXPORT, EMPTY_EXPORT], [EMPTY_EXPORT, PRIVATE_EXPORT]):
+            with self.subTest(first_nonempty=exports[0] == PRIVATE_EXPORT), self.assertRaisesRegex(
+                    core.OperatorError, '^MANAGER_ENV_PRESENT$') as caught:
+                self.observe(exports=exports)
+            self.assertNotIn('SECRET', str(caught.exception))
+
+    def test_nonempty_initial_manager_export_stops_before_file_read(self):
+        with patch.object(n.service, '_check_tool'), patch.object(
+                n.fs, '_identity', return_value=(126, 128)), patch.object(
+                n.runtime, 'read_package_identity'), patch.object(
+                n.service, '_read_configuration', return_value=clean_config()), patch.object(
+                n.service, '_query_manager_environment', return_value=PRIVATE_EXPORT), patch.object(
+                n, '_read_wrapper') as wrapper, self.assertRaisesRegex(
+                core.OperatorError, '^MANAGER_ENV_PRESENT$'):
+            n.observe_node_options()
+        wrapper.assert_not_called()
+
+    def test_malformed_manager_export_fails_without_value_leak(self):
+        bad = b'{"type":"s","data":"SECRET"}\n'
+        for exports in ([bad, EMPTY_EXPORT], [EMPTY_EXPORT, bad]):
+            with self.subTest(first_bad=exports[0] == bad), self.assertRaisesRegex(
+                    core.OperatorError, '^MANAGER_ENV_SHAPE$') as caught:
+                self.observe(exports=exports)
+            self.assertNotIn('SECRET', str(caught.exception))
 
     def test_every_pass_validates_content_and_exact_byte_equality(self):
         for chunks in ([b'--require=SECRET', WARN], [WARN, b'--require=SECRET']):
@@ -311,8 +376,8 @@ class NodeOptionsTests(unittest.TestCase):
             packages = [package] * 3; packages[index] = changed
             with self.assertRaisesRegex(core.OperatorError, '^PACKAGE_CHANGED$'):
                 self.observe(packages=packages)
-            configs = [values() for _ in range(3)]
-            configs[index]['Environment'] = ['PRIVATE=CHANGED']
+            configs = [clean_config() for _ in range(3)]
+            configs[index]['DropInPaths'] = ['/PRIVATE/CHANGED']
             with self.assertRaisesRegex(core.OperatorError, '^NODE_OPTIONS_CHANGED$'):
                 self.observe(configs=configs)
 
@@ -323,7 +388,7 @@ class NodeOptionsTests(unittest.TestCase):
             n.observe_node_options()
         identity.assert_not_called(); reader.assert_not_called()
         for key in ('RootDirectory', 'RootImage'):
-            config = values(); config[key] = '/PRIVATE'
+            config = clean_config(); config[key] = '/PRIVATE'
             with patch.object(n.service, '_check_tool'), patch.object(n.fs, '_identity', return_value=(126, 128)), patch.object(
                     n.runtime, 'read_package_identity'), patch.object(n.service, '_read_configuration', return_value=config), patch.object(
                     n, '_read_options') as reader, self.assertRaisesRegex(core.OperatorError, '^LAUNCH_NAMESPACE$'):
