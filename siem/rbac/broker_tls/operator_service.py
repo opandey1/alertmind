@@ -24,7 +24,8 @@ MAX_REPLY = 256 * 1024
 TIMEOUT = 5
 GROUPS = {
     'Unit': (('Id', 's'), ('LoadState', 's'), ('ActiveState', 's'),
-             ('FragmentPath', 's'), ('DropInPaths', 'as'), ('NeedDaemonReload', 'b')),
+             ('FragmentPath', 's'), ('DropInPaths', 'as'), ('NeedDaemonReload', 'b'),
+             ('TriggeredBy', 'as')),
     'Service': (('ExecConditionEx', 'a(sasasttttuii)'),
                 ('ExecStartPreEx', 'a(sasasttttuii)'),
                 ('ExecStartEx', 'a(sasasttttuii)'),
@@ -39,6 +40,9 @@ GROUPS = {
                 ('SetLoginEnvironment', 'b'), ('RuntimeDirectory', 'as'),
                 ('StateDirectory', 'as'), ('CacheDirectory', 'as'),
                 ('LogsDirectory', 'as'), ('ConfigurationDirectory', 'as'),
+                ('OpenFile', 'a(sst)'), ('FileDescriptorStoreMax', 'u'),
+                ('NFileDescriptorStore', 'u'), ('ExtraFileDescriptorNames', 'as'),
+                ('StandardInput', 's'), ('StandardInputFileDescriptorName', 's'),
                 ('User', 's'), ('Group', 's'),
                 ('WorkingDirectory', 's'), ('RootDirectory', 's'), ('RootImage', 's'),
                 ('MainPID', 'u'), ('ExecMainStartTimestampMonotonic', 't')),
@@ -77,6 +81,9 @@ def _valid(value, signature):
     if signature == 'a(sb)':
         return all(type(v) is list and len(v) == 2 and _string(v[0])
                    and type(v[1]) is bool for v in value)
+    if signature == 'a(sst)':
+        return all(type(v) is list and len(v) == 3 and _string(v[0])
+                   and _string(v[1]) and _valid(v[2], 't') for v in value)
     if signature == 'a(sasasttttuii)':
         for row in value:
             if not (type(row) is list and len(row) == 10 and _string(row[0])

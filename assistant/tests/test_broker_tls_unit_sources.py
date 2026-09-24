@@ -39,7 +39,9 @@ class UnitSourcesTests(unittest.TestCase):
             auxiliary_commands_empty=True,
             explicit_unit_environment_empty=True, pam_session_disabled=True,
             exec_search_path_empty=True, dynamic_user_disabled=True,
-            directory_environment_sources_empty=True, passes=2, service_reads=2,
+            directory_environment_sources_empty=True,
+            queried_descriptor_inputs_empty=True, queried_trigger_edges_empty=True,
+            passes=2, service_reads=2,
             manager_inheritance_proven=False, selected_config_source_proven=False,
             effective_environment_proven=False, startup_authorized=False))
         with self.assertRaises(AttributeError):
@@ -119,6 +121,30 @@ class UnitSourcesTests(unittest.TestCase):
         config = base(); config['DynamicUser'] = True
         with self.assertRaisesRegex(core.OperatorError, '^UNIT_SOURCE_DYNAMIC_USER$'):
             self.observe([config, config])
+
+    def test_descriptor_sources_reject_without_echoing_paths_or_names(self):
+        for key, value, code in (
+                ('TriggeredBy', ['PRIVATE_SECRET.socket'], 'UNIT_SOURCE_TRIGGER'),
+                ('OpenFile', [['/PRIVATE/SECRET', 'secret', 0]], 'UNIT_SOURCE_OPEN_FILE'),
+                ('FileDescriptorStoreMax', 1, 'UNIT_SOURCE_FD_STORE'),
+                ('NFileDescriptorStore', 1, 'UNIT_SOURCE_FD_STORE'),
+                ('ExtraFileDescriptorNames', ['PRIVATE_SECRET'], 'UNIT_SOURCE_EXTRA_FDS'),
+                ('StandardInput', 'socket', 'UNIT_SOURCE_STDIN'),
+                ('StandardInput', 'data', 'UNIT_SOURCE_STDIN'),
+                ('StandardInputFileDescriptorName', 'PRIVATE_SECRET', 'UNIT_SOURCE_STDIN')):
+            config = base(); config[key] = value
+            with self.subTest(key=key), self.assertRaises(core.OperatorError) as caught:
+                self.observe([config, config])
+            self.assertEqual(str(caught.exception), code)
+            self.assertNotIn('SECRET', str(caught.exception))
+
+    def test_descriptor_source_drift_rejects_without_returning_private_values(self):
+        first = base(); second = base()
+        second['OpenFile'] = [['/PRIVATE/SECRET', 'secret', 0]]
+        with self.assertRaises(core.OperatorError) as caught:
+            self.observe([first, second])
+        self.assertEqual(str(caught.exception), 'UNIT_SOURCE_OPEN_FILE')
+        self.assertNotIn('SECRET', str(caught.exception))
 
     def test_login_environment_is_visible_not_a_safety_gate(self):
         config = base(); config['SetLoginEnvironment'] = False
