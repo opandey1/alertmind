@@ -462,18 +462,27 @@ reader contracts. They do not establish fresh live Linux/VM acceptance.
 
 ### Fixed node.options content policy (not the effective environment)
 
-`operator_node_options.observe_node_options()` reads two fixed files per pass:
-`/etc/wazuh-dashboard/node.options` (capped at 16 KiB) and the 3531-byte,
-SHA-256-pinned `bin/use_node` from the approved 4.14.7-1 package. The script
-must match the launch observer's existing exact byte pin and fixed line
-sentinels for config-directory selection, `grep -v ^#`/`xargs`, and both
-`NODE_OPTIONS`/`exec` branches. The sentinels are a review tripwire for a
-future pin change; they are not a shell interpreter or a substitute for the
-whole-file digest. The tagged [Wazuh v4.14.7 script](https://github.com/wazuh/wazuh-dashboard/blob/v4.14.7/scripts/use_node)
-matches that digest. This is source identity, not a fresh VM observation.
+`operator_node_options.observe_node_options()` reads three fixed files per pass:
+`/etc/wazuh-dashboard/node.options` (capped at 16 KiB), the 939-byte
+SHA-256-pinned `bin/opensearch-dashboards` wrapper and the 3531-byte pinned
+`bin/use_node` from the approved 4.14.7-1 package. Both scripts must match
+the launch observer's existing exact byte pins. Fixed wrapper line sentinels
+cover its home derivation and single dispatch line; that line literally assigns
+`OSD_PATH_CONF="/etc/wazuh-dashboard"`,
+`OSD_NODE_OPTS_PREFIX="--no-warnings --max-http-header-size=65536"`,
+`OSD_USE_NODE_JS_FILE_PATH=/src/cli/dist` and `NODE_ENV=production` before
+`exec ${OSD_HOME}/bin/use_node`. `use_node` sentinels cover config-directory
+selection, `grep -v ^#`/`xargs`, and both `NODE_OPTIONS`/`exec` branches. The
+sentinels are review tripwires for a future pin change, not a shell interpreter
+or a substitute for whole-file digests. The wrapper and `use_node` pins and
+sentinels were rechecked against the 193952104-byte, SHA-256-pinned Dashboard
+4.14.7-1 `.deb` without installing or executing it. This is source identity,
+not a fresh VM observation.
 
-The observer does not follow an observed `OSD_PATH_CONF`, environment-file path
-or argument. Two reads of each file are checked independently; the conffile is
+The observer does not follow an observed environment-file path or argument.
+It establishes the wrapper's **literal** config assignment and prefix, not that
+this wrapper executes or that its assignments become the process's effective
+environment. Two reads of each file are checked independently; the conffile is
 also compared byte-for-byte across passes. Three fresh package and private
 manager snapshots bracket those reads. Alternate RootDirectory/RootImage
 namespaces reject before file reads. Missing files fail closed, even though
@@ -505,20 +514,24 @@ shell expansion. The restricted grammar avoids their quoting/token ambiguities;
 the observer never runs those tools, the wrapper or Node to parse the file.
 
 Only an option count, fixed read counts and flags are returned.
-`content_policy_passed`, `launcher_bytes_match_pin` and
-`source_contract_passed` are narrow checks; `selected_source_proven`,
+`content_policy_passed`, `wrapper_bytes_match_pin`,
+`wrapper_literal_config_assignment`, `wrapper_literal_prefix_assignment`,
+`launcher_bytes_match_pin` and `source_contract_passed` are narrow checks;
+`selected_source_proven`,
 `effective_prefix_proven`, `effective_environment_proven` and
-`startup_authorized` are always false. The wrapper's generated variables,
-`OSD_PATH_CONF`, environment files, inherited variables, prefix options,
-external shell tools and command arguments can still alter what is selected or
-passed to Node. Those sources remain open; this result cannot authorize a
-start or substitute for their review.
+`startup_authorized` are always false. The exact configured wrapper/argv is
+checked separately, not combined into a trusted launch proof. Inherited
+`NODE_OPTIONS` and `OSD_NODE_OPTS`, external shell tools, shell expansion,
+runtime selection, later file edits and complete process environment remain
+open. This result cannot authorize a start or substitute for their review.
 
 Codes: `NODE_OPTIONS_SIZE`, `NODE_OPTIONS_FORMAT`, `NODE_OPTIONS_OPTION`,
 `NODE_OPTIONS_DUPLICATE`, `NODE_OPTIONS_REQUIRED`, `NODE_OPTIONS_CHANGED`,
 `NODE_PIPELINE_TARGET`, `NODE_PIPELINE_SIZE`, `NODE_PIPELINE_DIGEST` and
-`NODE_PIPELINE_CONTRACT`; existing package/namespace/native errors are reused.
-Twenty portable tests use synthetic files, ownership, launcher and manager
+`NODE_PIPELINE_CONTRACT`, plus `NODE_WRAPPER_TARGET`, `NODE_WRAPPER_SIZE`,
+`NODE_WRAPPER_DIGEST` and `NODE_WRAPPER_CONTRACT`; existing
+package/namespace/native errors are reused. Twenty-three portable tests use
+synthetic files, ownership, pinned scripts and manager
 data; no new native/live acceptance claim.
 The launch observer's flag is now `inline_wrapper_environment_override_named`
 (old ambiguous name removed); it still inspects only inline `Environment=`.

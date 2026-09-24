@@ -1,4 +1,4 @@
-"""Read-only policy for a fixed conffile and pinned launcher, not startup approval.
+"""Read-only policy for a fixed conffile and pinned scripts, not startup approval.
 
 The pinned use_node script uses grep -v ^# and xargs, then unquoted shell
 expansion. Accept a deliberately small option grammar; never source the file
@@ -22,6 +22,15 @@ ALLOWED = frozenset(('--unhandled-rejections=warn', '--max-old-space-size=4096')
 REQUIRED = '--unhandled-rejections=warn'
 USE_NODE_PATH = core.BASE + 'bin/use_node'
 USE_NODE_CHECK = launch.CHECKS[1]
+WRAPPER_PATH = launch.WRAPPER
+WRAPPER_CHECK = launch.CHECKS[0]
+# Source-derived from the exact 4.14.7-1 .deb. The digest pins the entire
+# wrapper; these lines force a new review if a future pin changes its dispatch.
+WRAPPER_LINES = (
+    (14, b'SCRIPT="$0"'),
+    (29, b'OSD_HOME="$(cd "$(dirname "${SCRIPT}")/.."; pwd)"'),
+    (31, b'OSD_PATH_CONF="/etc/wazuh-dashboard" OSD_NODE_OPTS_PREFIX="--no-warnings --max-http-header-size=65536" OSD_USE_NODE_JS_FILE_PATH=/src/cli/dist NODE_ENV=production exec ${OSD_HOME}/bin/use_node "${@}"'),
+)
 # Exact line sentinels are a review tripwire if the package pin is updated.
 # The complete pinned digest, not these lines alone, identifies the script.
 PIPELINE_LINES = (
@@ -73,6 +82,22 @@ def _read_use_node(identity):
     return fs._read_native(PurePosixPath(USE_NODE_PATH).parts[1:], USE_NODE_CHECK.limit, identity)
 
 
+def _read_wrapper(identity):
+    core.require(WRAPPER_CHECK.path == WRAPPER_PATH and WRAPPER_CHECK.limit == WRAPPER_CHECK.size,
+                 'NODE_WRAPPER_TARGET')
+    return fs._read_native(PurePosixPath(WRAPPER_PATH).parts[1:], WRAPPER_CHECK.limit, identity)
+
+
+def _check_wrapper(raw):
+    core.require(WRAPPER_CHECK.path == WRAPPER_PATH and WRAPPER_CHECK.limit == WRAPPER_CHECK.size,
+                 'NODE_WRAPPER_TARGET')
+    core.require(type(raw) is bytes and len(raw) == WRAPPER_CHECK.size, 'NODE_WRAPPER_SIZE')
+    core.require(core.sha(raw) == WRAPPER_CHECK.digest, 'NODE_WRAPPER_DIGEST')
+    lines = raw.split(b'\n')
+    core.require(all(len(lines) >= number and lines[number - 1] == expected
+                     for number, expected in WRAPPER_LINES), 'NODE_WRAPPER_CONTRACT')
+
+
 def _check_use_node(raw):
     core.require(USE_NODE_CHECK.path == USE_NODE_PATH and USE_NODE_CHECK.limit == USE_NODE_CHECK.size,
                  'NODE_PIPELINE_TARGET')
@@ -86,11 +111,14 @@ def _check_use_node(raw):
 @dataclass(frozen=True)
 class NodeOptionsObservation:
     option_count: int
-    checked_files: int = field(default=2, init=False)
+    checked_files: int = field(default=3, init=False)
     passes: int = field(default=2, init=False)
     service_reads: int = field(default=3, init=False)
     package_reads: int = field(default=3, init=False)
     content_policy_passed: bool = field(default=True, init=False)
+    wrapper_bytes_match_pin: bool = field(default=True, init=False)
+    wrapper_literal_config_assignment: bool = field(default=True, init=False)
+    wrapper_literal_prefix_assignment: bool = field(default=True, init=False)
     launcher_bytes_match_pin: bool = field(default=True, init=False)
     source_contract_passed: bool = field(default=True, init=False)
     selected_source_proven: bool = field(default=False, init=False)
@@ -100,11 +128,11 @@ class NodeOptionsObservation:
 
 
 def observe_node_options():
-    """Bracket two fixed-file pairs with package and private manager snapshots.
+    """Bracket two fixed three-file passes with package and manager snapshots.
 
-    Does not follow OSD_PATH_CONF or EnvironmentFiles, read inherited/process
-    environment, prove the option prefix, or establish that the fixed conffile
-    is selected. Works when the service is inactive; never executes use_node.
+    Proves only the wrapper's literal assignments, not that the fixed conffile
+    is selected at runtime. Does not follow EnvironmentFiles, read inherited/
+    process environment or prove the effective prefix. Never executes scripts.
     File/service/package equality is not atomic and cannot prevent later edits.
     """
     service._check_tool()
@@ -114,6 +142,7 @@ def observe_node_options():
         config = launch._configuration()
         previous = None
         for _ in range(2):
+            _check_wrapper(_read_wrapper(identity))
             _check_use_node(_read_use_node(identity))
             raw = _read_options(identity)
             count = parse_node_options(raw)
