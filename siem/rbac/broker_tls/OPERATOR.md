@@ -807,14 +807,45 @@ Service-owned files can change after either scan. `file_bytes_verified`,
 `startup_authorized` remain false. Installed Linux execution and independent
 review are required before using this as evidence; it is not a startup guard.
 
+### Candidate guard entry boundary — fail-closed, not deployable
+
+`operator_guard_entry.py` is the first source file for a possible root-controlled
+pre-start guard at `/usr/local/libexec/alertmind-broker-tls/guard_entry.py`.
+It is **not installed**, and this candidate location must be confirmed against
+the actual host before any service-unit design. The file has no project imports
+before its checks and accepts only an already-root Linux Python process in
+isolated, no-site, no-bytecode mode with the exact script argument. Python's
+[`-I`, `-S` and `-B` options](https://docs.python.org/3.10/using/cmdline.html)
+provide the intended launch shape; the actual interpreter, standard library,
+unit command and environment are not pinned by this module. It then checks the
+fixed entry path using no-follow descriptor-relative metadata, rejecting
+service ownership, writable ancestors, links, replacement and oversize files.
+Only fixed diagnostic codes are emitted. Eight portable tests cover the
+candidate path, isolated flags, root identity, metadata, drift, cleanup and
+the nonzero-only result. No VM or systemd command is executed by these tests.
+
+**There is deliberately no success path:** even if all entry checks pass, it
+prints `GUARD_NOT_READY` and exits 1. There is no guard decision, source bundle,
+drop-in, installer or start permission. A Python script cannot authenticate
+itself before the interpreter has already read and executed its first lines;
+the after-load metadata check is a tripwire, not a trust anchor. The future
+reviewed installation must establish root-controlled file provenance and
+interpreter/stdlib trust *before* use, then make the exact guard failure block
+the Dashboard `ExecStart`. The [systemd v257 service contract](https://raw.githubusercontent.com/systemd/systemd/v257/man/systemd.service.xml)
+states that an unsuccessful, non-ignored `ExecStartPre` prevents `ExecStart`;
+no such command is configured here. Do not deploy this entrypoint alone: it
+would intentionally prevent Dashboard startup. This also does not solve
+service-mutable vendor-code changes after a pre-start check.
+
 ## Required next adapter package — not released here
 
 1. Establish selected packaged Linux runtime and real Server certificate
    suitability without broker credentials; agree the 30-second timeout and
    performance acceptance criteria. Preserve the current public fingerprints.
 2. Review the root-controlled manifest/certificate loader and rerun native Linux
-   traversal tests after shared-primitive changes. Implement trusted guard launch/
-   import bootstrap and deployment wiring. Preserve
+   traversal tests after shared-primitive changes. The non-deployable guard
+   entry candidate exists, but trusted interpreter/import bootstrap, a complete
+   guard decision and deployment wiring remain to implement. Preserve
    the distinction between root-controlled trust and service-mutable vendor code.
    Two equal byte passes cannot prevent edits after checking or attest running
    code. Verify the installed dependency resolution/file set too: matching listed

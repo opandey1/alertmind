@@ -145,6 +145,10 @@ The separate [running launch-shape observer](OPERATOR.md#running-node-launch-sha
 adds ten portable tests for exact Node argv and reviewed initial environment
 keys. It requires an already running Dashboard; it is not a pre-start guard,
 complete environment proof or permission to start the service for inspection.
+The [guard-entry candidate](OPERATOR.md#candidate-guard-entry-boundary--fail-closed-not-deployable)
+adds eight portable tests for an isolated root Python launch and a no-follow
+entry-path recheck. It always exits nonzero, has no installed source bundle or
+systemd drop-in, and must not be deployed alone.
 The opt-in TLS fixture is **not** included in the CI badge's test count.
 
 ## Acceptance still blocked
