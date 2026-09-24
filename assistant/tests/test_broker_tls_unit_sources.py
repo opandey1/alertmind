@@ -36,6 +36,7 @@ class UnitSourcesTests(unittest.TestCase):
         result = self.observe()
         self.assertEqual(asdict(result), dict(login_variables_enabled=True,
             exact_wrapper_argv=True,
+            auxiliary_commands_empty=True,
             explicit_unit_environment_empty=True, pam_session_disabled=True,
             exec_search_path_empty=True, dynamic_user_disabled=True,
             directory_environment_sources_empty=True, passes=2, service_reads=2,
@@ -59,6 +60,27 @@ class UnitSourcesTests(unittest.TestCase):
             with self.subTest(config=config['ExecStartEx']), self.assertRaisesRegex(
                     core.OperatorError, '^UNIT_SOURCE_EXEC$'):
                 self.observe([config, config])
+
+    def test_every_auxiliary_command_rejects_without_argument_leak(self):
+        for name in ('ExecConditionEx', 'ExecStartPreEx', 'ExecStartPostEx',
+                     'ExecReloadEx', 'ExecStopEx', 'ExecStopPostEx'):
+            config = base()
+            config[name] = [['/PRIVATE/SECRET', ['/PRIVATE/SECRET', '--token=SECRET'],
+                             [], 0, 0, 0, 0, 0, 0, 0]]
+            with self.subTest(name=name), self.assertRaises(core.OperatorError) as caught:
+                self.observe([config, config])
+            self.assertEqual(str(caught.exception), 'UNIT_SOURCE_AUX_EXEC')
+            self.assertNotIn('SECRET', str(caught.exception))
+
+    def test_auxiliary_command_drift_rejects_without_returning_arguments(self):
+        first = base()
+        second = base()
+        second['ExecStartPreEx'] = [['/PRIVATE/SECRET', ['/PRIVATE/SECRET'],
+                                     [], 0, 0, 0, 0, 0, 0, 0]]
+        with self.assertRaises(core.OperatorError) as caught:
+            self.observe([first, second])
+        self.assertEqual(str(caught.exception), 'UNIT_SOURCE_AUX_EXEC')
+        self.assertNotIn('SECRET', str(caught.exception))
 
     def test_every_explicit_environment_source_rejects_without_value_leak(self):
         for key, value, code in (

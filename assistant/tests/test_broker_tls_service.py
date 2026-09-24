@@ -17,8 +17,10 @@ from siem.rbac.broker_tls import operator_service as s
 def values():
     return dict(Id=s.UNIT, LoadState='loaded', ActiveState='active',
         FragmentPath='/usr/lib/systemd/system/wazuh-dashboard.service', DropInPaths=[],
-        NeedDaemonReload=False, ExecStartEx=[[core.BASE + 'bin/opensearch-dashboards',
+        NeedDaemonReload=False, ExecConditionEx=[], ExecStartPreEx=[],
+        ExecStartEx=[[core.BASE + 'bin/opensearch-dashboards',
         ['wrapper', '--password=SECRET'], [], 0, 0, 0, 0, 0, 0, 0]],
+        ExecStartPostEx=[], ExecReloadEx=[], ExecStopEx=[], ExecStopPostEx=[],
         Environment=['SOME_SECRET=SECRET'], EnvironmentFiles=[], PassEnvironment=[],
         UnsetEnvironment=[], PAMName='', ExecSearchPath=[],
         DynamicUser=False, SetLoginEnvironment=True, RuntimeDirectory=[],
@@ -195,6 +197,15 @@ class ServiceTests(unittest.TestCase):
                          ('ConfigurationDirectory', '/SECRET')):
             data = values()
             data[key] = bad
+            with self.subTest(key=key), self.assertRaisesRegex(core.OperatorError, '^SERVICE_SHAPE$'):
+                s.parse_properties(reply('Service', data), 'Service')
+        for key in ('ExecConditionEx', 'ExecStartPreEx', 'ExecStartPostEx',
+                    'ExecReloadEx', 'ExecStopEx', 'ExecStopPostEx'):
+            data = values()
+            data[key] = [['/PRIVATE/SECRET', ['/PRIVATE/SECRET'], ['flag'],
+                          0, 0, 0, 0, 0, 0, 0]]
+            self.assertEqual(s.parse_properties(reply('Service', data), 'Service')[key], data[key])
+            data[key][0][7] = True
             with self.subTest(key=key), self.assertRaisesRegex(core.OperatorError, '^SERVICE_SHAPE$'):
                 s.parse_properties(reply('Service', data), 'Service')
 

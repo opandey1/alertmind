@@ -1,9 +1,10 @@
 """Constrain explicit unit launch sources without starting the Dashboard.
 
-This is a read-only check of selected systemd properties. It excludes a PAM
-session, custom executable search path, dynamic user and configured service
-directory sources. It reports whether systemd login variables are enabled,
-but does not read the manager's own environment, vendor wrapper variables or
+This is a read-only check of selected systemd properties. It excludes
+auxiliary lifecycle commands, a PAM session, custom executable search path,
+dynamic user and configured service-directory sources. It reports whether
+systemd login variables are enabled, but does not read the manager's own
+environment, vendor wrapper variables or
 the final process environment. It cannot authorize a start. Private property
 values stay private.
 """
@@ -15,6 +16,12 @@ from . import operator_service as service
 
 
 def _constrain(config):
+    # An exact ExecStart is insufficient if systemd can run another command
+    # before, after or during a service transition. Keep all argv private.
+    core.require(all(config[name] == [] for name in (
+        'ExecConditionEx', 'ExecStartPreEx', 'ExecStartPostEx',
+        'ExecReloadEx', 'ExecStopEx', 'ExecStopPostEx')),
+        'UNIT_SOURCE_AUX_EXEC')
     rows = config['ExecStartEx']
     core.require(len(rows) == 1 and rows[0][0] == launch.WRAPPER
                  and rows[0][1] == [launch.WRAPPER] and rows[0][2] == [],
@@ -39,6 +46,7 @@ def _constrain(config):
 class UnitSourcesObservation:
     login_variables_enabled: bool
     exact_wrapper_argv: bool = field(default=True, init=False)
+    auxiliary_commands_empty: bool = field(default=True, init=False)
     explicit_unit_environment_empty: bool = field(default=True, init=False)
     pam_session_disabled: bool = field(default=True, init=False)
     exec_search_path_empty: bool = field(default=True, init=False)
