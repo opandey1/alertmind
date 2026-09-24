@@ -29,6 +29,8 @@ def values():
         OpenFile=[], FileDescriptorStoreMax=0, NFileDescriptorStore=0,
         ExtraFileDescriptorNames=[], StandardInput='null',
         StandardInputFileDescriptorName='',
+        LoadCredential=[], LoadCredentialEncrypted=[],
+        ImportCredential=[], ImportCredentialEx=[],
         User='wazuh-dashboard', Group='wazuh-dashboard',
         WorkingDirectory=core.BASE.rstrip('/'), RootDirectory='', RootImage='',
         MainPID=123, ExecMainStartTimestampMonotonic=456)
@@ -240,8 +242,27 @@ class ServiceTests(unittest.TestCase):
         names = {name for group in s.GROUPS.values() for name, _ in group}
         self.assertIn('StandardInput', names)
         self.assertIn('OpenFile', names)
-        self.assertFalse(names & {'StandardInputData', 'SetCredential', 'SetCredentialEncrypted',
-                                  'LoadCredential', 'LoadCredentialEncrypted'})
+        self.assertTrue({'LoadCredential', 'LoadCredentialEncrypted',
+                         'ImportCredential', 'ImportCredentialEx'} <= names)
+        self.assertFalse(names & {'StandardInputData', 'SetCredential', 'SetCredentialEncrypted'})
+
+    def test_credential_source_metadata_requires_exact_typed_rows(self):
+        for key in ('LoadCredential', 'LoadCredentialEncrypted', 'ImportCredentialEx'):
+            data = values(); data[key] = [['PRIVATE_SECRET', '/PRIVATE/SECRET']]
+            self.assertEqual(s.parse_properties(reply('Service', data), 'Service')[key], data[key])
+            for bad in ('SECRET', ['SECRET'], [['SECRET']],
+                        [['SECRET', 42]], [['bad\nname', 'SECRET']]):
+                changed = values(); changed[key] = bad
+                with self.subTest(key=key, bad=bad), self.assertRaisesRegex(
+                        core.OperatorError, '^SERVICE_SHAPE$'):
+                    s.parse_properties(reply('Service', changed), 'Service')
+        data = values(); data['ImportCredential'] = ['PRIVATE_SECRET']
+        self.assertEqual(s.parse_properties(reply('Service', data), 'Service')['ImportCredential'],
+                         ['PRIVATE_SECRET'])
+        for bad in ('SECRET', [42], ['bad\x00name']):
+            changed = values(); changed['ImportCredential'] = bad
+            with self.subTest(bad=bad), self.assertRaisesRegex(core.OperatorError, '^SERVICE_SHAPE$'):
+                s.parse_properties(reply('Service', changed), 'Service')
 
     def test_target_allowlist_precedes_process_creation(self):
         for group in ('Manager', '../Unit', [], None):
@@ -280,7 +301,7 @@ class ServiceTests(unittest.TestCase):
         self.assertEqual(kw['stdin'], subprocess.DEVNULL)
         self.proc.stdout.close.assert_called_once_with()
 
-    def test_service_query_requests_descriptor_metadata_not_payloads(self):
+    def test_service_query_requests_source_metadata_not_payloads(self):
         self.run_query([b'abc', b''], group='Service')
         command = self.call.args[0]
         self.assertEqual(command[8:11], ['org.freedesktop.systemd1', s.OBJECT,
@@ -288,7 +309,11 @@ class ServiceTests(unittest.TestCase):
         self.assertEqual(command[11:], [name for name, _ in s.GROUPS['Service']])
         self.assertIn('OpenFile', command)
         self.assertIn('StandardInput', command)
+        self.assertIn('LoadCredential', command)
+        self.assertIn('ImportCredentialEx', command)
         self.assertNotIn('StandardInputData', command)
+        self.assertNotIn('SetCredential', command)
+        self.assertNotIn('SetCredentialEncrypted', command)
 
     def test_timeout_nonzero_and_oversize_do_not_return_partial_data(self):
         for chunks, options, code in (([], {'select_ready': False}, 'SERVICE_TIMEOUT'),

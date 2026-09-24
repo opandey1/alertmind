@@ -43,6 +43,8 @@ GROUPS = {
                 ('OpenFile', 'a(sst)'), ('FileDescriptorStoreMax', 'u'),
                 ('NFileDescriptorStore', 'u'), ('ExtraFileDescriptorNames', 'as'),
                 ('StandardInput', 's'), ('StandardInputFileDescriptorName', 's'),
+                ('LoadCredential', 'a(ss)'), ('LoadCredentialEncrypted', 'a(ss)'),
+                ('ImportCredential', 'as'), ('ImportCredentialEx', 'a(ss)'),
                 ('User', 's'), ('Group', 's'),
                 ('WorkingDirectory', 's'), ('RootDirectory', 's'), ('RootImage', 's'),
                 ('MainPID', 'u'), ('ExecMainStartTimestampMonotonic', 't')),
@@ -81,6 +83,9 @@ def _valid(value, signature):
     if signature == 'a(sb)':
         return all(type(v) is list and len(v) == 2 and _string(v[0])
                    and type(v[1]) is bool for v in value)
+    if signature == 'a(ss)':
+        return all(type(v) is list and len(v) == 2 and _string(v[0])
+                   and _string(v[1]) for v in value)
     if signature == 'a(sst)':
         return all(type(v) is list and len(v) == 3 and _string(v[0])
                    and _string(v[1]) and _valid(v[2], 't') for v in value)

@@ -267,10 +267,11 @@ does not prevent a privileged concurrent replacement before exec. The verified
 path components are now derived from the same BUSCTL path used by Popen, so a
 future maintained path change cannot silently leave verification on the old path.
 
-Each of two passes queries seven Unit and thirty-three Service properties, including
+Each of two passes queries seven Unit and thirty-seven Service properties, including
 ExecStartEx and six auxiliary-command arrays, the inverse `TriggeredBy` edges,
 `OpenFile`, file-descriptor-store capacity/count, extra descriptor names and
-standard-input mode/name, explicit Environment,
+standard-input mode/name, four non-payload credential-source metadata fields,
+explicit Environment,
 environment-file references, passed/unset names, login-environment and
 directory settings, user/group, working directory,
 alternate-root settings, MainPID and the main-process monotonic start timestamp.
@@ -299,7 +300,7 @@ observation function. Raw arguments, environment values, file paths and user
 names are neither printed nor included in its repr. The parser necessarily
 returns private intermediate data to its caller: do not log that data. Raw
 values exist in memory; a future privileged launcher still needs core-dump,
-debugging and trusted-import controls. No credential or standard-input payload
+debugging and trusted-import controls. No credential payload or standard-input payload
 property is requested here.
 
 Full private snapshots are compared, not just sanitized summaries. A pending
@@ -311,8 +312,9 @@ runtime, and argv, execution flags, namespaces or additional environment sources
 can change behavior. The three flags `selected_runtime_proven`,
 `effective_environment_proven` and `startup_authorized` remain **false**.
 
-Not covered: manager environment, environment-file contents, PAM/credentials,
-wrapper execution, actual `/proc` executable/argv/environment, all unit properties,
+Not covered: manager environment, environment-file contents, PAM configuration,
+embedded credential payloads, wrapper execution, actual `/proc`
+executable/argv/environment, all unit properties,
 launch-file hashes, host architecture, broker configuration or runtime imports.
 No safe-environment conclusion follows from `runtime_override_named=False`; that
 flag detects only a small fixed list of explicit Environment names. No observed
@@ -381,7 +383,7 @@ New fixed diagnostics: `PROCESS_PID`, `PROCESS_STAT`, `PROCESS_IDENTITY`,
 `PROCESS_SIZE`, `PROCESS_EXECUTABLE`, `PROCESS_DIGEST`, `PROCESS_NOT_RUNNING`,
 `PROCESS_IO`; service and native trust codes are reused.
 
-Current suite: 338 methods in 29 files, including twenty-two service methods,
+Current suite: 341 methods in 29 files, including twenty-three service methods,
 nine manager-environment methods and seventeen process methods. Seven require
 Linux: four native-reader tests and three procfs/executable/descriptor tests.
 These inspect the test process and a private copy of `/bin/cat` launched with
@@ -543,8 +545,16 @@ and counts. It works with an inactive loaded unit and does not need MainPID.
 An extra argument, auxiliary command, flag, explicit environment source, PAM
 service, search path, dynamic user, directory source or selected descriptor
 input returns a static error. No PAM configuration or configured path is
-opened. `StandardInputData` and credential payload properties are intentionally
-not queried, since they can contain secrets. A non-null input mode stops
+opened. `StandardInputData` and the byte-array `SetCredential*` properties are
+intentionally not queried, since they can contain secrets. Four fixed,
+non-payload Service properties (`LoadCredential`, `LoadCredentialEncrypted`,
+`ImportCredential`, `ImportCredentialEx`) are queried with exact D-Bus types;
+any nonempty value stops with a static diagnostic. Their configured names and
+source paths remain private. This establishes only that those *queried*
+credential-source metadata fields are empty; it does not prove embedded
+credential payloads are absent or establish complete credential isolation.
+The v257 interface describes these types, but installed property availability
+and busctl framing still require separate review. A non-null input mode stops
 without a payload read. This is deliberately strict: a
 legitimate local customization requires separate review instead of silent
 acceptance. A future trusted pre-start guard would itself appear in
@@ -558,16 +568,18 @@ startup approval.
 
 The result proves only that these *queried unit fields* met this policy at the
 time of observation. Manager defaults/inheritance, other unit mechanisms and
-generated variables (including `PATH` and `INVOCATION_ID`), credential directives,
+generated variables (including `PATH` and `INVOCATION_ID`), embedded credential
+directives and unqueried credential mechanisms,
 unqueried descriptor/output mechanisms, complete socket activation state,
 wrapper-created or process environment, shell expansion,
 selected `node.options` source, imports and later edits are unresolved. It does
 not request `SetCredential*` payloads; the already queried inline `Environment`
 field may itself contain secrets and remains private in memory. Therefore
-`manager_inheritance_proven`, `selected_config_source_proven`,
+`manager_inheritance_proven`, `embedded_credential_sources_proven`,
+`selected_config_source_proven`,
 `effective_environment_proven` and `startup_authorized` remain false even
 on success. This is not a startup gate or a broker authorization decision.
-Sixteen portable tests cover the exact command, six auxiliary command arrays,
+Eighteen portable tests cover the exact command, six auxiliary command arrays,
 each explicit source, PAM and search-path rejection, generated-directory sources,
 dynamic user, selected descriptor/trigger inputs and login
 visibility, identity, namespace/tool gates, an inactive unit and
@@ -578,6 +590,7 @@ static codes are `UNIT_SOURCE_EXEC`, `UNIT_SOURCE_AUX_EXEC`, `UNIT_SOURCE_INLINE
 `UNIT_SOURCE_DYNAMIC_USER`, `UNIT_SOURCE_DIRECTORIES`,
 `UNIT_SOURCE_TRIGGER`, `UNIT_SOURCE_OPEN_FILE`, `UNIT_SOURCE_FD_STORE`,
 `UNIT_SOURCE_EXTRA_FDS`, `UNIT_SOURCE_STDIN`,
+`UNIT_SOURCE_CREDENTIAL_METADATA`,
 `UNIT_SOURCE_IDENTITY`, `UNIT_SOURCE_CHANGED`.
 
 ### Manager-wide exported environment
