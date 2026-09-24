@@ -741,6 +741,35 @@ offline methods cover site ownership, closure, divergent/missing selections,
 first/later-pass shadows and byte drift, bounded work, static diagnostics and
 the non-authorizing result. This does not install a guard or change Wazuh.
 
+### Selected package-root file set — offline only
+
+`operator_file_set.observe_package_file_set()` uses the root-controlled manifest
+to derive the selected axios dependency-package roots. It scans only the
+outermost selected roots, so nested selected packages are visited once. The
+walk uses held directory descriptors, fresh no-follow metadata checks and a
+fixed entry/depth budget. It requires every listed package file to exist and
+rejects an unlisted regular file, symlink or special object inside those roots.
+Empty extra directories are permitted but included in the two-pass metadata
+comparison. Package identity and bootstrap are rechecked; the result exposes
+counts, never file names, paths or contents.
+
+The approved, SHA-256-pinned 4.14.7-1 `.deb` contains 26 selected package
+roots, 267 regular files and 53 archive directory entries inside those roots;
+no selected special archive member was found. This is an **offline archive
+check**, not an installed-file observation. The method has not run on the VM.
+Thirteen tests cover root selection, native no-follow FD use and cleanup,
+unlisted/missing/symlink rejection, bounds, drift, sanitized diagnostics and
+false authority flags. Four real-directory tests need Linux and are skipped
+by the author's Windows runtime.
+
+This does not read or hash file contents, exclude files outside selected
+package roots, prove actual Node import resolution or attest loaded code.
+Service-owned files can change after either scan. `file_bytes_verified`,
+`unlisted_files_outside_package_roots_excluded`,
+`actual_node_resolution_proven`, `loaded_code_proven` and
+`startup_authorized` remain false. Installed Linux execution and independent
+review are required before using this as evidence; it is not a startup guard.
+
 ## Required next adapter package — not released here
 
 1. Establish selected packaged Linux runtime and real Server certificate

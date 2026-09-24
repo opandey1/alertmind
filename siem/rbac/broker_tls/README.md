@@ -136,6 +136,11 @@ pinned code files across 46 directories, yielding 89 site/dependency pairs
 and 478 unique shadow candidates in the exact package. It still does not
 identify executed imports, attest Node resolution or authorize startup; see
 [the pinned-site limits](OPERATOR.md#pinned-code-import-site-overapproximation--offline-only).
+The selected package-root file-set observer adds thirteen tests for bounded,
+no-follow installed-directory inventory against the manifest. The exact
+approved archive contains 267 regular files across the 26 selected roots;
+the observer has not run on the VM, does not hash file contents and cannot
+authorize startup. See [its limits](OPERATOR.md#selected-package-root-file-set--offline-only).
 The opt-in TLS fixture is **not** included in the CI badge's test count.
 
 ## Acceptance still blocked
