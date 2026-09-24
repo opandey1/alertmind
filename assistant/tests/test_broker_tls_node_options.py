@@ -24,18 +24,32 @@ WARN = b'--unhandled-rejections=warn\n'
 HEAP = b'--max-old-space-size=4096\n'
 
 
+def synthetic_use_node():
+    lines = [b'# inert test line'] * 105
+    for number, expected in n.PIPELINE_LINES:
+        lines[number - 1] = expected
+    return b'\n'.join(lines) + b'\n'
+
+
+SOURCE = synthetic_use_node()
+SOURCE_CHECK = core.FileCheck(n.USE_NODE_PATH, core.sha(SOURCE), len(SOURCE), len(SOURCE))
+
+
 class NodeOptionsTests(unittest.TestCase):
-    def observe(self, *, configs=None, packages=None, chunks=None):
+    def observe(self, *, configs=None, packages=None, chunks=None, sources=None):
         package = runtime.PackageIdentity(core.PACKAGE_VERSION, 'amd64', 'install')
-        with patch.object(n.service, '_check_tool') as tool, patch.object(
+        with patch.object(n, 'USE_NODE_CHECK', SOURCE_CHECK), patch.object(
+                n.service, '_check_tool') as tool, patch.object(
                 n.fs, '_identity', return_value=(126, 128)) as identity, patch.object(
                 n.runtime, 'read_package_identity', side_effect=packages or [package] * 3) as registry, patch.object(
                 n.service, '_read_configuration', side_effect=configs or [values()] * 3) as manager, patch.object(
-                n, '_read_options', side_effect=chunks or [WARN] * 2) as reader:
+                n, '_read_options', side_effect=chunks or [WARN] * 2) as reader, patch.object(
+                n, '_read_use_node', side_effect=sources or [SOURCE] * 2) as launcher:
             result = n.observe_node_options()
             self.assertEqual(registry.call_count, 3)
             self.assertEqual(manager.call_count, 3)
             self.assertEqual([c.args for c in reader.call_args_list], [((126, 128),)] * 2)
+            self.assertEqual([c.args for c in launcher.call_args_list], [((126, 128),)] * 2)
             tool.assert_called_once_with(); identity.assert_called_once_with()
             return result
 
@@ -116,6 +130,50 @@ class NodeOptionsTests(unittest.TestCase):
             self.assertEqual(args[2](('etc',)), ((0, 0),))
             self.assertEqual(args[2](n.OPTIONS_PARTS), ((0, 0), (126, 128)))
 
+    def test_use_node_dispatch_is_pinned_bounded_and_vendor_owned(self):
+        self.assertEqual(n.USE_NODE_CHECK, n.launch.CHECKS[1])
+        self.assertEqual(n.USE_NODE_CHECK.path, n.USE_NODE_PATH)
+        self.assertEqual(n.USE_NODE_CHECK.digest,
+                         'e1ec334650c93f2a4869cd679f2ff5a434a580f2c9b0e15cc4ef4f826803c464')
+        self.assertEqual(n.USE_NODE_CHECK.size, 3531)
+        with patch.object(n.fs, '_read_native', return_value=b'public') as reader:
+            self.assertEqual(n._read_use_node((126, 128)), b'public')
+            reader.assert_called_once_with(('usr', 'share', 'wazuh-dashboard', 'bin', 'use_node'),
+                                           3531, (126, 128))
+
+    def test_pinned_source_contract_and_frozen_result(self):
+        with patch.object(n, 'USE_NODE_CHECK', SOURCE_CHECK):
+            n._check_use_node(SOURCE)
+        result = self.observe()
+        self.assertTrue(result.launcher_bytes_match_pin and result.source_contract_passed)
+        self.assertFalse(result.selected_source_proven or result.effective_prefix_proven
+                         or result.effective_environment_proven or result.startup_authorized)
+
+    def test_source_rejects_wrong_target_type_size_digest_and_contract(self):
+        with patch.object(n, 'USE_NODE_CHECK', SOURCE_CHECK):
+            for raw, code in ((None, 'NODE_PIPELINE_SIZE'), (bytearray(SOURCE), 'NODE_PIPELINE_SIZE'),
+                              (SOURCE[:-1], 'NODE_PIPELINE_SIZE'),
+                              (SOURCE.replace(b'# inert test line', b'# other test line', 1),
+                               'NODE_PIPELINE_DIGEST')):
+                with self.subTest(code=code), self.assertRaisesRegex(core.OperatorError, '^' + code + '$'):
+                    n._check_use_node(raw)
+            changed = SOURCE.replace(n.PIPELINE_LINES[2][1], b'#' * len(n.PIPELINE_LINES[2][1]))
+            check = core.FileCheck(n.USE_NODE_PATH, core.sha(changed), len(changed), len(changed))
+            with patch.object(n, 'USE_NODE_CHECK', check), self.assertRaisesRegex(
+                    core.OperatorError, '^NODE_PIPELINE_CONTRACT$'):
+                n._check_use_node(changed)
+        wrong_target = core.FileCheck('/tmp/use_node', core.sha(SOURCE), len(SOURCE), len(SOURCE))
+        with patch.object(n, 'USE_NODE_CHECK', wrong_target), self.assertRaisesRegex(
+                core.OperatorError, '^NODE_PIPELINE_TARGET$'):
+            n._check_use_node(SOURCE)
+
+    def test_each_pass_requires_same_pinned_source(self):
+        bad = SOURCE.replace(b'# inert test line', b'# other test line', 1)
+        for sources in ([bad, SOURCE], [SOURCE, bad]):
+            with self.subTest(sources=sources[0] == bad), self.assertRaisesRegex(
+                    core.OperatorError, '^NODE_PIPELINE_DIGEST$'):
+                self.observe(sources=sources)
+
     def test_descriptor_policy_accepts_service_tree_not_ancestors_or_writers(self):
         for owner in ((0, 0), (126, 128)):
             for bad in (None, 'root_owner', 'etc_owner', 'leaf_writer', 'config_writer', 'mixed_owner', 'symlink'):
@@ -144,11 +202,14 @@ class NodeOptionsTests(unittest.TestCase):
 
     def test_two_pass_counts_minimized_frozen_non_authorizing_result(self):
         result = self.observe(chunks=[WARN + HEAP] * 2)
-        self.assertEqual(asdict(result), dict(option_count=2, checked_files=1, passes=2,
+        self.assertEqual(asdict(result), dict(option_count=2, checked_files=2, passes=2,
             service_reads=3, package_reads=3, content_policy_passed=True,
-            selected_source_proven=False, effective_environment_proven=False, startup_authorized=False))
+            launcher_bytes_match_pin=True, source_contract_passed=True,
+            selected_source_proven=False, effective_prefix_proven=False,
+            effective_environment_proven=False, startup_authorized=False))
         self.assertNotIn('SECRET', repr(result))
-        for name in ('selected_source_proven', 'effective_environment_proven', 'startup_authorized'):
+        for name in ('selected_source_proven', 'effective_prefix_proven',
+                     'effective_environment_proven', 'startup_authorized'):
             with self.assertRaises(AttributeError):
                 setattr(result, name, True)
 
@@ -198,10 +259,15 @@ class NodeOptionsTests(unittest.TestCase):
     def test_missing_and_io_errors_are_static_not_optional_success(self):
         for error, code in ((errno.ENOENT, 'FS_MISSING'), (errno.EACCES, 'FS_ACCESS'),
                             (errno.ELOOP, 'FS_SYMLINK'), (errno.ENOTDIR, 'FS_NOT_DIRECTORY'), (errno.EIO, 'FS_IO')):
-            with self.subTest(error=error), self.assertRaisesRegex(core.OperatorError, '^' + code + '$') as caught:
-                self.observe(chunks=[OSError(error, 'SECRET')])
-            self.assertTrue(caught.exception.__suppress_context__)
-            self.assertIsNone(caught.exception.__cause__)
+            for source in (False, True):
+                with self.subTest(error=error, launcher=source), self.assertRaisesRegex(
+                        core.OperatorError, '^' + code + '$') as caught:
+                    if source:
+                        self.observe(sources=[OSError(error, 'SECRET')])
+                    else:
+                        self.observe(chunks=[OSError(error, 'SECRET')])
+                self.assertTrue(caught.exception.__suppress_context__)
+                self.assertIsNone(caught.exception.__cause__)
 
 
 if __name__ == '__main__':

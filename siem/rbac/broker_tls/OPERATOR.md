@@ -462,13 +462,23 @@ reader contracts. They do not establish fresh live Linux/VM acceptance.
 
 ### Fixed node.options content policy (not the effective environment)
 
-`operator_node_options.observe_node_options()` reads only
-`/etc/wazuh-dashboard/node.options`, capped at 16 KiB. It does not follow an
-observed `OSD_PATH_CONF`, environment-file path or argument. Two reads are parsed
-independently and compared byte-for-byte, bracketed by three fresh package and
-private manager snapshots. Alternate RootDirectory/RootImage namespaces reject
-before file reads. Missing files fail closed, even though the wrapper treats a
-missing conffile as optional. An inactive service is supported; no PID is needed.
+`operator_node_options.observe_node_options()` reads two fixed files per pass:
+`/etc/wazuh-dashboard/node.options` (capped at 16 KiB) and the 3531-byte,
+SHA-256-pinned `bin/use_node` from the approved 4.14.7-1 package. The script
+must match the launch observer's existing exact byte pin and fixed line
+sentinels for config-directory selection, `grep -v ^#`/`xargs`, and both
+`NODE_OPTIONS`/`exec` branches. The sentinels are a review tripwire for a
+future pin change; they are not a shell interpreter or a substitute for the
+whole-file digest. The tagged [Wazuh v4.14.7 script](https://github.com/wazuh/wazuh-dashboard/blob/v4.14.7/scripts/use_node)
+matches that digest. This is source identity, not a fresh VM observation.
+
+The observer does not follow an observed `OSD_PATH_CONF`, environment-file path
+or argument. Two reads of each file are checked independently; the conffile is
+also compared byte-for-byte across passes. Three fresh package and private
+manager snapshots bracket those reads. Alternate RootDirectory/RootImage
+namespaces reject before file reads. Missing files fail closed, even though
+the wrapper treats a missing conffile as optional. An inactive service is
+supported; no PID is needed.
 
 The shared descriptor-relative, no-follow bounded reader is reused with a narrow
 owner policy: root:root above `/etc/wazuh-dashboard`, root:root or the named
@@ -494,17 +504,22 @@ Stock 4.14.7-1 `use_node` removes only `^#` lines then uses `xargs` and unquoted
 shell expansion. The restricted grammar avoids their quoting/token ambiguities;
 the observer never runs those tools, the wrapper or Node to parse the file.
 
-Only an option count, fixed read counts and flags are returned. `content_policy_passed`
-is narrow: `selected_source_proven`, `effective_environment_proven` and
-`startup_authorized` are always false. `OSD_PATH_CONF`, environment files,
-inherited variables, prefix options and command arguments can still alter what
-the wrapper selects or passes to Node. Those sources remain the next slice;
-this result cannot authorize a start or substitute for their review.
+Only an option count, fixed read counts and flags are returned.
+`content_policy_passed`, `launcher_bytes_match_pin` and
+`source_contract_passed` are narrow checks; `selected_source_proven`,
+`effective_prefix_proven`, `effective_environment_proven` and
+`startup_authorized` are always false. The wrapper's generated variables,
+`OSD_PATH_CONF`, environment files, inherited variables, prefix options,
+external shell tools and command arguments can still alter what is selected or
+passed to Node. Those sources remain open; this result cannot authorize a
+start or substitute for their review.
 
-New codes: `NODE_OPTIONS_SIZE`, `NODE_OPTIONS_FORMAT`, `NODE_OPTIONS_OPTION`,
-`NODE_OPTIONS_DUPLICATE`, `NODE_OPTIONS_REQUIRED`, `NODE_OPTIONS_CHANGED`;
-existing package/namespace/native errors are reused. Sixteen portable tests use
-synthetic files, ownership and manager data; no new native/live acceptance claim.
+Codes: `NODE_OPTIONS_SIZE`, `NODE_OPTIONS_FORMAT`, `NODE_OPTIONS_OPTION`,
+`NODE_OPTIONS_DUPLICATE`, `NODE_OPTIONS_REQUIRED`, `NODE_OPTIONS_CHANGED`,
+`NODE_PIPELINE_TARGET`, `NODE_PIPELINE_SIZE`, `NODE_PIPELINE_DIGEST` and
+`NODE_PIPELINE_CONTRACT`; existing package/namespace/native errors are reused.
+Twenty portable tests use synthetic files, ownership, launcher and manager
+data; no new native/live acceptance claim.
 The launch observer's flag is now `inline_wrapper_environment_override_named`
 (old ambiguous name removed); it still inspects only inline `Environment=`.
 Two added launch tests isolate multiple ExecStart rows and the inline-only scope,
