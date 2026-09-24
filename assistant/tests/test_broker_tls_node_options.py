@@ -35,21 +35,36 @@ SOURCE = synthetic_use_node()
 SOURCE_CHECK = core.FileCheck(n.USE_NODE_PATH, core.sha(SOURCE), len(SOURCE), len(SOURCE))
 
 
+def synthetic_wrapper():
+    lines = [b'# inert test line'] * 31
+    for number, expected in n.WRAPPER_LINES:
+        lines[number - 1] = expected
+    return b'\n'.join(lines) + b'\n'
+
+
+WRAPPER_SOURCE = synthetic_wrapper()
+WRAPPER_SOURCE_CHECK = core.FileCheck(n.WRAPPER_PATH, core.sha(WRAPPER_SOURCE),
+                                      len(WRAPPER_SOURCE), len(WRAPPER_SOURCE))
+
+
 class NodeOptionsTests(unittest.TestCase):
-    def observe(self, *, configs=None, packages=None, chunks=None, sources=None):
+    def observe(self, *, configs=None, packages=None, chunks=None, sources=None, wrappers=None):
         package = runtime.PackageIdentity(core.PACKAGE_VERSION, 'amd64', 'install')
         with patch.object(n, 'USE_NODE_CHECK', SOURCE_CHECK), patch.object(
+                n, 'WRAPPER_CHECK', WRAPPER_SOURCE_CHECK), patch.object(
                 n.service, '_check_tool') as tool, patch.object(
                 n.fs, '_identity', return_value=(126, 128)) as identity, patch.object(
                 n.runtime, 'read_package_identity', side_effect=packages or [package] * 3) as registry, patch.object(
                 n.service, '_read_configuration', side_effect=configs or [values()] * 3) as manager, patch.object(
                 n, '_read_options', side_effect=chunks or [WARN] * 2) as reader, patch.object(
-                n, '_read_use_node', side_effect=sources or [SOURCE] * 2) as launcher:
+                n, '_read_use_node', side_effect=sources or [SOURCE] * 2) as launcher, patch.object(
+                n, '_read_wrapper', side_effect=wrappers or [WRAPPER_SOURCE] * 2) as wrapper:
             result = n.observe_node_options()
             self.assertEqual(registry.call_count, 3)
             self.assertEqual(manager.call_count, 3)
             self.assertEqual([c.args for c in reader.call_args_list], [((126, 128),)] * 2)
             self.assertEqual([c.args for c in launcher.call_args_list], [((126, 128),)] * 2)
+            self.assertEqual([c.args for c in wrapper.call_args_list], [((126, 128),)] * 2)
             tool.assert_called_once_with(); identity.assert_called_once_with()
             return result
 
@@ -141,13 +156,70 @@ class NodeOptionsTests(unittest.TestCase):
             reader.assert_called_once_with(('usr', 'share', 'wazuh-dashboard', 'bin', 'use_node'),
                                            3531, (126, 128))
 
+    def test_wrapper_dispatch_is_pinned_bounded_and_vendor_owned(self):
+        self.assertEqual(n.WRAPPER_CHECK, n.launch.CHECKS[0])
+        self.assertEqual(n.WRAPPER_CHECK.path, n.WRAPPER_PATH)
+        self.assertEqual(n.WRAPPER_CHECK.digest,
+                         '30993e61fae26ab0c7d73836fd510f1c9a54e9110a7e9c63edc9cbaff505f9d5')
+        self.assertEqual(n.WRAPPER_CHECK.size, 939)
+        with patch.object(n.fs, '_read_native', return_value=b'public') as reader:
+            self.assertEqual(n._read_wrapper((126, 128)), b'public')
+            reader.assert_called_once_with(('usr', 'share', 'wazuh-dashboard', 'bin',
+                                            'opensearch-dashboards'), 939, (126, 128))
+
     def test_pinned_source_contract_and_frozen_result(self):
-        with patch.object(n, 'USE_NODE_CHECK', SOURCE_CHECK):
+        with patch.object(n, 'USE_NODE_CHECK', SOURCE_CHECK), patch.object(
+                n, 'WRAPPER_CHECK', WRAPPER_SOURCE_CHECK):
             n._check_use_node(SOURCE)
+            n._check_wrapper(WRAPPER_SOURCE)
         result = self.observe()
         self.assertTrue(result.launcher_bytes_match_pin and result.source_contract_passed)
+        self.assertTrue(result.wrapper_bytes_match_pin and result.wrapper_literal_config_assignment
+                        and result.wrapper_literal_prefix_assignment)
         self.assertFalse(result.selected_source_proven or result.effective_prefix_proven
                          or result.effective_environment_proven or result.startup_authorized)
+
+    def test_wrapper_rejects_wrong_target_type_size_digest_and_contract(self):
+        with patch.object(n, 'WRAPPER_CHECK', WRAPPER_SOURCE_CHECK):
+            for raw, code in ((None, 'NODE_WRAPPER_SIZE'),
+                              (bytearray(WRAPPER_SOURCE), 'NODE_WRAPPER_SIZE'),
+                              (WRAPPER_SOURCE[:-1], 'NODE_WRAPPER_SIZE'),
+                              (WRAPPER_SOURCE.replace(b'# inert test line', b'# other test line', 1),
+                               'NODE_WRAPPER_DIGEST')):
+                with self.subTest(code=code), self.assertRaisesRegex(
+                        core.OperatorError, '^' + code + '$'):
+                    n._check_wrapper(raw)
+            for number, expected in n.WRAPPER_LINES:
+                changed = WRAPPER_SOURCE.replace(expected, b'# changed source line')
+                check = core.FileCheck(n.WRAPPER_PATH, core.sha(changed), len(changed), len(changed))
+                with self.subTest(number=number), patch.object(
+                        n, 'WRAPPER_CHECK', check), self.assertRaisesRegex(
+                        core.OperatorError, '^NODE_WRAPPER_CONTRACT$'):
+                    n._check_wrapper(changed)
+        wrong_target = core.FileCheck('/tmp/wrapper', core.sha(WRAPPER_SOURCE),
+                                      len(WRAPPER_SOURCE), len(WRAPPER_SOURCE))
+        with patch.object(n, 'WRAPPER_CHECK', wrong_target), self.assertRaisesRegex(
+                core.OperatorError, '^NODE_WRAPPER_TARGET$'):
+            n._check_wrapper(WRAPPER_SOURCE)
+        with patch.object(n, 'WRAPPER_CHECK', wrong_target), patch.object(
+                n.fs, '_read_native') as reader, self.assertRaisesRegex(
+                core.OperatorError, '^NODE_WRAPPER_TARGET$'):
+            n._read_wrapper((126, 128))
+        reader.assert_not_called()
+        wrong_limit = core.FileCheck(n.WRAPPER_PATH, core.sha(WRAPPER_SOURCE),
+                                     len(WRAPPER_SOURCE) + 1, len(WRAPPER_SOURCE))
+        with patch.object(n, 'WRAPPER_CHECK', wrong_limit), patch.object(
+                n.fs, '_read_native') as reader, self.assertRaisesRegex(
+                core.OperatorError, '^NODE_WRAPPER_TARGET$'):
+            n._read_wrapper((126, 128))
+        reader.assert_not_called()
+
+    def test_each_pass_requires_same_pinned_wrapper(self):
+        bad = WRAPPER_SOURCE.replace(b'# inert test line', b'# other test line', 1)
+        for wrappers in ([bad, WRAPPER_SOURCE], [WRAPPER_SOURCE, bad]):
+            with self.subTest(first_bad=wrappers[0] == bad), self.assertRaisesRegex(
+                    core.OperatorError, '^NODE_WRAPPER_DIGEST$'):
+                self.observe(wrappers=wrappers)
 
     def test_source_rejects_wrong_target_type_size_digest_and_contract(self):
         with patch.object(n, 'USE_NODE_CHECK', SOURCE_CHECK):
@@ -202,8 +274,10 @@ class NodeOptionsTests(unittest.TestCase):
 
     def test_two_pass_counts_minimized_frozen_non_authorizing_result(self):
         result = self.observe(chunks=[WARN + HEAP] * 2)
-        self.assertEqual(asdict(result), dict(option_count=2, checked_files=2, passes=2,
+        self.assertEqual(asdict(result), dict(option_count=2, checked_files=3, passes=2,
             service_reads=3, package_reads=3, content_policy_passed=True,
+            wrapper_bytes_match_pin=True, wrapper_literal_config_assignment=True,
+            wrapper_literal_prefix_assignment=True,
             launcher_bytes_match_pin=True, source_contract_passed=True,
             selected_source_proven=False, effective_prefix_proven=False,
             effective_environment_proven=False, startup_authorized=False))
@@ -259,11 +333,13 @@ class NodeOptionsTests(unittest.TestCase):
     def test_missing_and_io_errors_are_static_not_optional_success(self):
         for error, code in ((errno.ENOENT, 'FS_MISSING'), (errno.EACCES, 'FS_ACCESS'),
                             (errno.ELOOP, 'FS_SYMLINK'), (errno.ENOTDIR, 'FS_NOT_DIRECTORY'), (errno.EIO, 'FS_IO')):
-            for source in (False, True):
+            for source in ('options', 'launcher', 'wrapper'):
                 with self.subTest(error=error, launcher=source), self.assertRaisesRegex(
                         core.OperatorError, '^' + code + '$') as caught:
-                    if source:
+                    if source == 'launcher':
                         self.observe(sources=[OSError(error, 'SECRET')])
+                    elif source == 'wrapper':
+                        self.observe(wrappers=[OSError(error, 'SECRET')])
                     else:
                         self.observe(chunks=[OSError(error, 'SECRET')])
                 self.assertTrue(caught.exception.__suppress_context__)
