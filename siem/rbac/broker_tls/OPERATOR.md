@@ -820,12 +820,22 @@ provide the intended launch shape; the actual interpreter, standard library,
 unit command and environment are not pinned by this module. It then checks the
 fixed entry path using no-follow descriptor-relative metadata, rejecting
 service ownership, writable ancestors, links, replacement and oversize files.
-Only fixed diagnostic codes are emitted. Eight portable tests cover the
-candidate path, isolated flags, root identity, metadata, drift, cleanup and
-the nonzero-only result. No VM or systemd command is executed by these tests.
+It now also requires an **exact, empty-extra-file source capsule** at that
+candidate directory: `guard_entry.py` plus thirteen SHA-256/size-pinned LF
+operator modules needed by the possible pre-start path. The two post-start
+process-observation modules are excluded. A bounded `scandir` enumeration,
+no-follow/nonblocking descriptor opens, exact-length reads and post-read
+metadata checks reject additions, missing files, links, unsafe ownership,
+drift and byte changes. Python's [descriptor APIs](https://docs.python.org/3.10/library/os.html)
+support this candidate check. The module bytes are **never imported, compiled
+or executed** here. Only fixed diagnostic codes are emitted. Fifteen portable
+tests cover the entry and capsule checks, including pin/relative-import
+closure, bounded reads, drift, cleanup and the nonzero-only result. No VM or
+systemd command is executed by these tests.
 
 **There is deliberately no success path:** even if all entry checks pass, it
-prints `GUARD_NOT_READY` and exits 1. There is no guard decision, source bundle,
+prints `GUARD_NOT_READY` and exits 1. The capsule is a source-level contract,
+not installed files; there is no verified-byte importer, guard decision,
 drop-in, installer or start permission. A Python script cannot authenticate
 itself before the interpreter has already read and executed its first lines;
 the after-load metadata check is a tripwire, not a trust anchor. The future
@@ -844,8 +854,9 @@ service-mutable vendor-code changes after a pre-start check.
    performance acceptance criteria. Preserve the current public fingerprints.
 2. Review the root-controlled manifest/certificate loader and rerun native Linux
    traversal tests after shared-primitive changes. The non-deployable guard
-   entry candidate exists, but trusted interpreter/import bootstrap, a complete
-   guard decision and deployment wiring remain to implement. Preserve
+   entry and pinned capsule candidate exist, but trusted interpreter and
+   verified-byte import bootstrap, a complete guard decision and deployment
+   wiring remain to implement. Preserve
    the distinction between root-controlled trust and service-mutable vendor code.
    Two equal byte passes cannot prevent edits after checking or attest running
    code. Verify the installed dependency resolution/file set too: matching listed

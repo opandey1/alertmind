@@ -146,9 +146,10 @@ adds ten portable tests for exact Node argv and reviewed initial environment
 keys. It requires an already running Dashboard; it is not a pre-start guard,
 complete environment proof or permission to start the service for inspection.
 The [guard-entry candidate](OPERATOR.md#candidate-guard-entry-boundary--fail-closed-not-deployable)
-adds eight portable tests for an isolated root Python launch and a no-follow
-entry-path recheck. It always exits nonzero, has no installed source bundle or
-systemd drop-in, and must not be deployed alone.
+adds fifteen portable tests for an isolated root Python launch, a no-follow
+entry-path recheck and an exact thirteen-module source capsule with byte pins.
+It does not import or execute the capsule and always exits nonzero. No source
+bundle is installed and there is no systemd drop-in; do not deploy it alone.
 The opt-in TLS fixture is **not** included in the CI badge's test count.
 
 ## Acceptance still blocked
