@@ -715,6 +715,32 @@ methods cover closure, malformed metadata, missing/orphan roots, first/later
 shadow failure, pinned-byte drift, package/bootstrap drift, static diagnostics
 and authority limits; native Linux checks remain a separate gate.
 
+### Pinned-code import-site overapproximation — offline only
+
+`operator_import_sites.observe_pinned_import_sites()` checks the next search
+depth without parsing or executing vendor JavaScript. From the independently
+pinned manifest, it assigns each staged `.js`, `.cjs`, `.mjs` or `.node` file
+to its deepest package root and treats its directory as a **possible** import
+origin for *every declared dependency* of that package. On each of two passes,
+it verifies the client, all package metadata and all selected code-file bytes,
+then checks the package-root shadows plus file/directory alternatives in the
+additional search slots. A site resolving to a different staged package than
+its package-root dependency fails closed. The exact reviewed `.deb` yields
+153 pinned code files in 46 distinct directories, 89 site/dependency pairs and
+478 unique absence candidates; a POSIX-path membership check found
+none in that package archive. The observer has not run on the installed VM.
+
+This is an **overapproximation**, not evidence that any given file executed or
+imported any given dependency. Unlisted code, dynamic imports, generated files,
+symlinks/realpaths, package self-resolution/exports, `NODE_PATH`, preloads,
+other Wazuh modules and post-check service-owned edits remain outside proof.
+The result keeps `executed_imports_proven`, `unlisted_code_absent_proven`,
+`actual_node_resolution_proven`, `loaded_code_proven`,
+`effective_environment_proven` and `startup_authorized` false. Ten portable
+offline methods cover site ownership, closure, divergent/missing selections,
+first/later-pass shadows and byte drift, bounded work, static diagnostics and
+the non-authorizing result. This does not install a guard or change Wazuh.
+
 ## Required next adapter package — not released here
 
 1. Establish selected packaged Linux runtime and real Server certificate
