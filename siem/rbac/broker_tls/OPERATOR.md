@@ -549,6 +549,43 @@ The launch observer's flag is now `inline_wrapper_environment_override_named`
 Two added launch tests isolate multiple ExecStart rows and the inline-only scope,
 bringing that module to fourteen tests. No production caller used the old name.
 
+### Running Node launch-shape observation — post-start only
+
+`operator_effective_launch.observe_effective_launch()` composes the fixed
+node.options/wrapper policy with the existing pinned-executable procfs reader.
+It requires an **already running** Dashboard. Two equal process snapshots are
+bracketed by fixed systemd MainPID/configuration reads, and the options policy
+is repeated on both sides. The observed argv must consist exactly of the pinned
+Node path, the wrapper's two literal prefix flags, the stock warning option,
+optionally the one reviewed heap-size option, and the fixed CLI entrypoint.
+Either order of the two allowed conffile options is accepted. Additional flags,
+arguments or a different executable/entrypoint stop with a static diagnostic.
+
+The initial procfs environment must contain the four exact wrapper-origin
+assignments (`OSD_PATH_CONF`, `OSD_NODE_OPTS_PREFIX`,
+`OSD_USE_NODE_JS_FILE_PATH`, `NODE_ENV`). Inherited Node/OSD, `LD_`, `OPENSSL_`
+and `SSL_` override names, plus selected shell controls, are rejected,
+including `NODE_OPTIONS`, `NODE_PATH`, `NODE_TLS_REJECT_UNAUTHORIZED`,
+`LD_PRELOAD` and `BASH_ENV`. Other names are not globally
+allowlisted; `PATH` and external shell-tool resolution are still unproven.
+Only counts and narrow flags are returned. Raw argv/environment bytes, values,
+PID and private systemd properties are not logged or returned. Ten portable
+tests cover allowed shapes, extra arguments, required/forbidden environment,
+drift and sanitized errors. There is no VM execution in this package.
+
+This is an observation of an existing process, **not** proof that the named
+conffile supplied its flags, that all current environment state or loaded code
+is safe, or that later service-owned files cannot change. Procfs cmdline can be
+changed by the process; procfs environ reflects the initial exec environment,
+not all subsequent changes. Observations are not atomic. The result retains
+`actual_config_source_proven`, `external_utility_resolution_proven`,
+`complete_effective_environment_proven`, `loaded_code_proven`,
+`prestart_applicable` and `startup_authorized` as false. Never start an
+unguarded Dashboard to satisfy this post-start observer, and never wire it as
+the pre-start guard. New diagnostics: `EFFECTIVE_POLICY`, `EFFECTIVE_ARGV`,
+`EFFECTIVE_ENV`, `EFFECTIVE_CHANGED`, `EFFECTIVE_IO`; existing process, unit,
+options, package and native-reader diagnostics remain unchanged.
+
 ### Explicit unit launch-source boundary
 
 `operator_unit_sources.observe_unit_sources()` makes a separate, read-only
