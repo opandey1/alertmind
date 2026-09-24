@@ -689,6 +689,32 @@ fixed targets, both-pass shadow and drift failures, static diagnostics and
 descriptor-relative absence/presence. Two native filesystem tests require
 Linux; the portable descriptor doubles run in ordinary Windows test discovery.
 
+### Declared axios package graph — offline only
+
+`operator_dependency_graph.observe_declared_axios_graph()` extends the narrow
+direct-import check to the **declared** `package.json` dependencies in the
+manifest-pinned candidate. The exact reviewed Dashboard package yields 26
+reachable package roots, 35 declared edges and 238 unique shadow candidates
+(including the direct axios set). The observer reads and hashes the patched
+client and every package-root `package.json` on each of two passes, validates
+package names and bounded dependency maps, requires every staged package root
+to be reachable, and rejects nearer directory/file alternatives with the
+no-follow native absence primitive. Bootstrap and package identity bracket
+the passes. The exact `.deb` was inspected offline: none of those 238 shadow
+candidates exists in its archive. No package was installed or executed.
+
+The search slots start at **package roots**, not each actual importing JS file.
+A nested importer can have a nearer `node_modules` directory. Dynamic/relative
+imports, package self-resolution, package exports/main behavior, `NODE_PATH`,
+preloads, unlisted files, changed resolution paths and later service-owned
+edits are not proven away. The result therefore leaves `import_sites_proven`,
+`actual_node_resolution_proven`, `loaded_code_proven`,
+`effective_environment_proven` and `startup_authorized` false. This is not
+a complete Node dependency attestation or a live VM observation. Nine offline
+methods cover closure, malformed metadata, missing/orphan roots, first/later
+shadow failure, pinned-byte drift, package/bootstrap drift, static diagnostics
+and authority limits; native Linux checks remain a separate gate.
+
 ## Required next adapter package — not released here
 
 1. Establish selected packaged Linux runtime and real Server certificate
