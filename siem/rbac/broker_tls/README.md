@@ -141,6 +141,10 @@ no-follow installed-directory inventory against the manifest. The exact
 approved archive contains 267 regular files across the 26 selected roots;
 the observer has not run on the VM, does not hash file contents and cannot
 authorize startup. See [its limits](OPERATOR.md#selected-package-root-file-set--offline-only).
+The separate [running launch-shape observer](OPERATOR.md#running-node-launch-shape-observation--post-start-only)
+adds ten portable tests for exact Node argv and reviewed initial environment
+keys. It requires an already running Dashboard; it is not a pre-start guard,
+complete environment proof or permission to start the service for inspection.
 The opt-in TLS fixture is **not** included in the CI badge's test count.
 
 ## Acceptance still blocked
