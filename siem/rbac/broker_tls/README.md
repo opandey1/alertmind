@@ -127,6 +127,10 @@ The fixture still adapts certificate metadata; no native/live acceptance follows
 
 Ten pure-Python builder guards run in ordinary CI with no download or network.
 Twenty-one operator-core tests also run there, without native service or file changes.
+The offline declared-graph observer adds nine tests. It checks the pinned
+axios package's 26 declared package roots, 35 dependency edges and 238
+package-root-origin shadow candidates, but it does not prove actual importing
+sites or Node resolution. See [operator limits](OPERATOR.md#declared-axios-package-graph--offline-only).
 The opt-in TLS fixture is **not** included in the CI badge's test count.
 
 ## Acceptance still blocked
