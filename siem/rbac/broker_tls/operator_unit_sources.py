@@ -2,11 +2,12 @@
 
 This is a read-only check of selected systemd properties. It excludes
 auxiliary lifecycle commands, a PAM session, custom executable search path,
-dynamic user, configured service-directory sources and selected descriptor
-inputs. It reports whether systemd login variables are enabled, but does not
-read the manager's own environment, vendor wrapper variables or the final
-process environment. It cannot authorize a start. Private property values
-stay private.
+dynamic user, configured service-directory sources, selected descriptor
+inputs and four non-payload credential-source properties. It reports whether
+systemd login variables are enabled, but does not read the manager's own
+environment, vendor wrapper variables or the final
+process environment. Embedded credential payloads are deliberately not
+queried. It cannot authorize a start. Private property values stay private.
 """
 from dataclasses import dataclass, field
 
@@ -46,6 +47,11 @@ def _constrain(config):
     core.require(config['ExtraFileDescriptorNames'] == [], 'UNIT_SOURCE_EXTRA_FDS')
     core.require(config['StandardInput'] == 'null'
                  and config['StandardInputFileDescriptorName'] == '', 'UNIT_SOURCE_STDIN')
+    # These four fixed properties expose only configured names/sources, not
+    # credential bytes. SetCredential* is intentionally not queried here.
+    core.require(all(config[name] == [] for name in (
+        'LoadCredential', 'LoadCredentialEncrypted',
+        'ImportCredential', 'ImportCredentialEx')), 'UNIT_SOURCE_CREDENTIAL_METADATA')
     core.require(config['User'] == 'wazuh-dashboard'
                  and config['Group'] == 'wazuh-dashboard'
                  and config['WorkingDirectory'] == core.BASE.rstrip('/'),
@@ -64,9 +70,11 @@ class UnitSourcesObservation:
     directory_environment_sources_empty: bool = field(default=True, init=False)
     queried_descriptor_inputs_empty: bool = field(default=True, init=False)
     queried_trigger_edges_empty: bool = field(default=True, init=False)
+    queried_credential_metadata_empty: bool = field(default=True, init=False)
     passes: int = field(default=2, init=False)
     service_reads: int = field(default=2, init=False)
     manager_inheritance_proven: bool = field(default=False, init=False)
+    embedded_credential_sources_proven: bool = field(default=False, init=False)
     selected_config_source_proven: bool = field(default=False, init=False)
     effective_environment_proven: bool = field(default=False, init=False)
     startup_authorized: bool = field(default=False, init=False)

@@ -41,8 +41,10 @@ class UnitSourcesTests(unittest.TestCase):
             exec_search_path_empty=True, dynamic_user_disabled=True,
             directory_environment_sources_empty=True,
             queried_descriptor_inputs_empty=True, queried_trigger_edges_empty=True,
+            queried_credential_metadata_empty=True,
             passes=2, service_reads=2,
-            manager_inheritance_proven=False, selected_config_source_proven=False,
+            manager_inheritance_proven=False, embedded_credential_sources_proven=False,
+            selected_config_source_proven=False,
             effective_environment_proven=False, startup_authorized=False))
         with self.assertRaises(AttributeError):
             result.startup_authorized = True
@@ -144,6 +146,25 @@ class UnitSourcesTests(unittest.TestCase):
         with self.assertRaises(core.OperatorError) as caught:
             self.observe([first, second])
         self.assertEqual(str(caught.exception), 'UNIT_SOURCE_OPEN_FILE')
+        self.assertNotIn('SECRET', str(caught.exception))
+
+    def test_every_non_payload_credential_source_rejects_without_value_leak(self):
+        for key, value in (
+                ('LoadCredential', [['PRIVATE_SECRET', '/PRIVATE/SECRET']]),
+                ('LoadCredentialEncrypted', [['PRIVATE_SECRET', '/PRIVATE/SECRET']]),
+                ('ImportCredential', ['PRIVATE_SECRET']),
+                ('ImportCredentialEx', [['PRIVATE_SECRET', 'PRIVATE_SECRET']])):
+            config = base(); config[key] = value
+            with self.subTest(key=key), self.assertRaises(core.OperatorError) as caught:
+                self.observe([config, config])
+            self.assertEqual(str(caught.exception), 'UNIT_SOURCE_CREDENTIAL_METADATA')
+            self.assertNotIn('SECRET', str(caught.exception))
+
+    def test_credential_metadata_appearing_between_reads_rejects(self):
+        second = base(); second['ImportCredential'] = ['PRIVATE_SECRET']
+        with self.assertRaises(core.OperatorError) as caught:
+            self.observe([base(), second])
+        self.assertEqual(str(caught.exception), 'UNIT_SOURCE_CREDENTIAL_METADATA')
         self.assertNotIn('SECRET', str(caught.exception))
 
     def test_login_environment_is_visible_not_a_safety_gate(self):
