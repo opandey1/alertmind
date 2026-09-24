@@ -383,8 +383,9 @@ New fixed diagnostics: `PROCESS_PID`, `PROCESS_STAT`, `PROCESS_IDENTITY`,
 `PROCESS_SIZE`, `PROCESS_EXECUTABLE`, `PROCESS_DIGEST`, `PROCESS_NOT_RUNNING`,
 `PROCESS_IO`; service and native trust codes are reused.
 
-Current suite: 341 methods in 29 files, including twenty-three service methods,
-nine manager-environment methods and seventeen process methods. Seven require
+Current suite at this process-observer stage: 341 methods in 29 files,
+including twenty-three service methods, nine manager-environment methods and
+seventeen process methods. Seven require
 Linux: four native-reader tests and three procfs/executable/descriptor tests.
 These inspect the test process and a private copy of `/bin/cat` launched with
 a clean environment and mode 0500. The child
@@ -659,6 +660,34 @@ tests use synthetic manager replies only; stock Ubuntu/Wazuh behavior has not
 been observed. New diagnostics are `MANAGER_ENV_SIZE`, `MANAGER_ENV_FORMAT`,
 `MANAGER_ENV_SHAPE`, `MANAGER_ENV_ENTRY`, `MANAGER_ENV_CHANGED` and
 `MANAGER_ENV_PRESENT`; existing fixed-tool/query codes are reused.
+
+### Direct axios shadow boundary — offline only
+
+`operator_dependency.observe_direct_axios_shadow()` checks one narrow module
+resolution hazard without invoking Node. The patched, manifest-pinned broker
+client imports `axios` by package name. Under the [packaged Node 18.19.0
+CommonJS lookup rules](https://nodejs.org/download/release/v18.19.0/docs/api/modules.html#all-together),
+a nearer `node_modules` entry can take precedence over the Dashboard-root
+copy; file alternatives with `.js`, `.json` and `.node` matter as well. The
+observer checks four fixed nearer ancestor locations for `axios` and those
+three file alternatives, plus the three root-level file alternatives: 19
+absence checks per pass. It separately checks the pinned candidate client and
+root `node_modules/axios/package.json` bytes. The bootstrap manifest/public
+certificate and package identity bracket the two passes. The native absence
+primitive holds no-follow directory descriptors, rejects untrusted ancestors,
+and rechecks a missing child before returning. It reports only booleans and
+counts; no path, module contents or certificate bytes appear in the result.
+
+This is **not** proof of `require.resolve('axios')`, loaded code or the
+transitive dependency graph. Package self-resolution, `NODE_PATH`, preload
+hooks, other imports, symlink/namespace behavior and later edits remain open.
+The service-owned plugin tree is mutable; even matching passes are not atomic.
+`root_axios_selected_proven`, `transitive_resolution_proven`,
+`effective_environment_proven` and `startup_authorized` therefore remain
+false. No live VM or installed-path result is claimed. Ten new methods cover
+fixed targets, both-pass shadow and drift failures, static diagnostics and
+descriptor-relative absence/presence. Two native filesystem tests require
+Linux; the portable descriptor doubles run in ordinary Windows test discovery.
 
 ## Required next adapter package — not released here
 

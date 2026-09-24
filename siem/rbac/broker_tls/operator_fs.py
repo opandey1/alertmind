@@ -127,6 +127,74 @@ def _read_native(parts, limit, identity):
     return _read_root(parts, limit, lambda p: _owners(p, identity))
 
 
+def _absent_below_at(root_fd, parent_parts, child_parts, owners_for):
+    """Check one optional child below a required, trusted directory chain.
+
+    A missing optional component is accepted only while its parent descriptor
+    is held, then rechecked before returning. Existing children are never
+    followed. This is a point-in-time observation, not an absence lock.
+    """
+    _components(parent_parts)
+    _components(child_parts)
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
+    with ExitStack() as stack:
+        root_before = os.fstat(root_fd)
+        _trusted(root_before, True, owners_for(()))
+        records = []
+        current = root_fd
+        for name in parent_parts:
+            parts = tuple(p for _, p, _, _ in records) + (name,)
+            before = os.stat(name, dir_fd=current, follow_symlinks=False)
+            _trusted(before, True, owners_for(parts))
+            opened = os.open(name, flags, dir_fd=current)
+            stack.callback(os.close, opened)
+            require(_stamp(before) == _stamp(os.fstat(opened)), 'FS_CHANGED')
+            records.append((current, name, opened, before))
+            current = opened
+        absent = None
+        for index, name in enumerate(child_parts):
+            try:
+                before = os.stat(name, dir_fd=current, follow_symlinks=False)
+            except FileNotFoundError:
+                absent = (current, name)
+                break
+            if index == len(child_parts) - 1:
+                # A directory, symlink, file or any other object can shadow.
+                return False
+            parts = parent_parts + child_parts[:index + 1]
+            _trusted(before, True, owners_for(parts))
+            opened = os.open(name, flags, dir_fd=current)
+            stack.callback(os.close, opened)
+            require(_stamp(before) == _stamp(os.fstat(opened)), 'FS_CHANGED')
+            records.append((current, name, opened, before))
+            current = opened
+        require(absent is not None, 'FS_CHANGED')
+        parent, name = absent
+        try:
+            os.stat(name, dir_fd=parent, follow_symlinks=False)
+        except FileNotFoundError:
+            pass
+        else:
+            raise OperatorError('FS_CHANGED')
+        for parent, name, opened, before in reversed(records):
+            require(_stamp(before) == _stamp(os.fstat(opened))
+                    == _stamp(os.stat(name, dir_fd=parent, follow_symlinks=False)),
+                    'FS_CHANGED')
+        require(_stamp(root_before) == _stamp(os.fstat(root_fd)), 'FS_CHANGED')
+        return True
+
+
+def _absent_native(parent_parts, child_parts, identity):
+    _components(parent_parts)
+    _components(child_parts)
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
+    with ExitStack() as stack:
+        root_fd = os.open('/', flags)
+        stack.callback(os.close, root_fd)
+        return _absent_below_at(root_fd, parent_parts, child_parts,
+                                lambda p: _owners(p, identity))
+
+
 def _read_root_owned(parts, limit):
     # No service-owner exception or NSS lookup on the bootstrap trust path.
     return _read_root(parts, limit, lambda _: ((0, 0),))
