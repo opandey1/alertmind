@@ -48,6 +48,18 @@ def _trees():
 
 
 class GuardPythonImportContractTests(unittest.TestCase):
+    def test_documented_diagnostic_imports_all_direct_roots(self):
+        runbook = (ROOT / 'docs' / 'runbooks' /
+                   'rbac-guard-python-runtime-trust.md').read_text(encoding='utf-8')
+        marker = "<<'ALERTMIND_IMPORT_ORIGINS'\n"
+        self.assertEqual(runbook.count(marker), 1)
+        source = runbook.split(marker, 1)[1].split('\nALERTMIND_IMPORT_ORIGINS', 1)[0]
+        tree = ast.parse(source)
+        imports = {alias.name.split('.', 1)[0]
+                   for node in tree.body if isinstance(node, ast.Import)
+                   for alias in node.names}
+        self.assertEqual(imports, ALL_DIRECT_ROOTS)
+
     def test_exact_direct_absolute_imports_per_pinned_module(self):
         self.assertEqual(set(DIRECT_ROOTS),
                          {name for name, _, _ in entry.PINNED_MODULES})

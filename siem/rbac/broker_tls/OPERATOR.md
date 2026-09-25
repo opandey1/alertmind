@@ -880,7 +880,11 @@ interpreter. The exact roots and outstanding external checks are in the
 [Python runtime trust runbook](../../../docs/runbooks/rbac-guard-python-runtime-trust.md).
 That runbook now includes a metadata-only, owner-executed VM inventory of two
 fixed interpreter candidates. It selects or executes neither and cannot prove
-runtime trust. The loader remains dormant and the entrypoint still exits 1.
+runtime trust. The owner reported both candidates package-owned at Gate A;
+system Python 3.14 is a **provisional diagnostic target**, not a selected guard
+runtime. Gate B1 now holds package/ELF preflight and Gate B2 holds an
+unprivileged import-origin probe pending B1 review. Neither authorizes a
+root-run guard. The loader remains dormant and the entrypoint still exits 1.
 
 ## Required next adapter package — not released here
 

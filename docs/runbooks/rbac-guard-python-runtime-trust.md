@@ -38,7 +38,7 @@ review must settle all of the following from a **selected host runtime**:
    import side effects and startup latency. Existing Windows Python 3.12
    tests establish only the offline source contract.
 
-Python's [isolated mode and site flags](https://docs.python.org/3.10/using/cmdline.html)
+Python's [isolated mode and site flags](https://docs.python.org/3.14/using/cmdline.html)
 exclude several common injection paths, but do not certify the interpreter
 or standard-library files. Python's [import system](https://docs.python.org/3.10/reference/import.html)
 uses cached modules and finders; these also need review. Until the above is
@@ -114,3 +114,200 @@ inventory is **not** runtime approval. After review, choose one candidate and
 design a separate, bounded provenance/import-origin test for that exact
 runtime; do not wire `_loaded_verified_bundle` or install the guard on the
 strength of this output.
+
+## Gate A owner result and provisional probe target (25 September 2026)
+
+The owner reported the complete Gate A output. Both candidates resolved and
+both entry/target paths were listed in dpkg's file ownership database:
+
+| Candidate | Resolved binary | Owner/mode | SHA-256 | Package |
+|---|---|---|---|---|
+| Wazuh-packaged | `/var/ossec/framework/python/bin/python3.10` | root:wazuh, 0750 | `9447e8fd458492a1736238b429d5f5ead106fd5ac47fccc2cd83d0e4489ee7b6` | wazuh-manager 4.14.7-1 |
+| Ubuntu system | `/usr/bin/python3.14` | root:root, 0755 | `52e0a13e60a981d8c4b6478be2ba5176f69da07948a056bf49cf6f077e30cb41` | python3.14-minimal 3.14.4-1ubuntu0.2 |
+
+The Wazuh path's shown ancestors are root-owned with group `wazuh` and mode
+0750, **not group-writable**. The Ubuntu path's shown ancestors and binary are
+root:root, with no group/other write bit. The symlink's 0777 mode is not a
+claim that its root-owned parent is writable by the service. The owner did not
+report `UNRESOLVED` or an early STOP. This is owner-reported metadata, not an
+independent package-authenticity or ACL/mount proof.
+
+For the **next diagnostic only**, `/usr/bin/python3.14` is the provisional
+target: it is outside the Wazuh-managed tree and has the simpler root-owned
+chain. This does **not** select it for the root-run pre-start guard or reject
+the packaged Python. No interpreter was executed in Gate A. Package updates
+can invalidate the observed digest; never auto-refresh a pin on mismatch.
+
+## Gate B1 — system-Python package and direct ELF preflight
+
+At the stable VM console, with Snapshot 1, stopped AlertMind apps and no
+concurrent updates, run this **read-only** block. It rechecks the exact
+Gate A target/digest, installed Python package identities and package-file
+drift, selected stdlib path metadata, and the executable's directly declared
+ELF loader/libraries. It never executes Python, Node or `ldd`, and does not
+change services. If it stops, return the output; do not repair a package or
+continue to Gate B2. Package verification compares files to the VM's own
+dpkg database and is **only a drift check**, not a signed provenance proof.
+
+```bash
+sudo bash <<'ALERTMIND_SYSTEM_PY_PREFLIGHT'
+set -euo pipefail
+export LC_ALL=C
+
+target=$(readlink -e -- /usr/bin/python3)
+if [ "$target" != /usr/bin/python3.14 ]; then
+    printf 'STOP: system Python target changed: %s\n' "$target"
+    exit 1
+fi
+actual=$(sha256sum -- "$target")
+actual=${actual%% *}
+if [ "$actual" != 52e0a13e60a981d8c4b6478be2ba5176f69da07948a056bf49cf6f077e30cb41 ]; then
+    printf 'STOP: system Python binary digest changed: %s\n' "$actual"
+    exit 1
+fi
+printf 'PASS pinned system Python target/digest: %s %s\n' "$target" "$actual"
+namei -l -- /usr/bin/python3
+stat -Lc 'binary: type=%F uid=%u gid=%g mode=%a size=%s' -- "$target"
+
+for package in python3.14-minimal libpython3.14-minimal libpython3.14-stdlib; do
+    status=$(dpkg-query --show --showformat='${Status}' "$package")
+    version=$(dpkg-query --show --showformat='${Version}' "$package")
+    printf 'package=%s version=%s status=%s\n' "$package" "$version" "$status"
+    if [ "$status" != 'install ok installed' ]; then
+        printf 'STOP: package not fully installed: %s\n' "$package"
+        exit 1
+    fi
+    if verify_output=$(dpkg --verify "$package" 2>&1); then
+        if [ -n "$verify_output" ]; then
+            printf '%s\n' "$verify_output"
+            printf 'STOP: package verification had output: %s\n' "$package"
+            exit 1
+        fi
+        printf 'PASS local dpkg drift check: %s\n' "$package"
+    else
+        printf '%s\n' "$verify_output"
+        printf 'STOP: package verification failed: %s\n' "$package"
+        exit 1
+    fi
+done
+
+for path in /usr/lib/python3.14/encodings/__init__.py /usr/lib/python3.14/os.py; do
+    printf '=== selected stdlib file %s ===\n' "$path"
+    namei -l -- "$path"
+    stat -Lc 'file: type=%F uid=%u gid=%g mode=%a size=%s' -- "$path"
+    dpkg-query --search -- "$path"
+    sha256sum -- "$path"
+done
+
+if ! command -v readelf >/dev/null 2>&1; then
+    printf 'STOP: readelf unavailable; do not substitute ldd\n'
+    exit 1
+fi
+printf '=== direct ELF loader ===\n'
+readelf -lW -- "$target" | grep -F 'Requesting program interpreter:'
+printf '=== direct ELF needed libraries ===\n'
+readelf -dW -- "$target" | grep -F '(NEEDED)'
+printf 'STOP: Gate B1 metadata only; do not run Gate B2 yet.\n'
+ALERTMIND_SYSTEM_PY_PREFLIGHT
+```
+
+Return only Gate B1 output. The two stdlib files are **samples**, not a complete
+closure. `readelf` gives direct ELF declarations, not resolved/transitive
+loader input. Review B1 before any Python execution. The [dpkg manual](https://manpages.debian.org/testing/dpkg/dpkg.1.en.html)
+explicitly distinguishes `--verify` from a security verification; the
+[Linux `ldd` manual](https://man7.org/linux/man-pages/man1/ldd.1.html)
+warns against running it on an untrusted executable.
+
+## Gate B2 — held, unprivileged import-origin diagnostic
+
+**Do not run this block yet.** It is prepared for review after B1 passes. It
+will execute only the provisionally selected system Python as the unprivileged
+console user, with only three explicit environment values and `-I -S -B`;
+its script contains no guard, network or Wazuh call. The JSON would report
+version, flags, import finders, search paths and every module loaded after
+importing the guard's eighteen direct stdlib roots. It does not print
+environment values or module contents. Module origins are *self-reported
+diagnostic data*, not independent
+attestation of what the interpreter or linker executed.
+
+```bash
+(
+set -euo pipefail
+if [ "$(id -u)" -eq 0 ]; then
+    printf 'STOP: run B2 as the unprivileged console user, not root\n'
+    exit 1
+fi
+cd /
+if [ "$(readlink -e -- /usr/bin/python3)" != /usr/bin/python3.14 ]; then
+    printf 'STOP: system Python target changed since Gate B1\n'
+    exit 1
+fi
+actual=$(sha256sum -- /usr/bin/python3.14)
+actual=${actual%% *}
+if [ "$actual" != 52e0a13e60a981d8c4b6478be2ba5176f69da07948a056bf49cf6f077e30cb41 ]; then
+    printf 'STOP: system Python digest changed since Gate B1\n'
+    exit 1
+fi
+/usr/bin/env -i HOME=/nonexistent LC_ALL=C PATH=/usr/bin:/bin \
+    /usr/bin/timeout 30s /usr/bin/python3.14 -I -S -B - <<'ALERTMIND_IMPORT_ORIGINS'
+import sys
+startup_modules = len(sys.modules)
+import base64
+import binascii
+import contextlib
+import dataclasses
+import errno
+import grp
+import hashlib
+import json
+import os
+import pathlib
+import pwd
+import re
+import selectors
+import stat
+import subprocess
+import time
+import types
+
+flags = sys.flags
+required_flags = ('isolated', 'ignore_environment', 'no_site',
+                  'dont_write_bytecode')
+if (sys.platform != 'linux' or os.geteuid() == 0 or
+        sys.executable != '/usr/bin/python3.14' or
+        sys.version_info[:2] != (3, 14) or
+        any(getattr(flags, name, None) != 1 for name in required_flags)):
+    raise SystemExit('STOP: unexpected diagnostic Python launch')
+
+def finder_name(finder):
+    kind = finder if isinstance(finder, type) else type(finder)
+    return kind.__module__ + '.' + kind.__qualname__
+
+modules = []
+for name, module in sorted(sys.modules.items()):
+    spec = getattr(module, '__spec__', None)
+    modules.append({
+        'name': name,
+        'origin': getattr(spec, 'origin', None),
+        'file': getattr(module, '__file__', None),
+        'cached': getattr(module, '__cached__', None),
+    })
+
+print(json.dumps({
+    'scope': 'unprivileged diagnostic, not guard/runtime attestation',
+    'executable': sys.executable,
+    'version': list(sys.version_info[:3]),
+    'flags': {name: getattr(flags, name) for name in required_flags},
+    'startup_module_count': startup_modules,
+    'sys_path': sys.path,
+    'meta_path': [finder_name(finder) for finder in sys.meta_path],
+    'modules': modules,
+}, sort_keys=True, indent=2))
+ALERTMIND_IMPORT_ORIGINS
+printf 'STOP: Gate B2 diagnostic only; no guard authorization.\n'
+)
+```
+
+Passing B2 later would not prove root-run behavior, cached-bytecode integrity,
+dynamic-loader resolution, all function-local imports, package authenticity or
+an immutable future systemd environment. No guard deployment is authorized.
