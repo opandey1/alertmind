@@ -89,7 +89,8 @@ class FakeOS:
 def isolated_sys(**changes):
     values = dict(platform='linux', argv=[entry.ENTRY_PATH], path=['/usr/lib/python3.14'],
                   flags=NS(isolated=1, ignore_environment=1, no_site=1,
-                           dont_write_bytecode=1), stderr=StringIO())
+                           dont_write_bytecode=1), stderr=StringIO(),
+                  modules=sys.modules, meta_path=sys.meta_path)
     values.update(changes)
     return NS(**values)
 
@@ -328,13 +329,87 @@ class GuardEntryTests(unittest.TestCase):
                 entry._compile_verified_bundle((('operator_syntax.py', invalid),))
         self.assertTrue(caught.exception.__suppress_context__)
 
-    def test_public_entry_compiles_but_retains_permanent_nonzero_result(self):
+    def test_loader_executes_pinned_held_bytes_and_cleans_private_namespace(self):
+        fs = FakeOS()
+        with patch.object(entry, 'os', fs):
+            sources = entry._verify_bundle_at(10)
+        before_finders = tuple(sys.meta_path)
+        prefix = entry.HELD_PACKAGE
+        self.assertFalse(any(name == prefix or name.startswith(prefix + '.')
+                             for name in sys.modules))
+        with entry._loaded_verified_bundle(sources) as loaded:
+            self.assertEqual(len(loaded), len(entry.PINNED_MODULES) + 1)
+            self.assertEqual(loaded[prefix].__path__, ())
+            core = loaded[prefix + '.operator_core']
+            fs_module = loaded[prefix + '.operator_fs']
+            self.assertIs(fs_module.installed_checks, core.installed_checks)
+            self.assertIs(loaded[prefix].operator_fs, fs_module)
+            self.assertEqual(fs_module.__file__, '<alertmind-guard>/operator_fs.py')
+            self.assertIs(sys.modules[prefix + '.operator_fs'], fs_module)
+        self.assertFalse(any(name == prefix or name.startswith(prefix + '.')
+                             for name in sys.modules))
+        self.assertEqual(tuple(sys.meta_path), before_finders)
+
+    def test_loader_rejects_unlisted_private_import_before_ambient_finder(self):
+        raw = b'from . import operator_unlisted\n'
+        pin = ('operator_probe.py', len(raw), hashlib.sha256(raw).hexdigest())
+        ambient = Mock()
+        ambient.find_spec = Mock(side_effect=AssertionError('FALLBACK_USED'))
+        sys.meta_path.insert(0, ambient)
+        try:
+            with patch.object(entry, 'PINNED_MODULES', (pin,)), self.assertRaisesRegex(
+                    entry.GuardLaunchError, '^GUARD_LOAD$') as caught:
+                with entry._loaded_verified_bundle(((pin[0], raw),)):
+                    self.fail('unlisted private import reached the guard body')
+        finally:
+            sys.meta_path.remove(ambient)
+        ambient.find_spec.assert_not_called()
+        self.assertTrue(caught.exception.__suppress_context__)
+        self.assertFalse(any(name == entry.HELD_PACKAGE or
+                             name.startswith(entry.HELD_PACKAGE + '.') for name in sys.modules))
+
+    def test_loader_rejects_preexisting_private_module_without_deleting_it(self):
+        raw = b'VALUE = 17\n'
+        pin = ('operator_probe.py', len(raw), hashlib.sha256(raw).hexdigest())
+        sentinel = object()
+        name = entry.HELD_PACKAGE + '.preexisting'
+        sys.modules[name] = sentinel
+        try:
+            with patch.object(entry, 'PINNED_MODULES', (pin,)), self.assertRaisesRegex(
+                    entry.GuardLaunchError, '^GUARD_LOAD_COLLISION$'):
+                with entry._loaded_verified_bundle(((pin[0], raw),)):
+                    self.fail('collision reached the guard body')
+            self.assertIs(sys.modules[name], sentinel)
+        finally:
+            del sys.modules[name]
+
+    def test_loader_fails_closed_on_execution_and_namespace_drift(self):
+        cases = (b"raise SystemExit(0)\n",
+                 b"import sys; sys.modules['_alertmind_guard_held.extra'] = object()\n")
+        for raw in cases:
+            with self.subTest(raw=raw):
+                pin = ('operator_probe.py', len(raw), hashlib.sha256(raw).hexdigest())
+                before_finders = tuple(sys.meta_path)
+                with patch.object(entry, 'PINNED_MODULES', (pin,)), self.assertRaisesRegex(
+                        entry.GuardLaunchError, '^GUARD_LOAD$'):
+                    with entry._loaded_verified_bundle(((pin[0], raw),)):
+                        self.fail('failed module reached the guard body')
+                self.assertFalse(any(name == entry.HELD_PACKAGE or
+                                     name.startswith(entry.HELD_PACKAGE + '.')
+                                     for name in sys.modules))
+                self.assertEqual(tuple(sys.meta_path), before_finders)
+
+    def test_public_entry_does_not_execute_loader_and_remains_nonzero(self):
         fs = FakeOS()
         fake_sys = isolated_sys()
-        with patch.object(entry, 'os', fs), patch.object(entry, 'sys', fake_sys):
+        with patch.object(entry, 'os', fs), patch.object(entry, 'sys', fake_sys), patch.object(
+                entry, '_loaded_verified_bundle', side_effect=AssertionError('LOAD_CALLED')) as loader:
             self.assertEqual(entry.main(), 1)
+        loader.assert_not_called()
         self.assertEqual(fake_sys.stderr.getvalue(), 'GUARD_NOT_READY\n')
         self.assertEqual(fs.close.call_count, 25)
+        self.assertFalse(any(name == entry.HELD_PACKAGE or
+                             name.startswith(entry.HELD_PACKAGE + '.') for name in sys.modules))
 
     def test_bundle_rejects_later_name_or_metadata_drift(self):
         fs = FakeOS()
