@@ -154,6 +154,9 @@ The entrypoint itself does **not** call this loader; it only compiles and
 always exits nonzero. This is not a trusted interpreter/importer proof or a startup permit.
 No source bundle is installed and there is no systemd drop-in; do not deploy
 it alone.
+Four offline import-contract checks separately pin its direct Python import
+roots and call out deferred `pwd`/`grp` lookup. They do not establish trusted
+stdlib bytes or import origins; see the [runtime trust boundary](../../../docs/runbooks/rbac-guard-python-runtime-trust.md).
 The opt-in TLS fixture is **not** included in the CI badge's test count.
 
 ## Acceptance still blocked
