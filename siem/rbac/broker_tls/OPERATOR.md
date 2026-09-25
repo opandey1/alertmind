@@ -827,30 +827,35 @@ process-observation modules are excluded. A bounded `scandir` enumeration,
 no-follow/nonblocking descriptor opens, exact-length reads and post-read
 metadata checks reject additions, missing files, links, unsafe ownership,
 drift and byte changes. Python's [descriptor APIs](https://docs.python.org/3.10/library/os.html)
-support this candidate check. The verified bytes are retained in memory and
-compiled with a fixed synthetic filename, `dont_inherit=True` and `optimize=0`.
-Compilation does **not** import, register or execute the modules; the resulting
-code objects are immediately discarded. It demonstrates how a future loader
-could consume held bytes without reopening source paths; this entrypoint does
-not yet do that. Python's
-[`compile()` contract](https://docs.python.org/3.10/library/functions.html#compile)
-distinguishes compilation from execution. Only fixed diagnostic codes are
-emitted. Nineteen portable tests cover the entry, capsule and compile-only
-checks, including pin/relative-import closure, bounded reads, drift, cleanup,
-no module registration and the nonzero-only result. No VM or systemd command
-is executed by these tests.
+support this candidate check. The verified bytes are retained in memory,
+rechecked and compiled with a fixed synthetic filename, `dont_inherit=True`
+and `optimize=0`. An offline loader candidate executes those code objects in
+dependency order under the private `_alertmind_guard_held` package; it does
+not reopen project source paths. The temporary package has no filesystem
+search path, an early finder rejects unknown private-module imports, and a
+pre-existing private namespace or post-execution namespace/finder drift fails
+closed. The loader removes its private modules and finder even after an
+exception. Python's [`compile()` contract](https://docs.python.org/3.10/library/functions.html#compile)
+and [import system](https://docs.python.org/3.10/reference/import.html)
+distinguish byte compilation, module execution, `sys.modules` and finders.
+Only fixed diagnostic codes are emitted. Twenty-three portable tests cover
+the entry, capsule, held-code loading, relative imports, unknown-import
+denial, collision/drift cleanup and the nonzero-only result. No VM or systemd
+command is executed by these tests.
 
 **There is deliberately no success path:** even if all entry checks pass, it
 prints `GUARD_NOT_READY` and exits 1. The capsule is a source-level contract,
-not installed files; there is no verified-byte **loader**, guard decision,
-drop-in, installer or start permission. A Python script cannot authenticate
+not installed files; this loader is an offline candidate, not a verified
+production importer, guard decision, drop-in, installer or start permission.
+A Python script cannot authenticate
 itself before the interpreter has already read and executed its first lines;
-the after-load metadata check is a tripwire, not a trust anchor. The future
-loader must execute only the held code objects under reviewed import isolation;
-Python's [import machinery](https://docs.python.org/3.10/reference/import.html)
-otherwise consults `sys.modules` and finders that this candidate has not
-constrained. Compiler audit hooks and the interpreter/stdlib are also outside
-this module's trust proof. The future
+the after-load metadata check is a tripwire, not a trust anchor. The private
+package prevents path fallback for its own relative module names, but is not
+a sandbox or proof that ambient standard-library modules, import finders,
+compiler audit hooks, interpreter and startup environment are trusted. It
+also cannot prevent pinned executed code itself from using arbitrary ambient
+imports or mutating process state; integrity pins require independent review
+of those bytes. The future
 reviewed installation must establish root-controlled file provenance and
 interpreter/stdlib trust *before* use, then make the exact guard failure block
 the Dashboard `ExecStart`. The [systemd v257 service contract](https://raw.githubusercontent.com/systemd/systemd/v257/man/systemd.service.xml)

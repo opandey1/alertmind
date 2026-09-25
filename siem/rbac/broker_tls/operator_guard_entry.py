@@ -9,7 +9,7 @@ Post-load metadata checks cannot authenticate code that Python already read.
 The service unit, interpreter, standard library and installation transaction
 must be trusted and reviewed before this entrypoint can form a real guard.
 """
-from contextlib import ExitStack
+from contextlib import ExitStack, contextmanager
 import hashlib
 import os
 import stat
@@ -38,6 +38,7 @@ PINNED_MODULES = (
     ('operator_import_sites.py', 6425, '716a3a2b12ac26d99241b1e16716d5315e8dda5897482e3e76715ff7415534a8'),
     ('operator_file_set.py', 8964, 'f6819927f88de7030b47d5e2fdee690f514fda82e42b0a16326431a2e334f180'),
 )
+HELD_PACKAGE = '_alertmind_guard_held'
 
 
 class GuardLaunchError(Exception):
@@ -204,12 +205,7 @@ def _verify_bundle_at(root_fd):
 
 
 def _compile_verified_bundle(sources):
-    """Compile exact held bytes without executing or registering any module.
-
-    The code objects are discarded by the current entrypoint. A future loader
-    must use these objects rather than reopening a path and must independently
-    establish interpreter/stdlib and import-system trust before execution.
-    """
+    """Compile exact held bytes without reopening a path or executing them."""
     _require(type(sources) is tuple and len(sources) == len(PINNED_MODULES),
              'GUARD_COMPILE_SET')
     compiled = []
@@ -229,6 +225,66 @@ def _compile_verified_bundle(sources):
     return tuple(compiled)
 
 
+class _DenyHeldFallback:
+    """Never resolve an unregistered private module through ambient finders."""
+
+    def find_spec(self, fullname, path=None, target=None):
+        if fullname == HELD_PACKAGE or fullname.startswith(HELD_PACKAGE + '.'):
+            raise ImportError('GUARD_IMPORT_DENIED')
+        return None
+
+
+@contextmanager
+def _loaded_verified_bundle(sources):
+    """Execute only held, rechecked bytes in a temporary private namespace.
+
+    This is an offline loader candidate, not an interpreter/stdlib trust proof
+    or a sandbox. The entrypoint still refuses startup after this returns.
+    """
+    compiled = _compile_verified_bundle(sources)
+    # Import types only after the entry and descriptor checks in _check_entry.
+    from types import ModuleType
+
+    prefix = HELD_PACKAGE + '.'
+    _require(not any(name == HELD_PACKAGE or name.startswith(prefix)
+                     for name in sys.modules), 'GUARD_LOAD_COLLISION')
+    original_finders = tuple(sys.meta_path)
+    finder = _DenyHeldFallback()
+    loaded = {}
+    try:
+        sys.meta_path.insert(0, finder)
+        package = ModuleType(HELD_PACKAGE)
+        package.__path__ = ()  # No filesystem search location.
+        package.__package__ = HELD_PACKAGE
+        loaded[HELD_PACKAGE] = package
+        sys.modules[HELD_PACKAGE] = package
+        for name, code in compiled:
+            stem = name[:-3]
+            fullname = prefix + stem
+            module = ModuleType(fullname)
+            module.__package__ = HELD_PACKAGE
+            module.__file__ = code.co_filename
+            loaded[fullname] = module
+            sys.modules[fullname] = module
+            setattr(package, stem, module)
+            exec(code, module.__dict__)
+            _require(sys.modules.get(HELD_PACKAGE) is package and
+                     sys.modules.get(fullname) is module and
+                     tuple(sys.meta_path) == (finder,) + original_finders and
+                     all(sys.modules.get(key) is value for key, value in loaded.items()) and
+                     not any(key.startswith(prefix) and key not in loaded
+                             for key in sys.modules), 'GUARD_LOAD_DRIFT')
+        yield loaded
+    except BaseException:
+        raise GuardLaunchError('GUARD_LOAD') from None
+    finally:
+        # The private prefix was empty on entry; leave no half-loaded modules.
+        for name in tuple(sys.modules):
+            if name == HELD_PACKAGE or name.startswith(prefix):
+                del sys.modules[name]
+        sys.meta_path[:] = original_finders
+
+
 def _check_entry():
     _check_isolation()
     try:
@@ -236,7 +292,8 @@ def _check_entry():
                      os.O_NOFOLLOW | os.O_CLOEXEC)
         try:
             _check_entry_at(fd)
-            _compile_verified_bundle(_verify_bundle_at(fd))
+            with _loaded_verified_bundle(_verify_bundle_at(fd)):
+                pass
         finally:
             os.close(fd)
     except OSError:
