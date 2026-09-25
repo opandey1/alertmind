@@ -99,6 +99,50 @@ class GuardPythonImportContractTests(unittest.TestCase):
             self.assertIsNone(re.search(r'(?m)^\s*(?:/usr/bin/)?' +
                                         re.escape(executable) + r'(?:\s|$)', block))
 
+    def test_c2_embedded_diagnostic_matches_b2_roots_and_sorted_origins(self):
+        runbook = (ROOT / 'docs' / 'runbooks' /
+                   'rbac-guard-python-runtime-trust.md').read_text(encoding='utf-8')
+        c1_marker = "mapfile -t origins <<'ALERTMIND_B2_FILE_ORIGINS'\n"
+        c1_paths = runbook.split(c1_marker, 1)[1].split(
+            '\nALERTMIND_B2_FILE_ORIGINS', 1)[0].splitlines()
+        sorted_digest = hashlib.sha256(
+            ('\n'.join(sorted(c1_paths)) + '\n').encode('utf-8')).hexdigest()
+        self.assertEqual(sorted_digest,
+                         '41fe4f2680be2f097dcfd240ab15f6334957a629d822533212821364c5aacfeb')
+        marker = "<<'ALERTMIND_CACHE_LOADER_C2'\n"
+        self.assertEqual(runbook.count(marker), 1)
+        source = runbook.split(marker, 1)[1].split(
+            '\nALERTMIND_CACHE_LOADER_C2', 1)[0]
+        tree = ast.parse(source)
+        imports = {alias.name.split('.', 1)[0]
+                   for node in tree.body if isinstance(node, ast.Import)
+                   for alias in node.names}
+        self.assertEqual(imports, ALL_DIRECT_ROOTS)
+        self.assertIn(sorted_digest, source)
+        self.assertIn("open('/proc/self/maps'", source)
+        self.assertIn("sys.pycache_prefix != prefix", source)
+        self.assertIn("stat.S_ISCHR(device.st_mode)", source)
+        self.assertIn("path.startswith(prefix + '/')", source)
+
+    def test_c2_shell_is_unprivileged_read_only_and_stops_after_diagnostic(self):
+        runbook = (ROOT / 'docs' / 'runbooks' /
+                   'rbac-guard-python-runtime-trust.md').read_text(encoding='utf-8')
+        marker = "<<'ALERTMIND_CACHE_LOADER_C2'\n"
+        block = runbook.split('## Gate C2 — ', 1)[1].split('\n```bash\n', 1)[1]
+        block = block.split('\n```', 1)[0]
+        self.assertEqual(block.count(marker), 1)
+        self.assertIn('if [ "$(id -u)" -eq 0 ]; then', block)
+        self.assertIn('if [ -e /usr/lib/python314.zip ] || [ -L /usr/lib/python314.zip ]; then',
+                      block)
+        self.assertIn('/usr/bin/env -i HOME=/nonexistent LC_ALL=C PATH=/usr/bin:/bin', block)
+        self.assertIn('/usr/bin/timeout 30s /usr/bin/python3.14 -I -S -B', block)
+        self.assertIn('-X pycache_prefix=/dev/null/alertmind-c2 -', block)
+        self.assertIn('no guard or root-run Python authorization', block)
+        for executable in ('sudo', 'systemctl', 'curl', 'wget', 'ldd',
+                           'apt-get', 'dpkg --configure', 'strace'):
+            self.assertIsNone(re.search(r'(?m)^\s*(?:/usr/bin/)?' +
+                                        re.escape(executable) + r'(?:\s|$)', block))
+
     def test_exact_direct_absolute_imports_per_pinned_module(self):
         self.assertEqual(set(DIRECT_ROOTS),
                          {name for name, _, _ in entry.PINNED_MODULES})

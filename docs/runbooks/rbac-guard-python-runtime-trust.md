@@ -1,9 +1,9 @@
 # Guard Python runtime trust — offline inventory boundary
 
 Status: **not selected, not installed, not approved for startup**. Gates A,
-B1 and B2 below are completed owner-reported diagnostics. Gate C1 is the next
-read-only, metadata-only inventory; none authorizes the dormant held-code
-loader or a Dashboard change.
+B1, B2 and C1 below are completed owner-reported diagnostics. Gate C2 is the
+next read-only, unprivileged runtime diagnostic; none authorizes the dormant
+held-code loader or a Dashboard change.
 
 The 13 source files in the proposed pre-start capsule have an exact, CI-checked
 direct-import contract. Their module bodies import these 16 standard-library
@@ -515,3 +515,175 @@ mode bits, loaded bytecode versus reported cache paths, resolved/transitive
 ELF dependencies, package signatures, atomicity across the many reads,
 root-run behavior, future updates or
 the guard decision. Do not install or invoke the guard.
+
+### C1 owner observations (25 September 2026)
+
+The owner reported `PASS C1 metadata: origins=50 cache_present=49
+cache_absent=0` and `ORIGIN_MANIFEST_SHA256
+6625b3d3dd24b51ceb4f4396d3eb21eada5fa2a7f87e8951cc3b7ceaded61c1d`.
+The 50 origin records were recomputed into that manifest from the reported
+lines. `_hashlib` declared `libcrypto.so.3` and `libc.so.6` as direct ELF
+dependencies; no `RPATH`/`RUNPATH` entry was reported. This is owner-supplied
+host metadata. The 49 present `.pyc` files were *not* established as the
+bytecode actually loaded or equivalent to their source. Do not rerun C1,
+delete caches, or treat local dpkg drift checks as package authenticity.
+
+## Gate C2 — unprivileged cache-redirection and mapped-file diagnostic
+
+Run this block **only on the VM console as `notroot`**, after reviewing it,
+with Snapshot 1 available, a stable VM, stopped AlertMind apps, and no
+concurrent updates/configuration work. C2 is read-only; it neither runs the
+guard nor changes a file, role, service or package. It rechecks the pinned
+interpreter before launching a fresh, unprivileged Python process under an
+empty inherited environment and `-I -S -B`. `-X
+pycache_prefix=/dev/null/alertmind-c2` points Python's cache lookup at a
+path that cannot be traversed because `/dev/null` is a character device;
+`-B` prevents cache writes. Python [documents that a non-`None`
+`sys.pycache_prefix` redirects cache **reads and writes** away from source-tree
+`__pycache__` directories](https://docs.python.org/3.14/library/sys.html#sys.pycache_prefix).
+The command checks the reported prefix and all 49 source-backed cache
+candidates, then imports the same 18 direct roots as B2. It reports only the
+unique absolute pathname fields from `/proc/self/maps`, which [describes
+currently mapped memory regions](https://man7.org/linux/man-pages/man5/proc_pid_maps.5.html),
+not future loads or package authenticity. Unexpected mapped paths are not
+printed; the script stops with their SHA-256 instead.
+
+This diagnostic tests the intended *cache-bypass launch shape*, but its
+in-process checks and mapped-file report are still observations from the
+interpreter being assessed. They do not independently attest its startup,
+prove all transitive/native loads, or authorize root-run use. No `ldd`,
+`LD_TRACE_LOADED_OBJECTS`, `strace`, root-run Python or guard invocation is
+part of this block. The C2 origin-path digest below uses **lexicographic
+order**, unlike C1's ordered B2 path list, so its expected value is distinct.
+C2 does not rehash the 50 source/extension files or the 49 existing caches;
+their byte stability since C1 remains unproven.
+
+```bash
+(
+set -euo pipefail
+export LC_ALL=C
+cd /
+if [ "$(id -u)" -eq 0 ]; then
+    printf 'STOP: Gate C2 must run as the unprivileged console user\n'
+    exit 1
+fi
+if [ "$(readlink -e -- /usr/bin/python3)" != /usr/bin/python3.14 ]; then
+    printf 'STOP: Gate C2 interpreter target drift\n'
+    exit 1
+fi
+binary_hash=$(sha256sum -- /usr/bin/python3.14)
+if [ "${binary_hash%% *}" != 52e0a13e60a981d8c4b6478be2ba5176f69da07948a056bf49cf6f077e30cb41 ]; then
+    printf 'STOP: Gate C2 interpreter digest drift\n'
+    exit 1
+fi
+if [ -e /usr/lib/python314.zip ] || [ -L /usr/lib/python314.zip ]; then
+    printf 'STOP: Gate C2 zip search-path candidate appeared\n'
+    exit 1
+fi
+if /usr/bin/env -i HOME=/nonexistent LC_ALL=C PATH=/usr/bin:/bin \
+    /usr/bin/timeout 30s /usr/bin/python3.14 -I -S -B \
+    -X pycache_prefix=/dev/null/alertmind-c2 - <<'ALERTMIND_CACHE_LOADER_C2'
+import base64
+import binascii
+import contextlib
+import dataclasses
+import errno
+import grp
+import hashlib
+import json
+import os
+import pathlib
+import pwd
+import re
+import selectors
+import stat
+import subprocess
+import sys
+import time
+import types
+
+def stop(message):
+    raise SystemExit('STOP: Gate C2 ' + message)
+
+prefix = '/dev/null/alertmind-c2'
+flags = sys.flags
+if (sys.platform != 'linux' or os.geteuid() == 0 or
+        sys.executable != '/usr/bin/python3.14' or
+        sys.version_info[:3] != (3, 14, 4) or
+        any(getattr(flags, name, None) != 1 for name in
+            ('isolated', 'ignore_environment', 'no_site', 'dont_write_bytecode')) or
+        sys.pycache_prefix != prefix):
+    stop('unexpected unprivileged Python launch')
+device = os.stat('/dev/null')
+if not stat.S_ISCHR(device.st_mode) or os.path.lexists(prefix):
+    stop('cache prefix is traversable or /dev/null is not a character device')
+if sys.path != ['/usr/lib/python314.zip', '/usr/lib/python3.14',
+                '/usr/lib/python3.14/lib-dynload']:
+    stop('search path differs from B2')
+
+origins = set()
+source_caches = []
+for module in sys.modules.values():
+    spec = getattr(module, '__spec__', None)
+    origin = getattr(spec, 'origin', None)
+    if not isinstance(origin, str) or not origin.startswith('/'):
+        continue
+    if not origin.startswith('/usr/lib/python3.14/'):
+        stop('unexpected origin path digest=' +
+             hashlib.sha256(origin.encode()).hexdigest())
+    origins.add(origin)
+    if origin.endswith('.py'):
+        source_caches.append(getattr(spec, 'cached', None))
+if len(origins) != 50 or len(source_caches) != 49:
+    stop('origin or source-cache count differs from B2/C1')
+if any(not isinstance(path, str) or not path.startswith(prefix + '/')
+       for path in source_caches):
+    stop('a source-backed cache path is outside the redirected prefix')
+origin_manifest = hashlib.sha256(
+    ('\n'.join(sorted(origins)) + '\n').encode()).hexdigest()
+if origin_manifest != '41fe4f2680be2f097dcfd240ab15f6334957a629d822533212821364c5aacfeb':
+    stop('sorted origin path-list digest differs from B2/C1')
+
+mapped = set()
+with open('/proc/self/maps', encoding='utf-8') as stream:
+    for line in stream:
+        fields = line.rstrip('\n').split(None, 5)
+        if len(fields) < 6 or not fields[5].startswith('/'):
+            continue
+        path = fields[5]
+        if (path.endswith(' (deleted)') or len(path) > 512 or
+                not path.startswith(('/usr/', '/lib/', '/lib64/'))):
+            stop('unexpected mapped pathname digest=' +
+                 hashlib.sha256(path.encode()).hexdigest())
+        mapped.add(path)
+if ('/usr/bin/python3.14' not in mapped or
+        '/usr/lib/python3.14/lib-dynload/_hashlib.cpython-314-x86_64-linux-gnu.so'
+        not in mapped or not any(path.endswith('/libcrypto.so.3') for path in mapped)):
+    stop('expected interpreter, _hashlib or libcrypto mapping absent')
+if len(mapped) > 64:
+    stop('mapped-path count exceeds diagnostic cap')
+
+print('C2_ORIGIN_PATHS_SHA256 ' + origin_manifest)
+for path in sorted(mapped):
+    print('C2_MAPPED ' + path)
+print(f'PASS C2 diagnostic: source_cache_candidates={len(source_caches)} '
+      f'mapped_files={len(mapped)} prefix=/dev/null/alertmind-c2')
+ALERTMIND_CACHE_LOADER_C2
+then
+    printf 'STOP: Gate C2 diagnostic only; no guard or root-run Python authorization.\n'
+else
+    status=$?
+    printf 'STOP: Gate C2 diagnostic failed (exit=%s); do not retry with altered flags.\n' "$status"
+    exit 1
+fi
+)
+```
+
+Return the complete `C2_MAPPED` list, the origin-path digest, `PASS` and
+final `STOP` lines. If the diagnostic fails, send only the STOP/error without
+retrying or repairing the host. **Do not run it as root** and do not start,
+install or wire the guard into the Dashboard service. The mapped paths still
+need an independent, bounded host metadata and package-ownership review
+before any root-run decision. A later launch policy must externally pin the
+interpreter, flags, empty environment, cache redirection and all relevant
+loader inputs; the diagnostic cannot substitute for that policy.
