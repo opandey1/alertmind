@@ -829,23 +829,26 @@ metadata checks reject additions, missing files, links, unsafe ownership,
 drift and byte changes. Python's [descriptor APIs](https://docs.python.org/3.10/library/os.html)
 support this candidate check. The verified bytes are retained in memory,
 rechecked and compiled with a fixed synthetic filename, `dont_inherit=True`
-and `optimize=0`. An offline loader candidate executes those code objects in
-dependency order under the private `_alertmind_guard_held` package; it does
-not reopen project source paths. The temporary package has no filesystem
+and `optimize=0`. A separately callable offline loader candidate is exercised
+by tests using those code objects in dependency order under the private
+`_alertmind_guard_held` package; it does not reopen project source paths.
+**The guard entrypoint does not call the loader**: it only compiles the bytes
+and returns nonzero until interpreter/stdlib/import-system trust is reviewed.
+The temporary package has no filesystem
 search path, an early finder rejects unknown private-module imports, and a
 pre-existing private namespace or post-execution namespace/finder drift fails
 closed. The loader removes its private modules and finder even after an
 exception. Python's [`compile()` contract](https://docs.python.org/3.10/library/functions.html#compile)
 and [import system](https://docs.python.org/3.10/reference/import.html)
 distinguish byte compilation, module execution, `sys.modules` and finders.
-Only fixed diagnostic codes are emitted. Twenty-three portable tests cover
-the entry, capsule, held-code loading, relative imports, unknown-import
+Only fixed diagnostic codes are emitted by the entrypoint. Twenty-three
+portable tests cover the entry, capsule, offline held-code loading, relative imports, unknown-import
 denial, collision/drift cleanup and the nonzero-only result. No VM or systemd
 command is executed by these tests.
 
 **There is deliberately no success path:** even if all entry checks pass, it
 prints `GUARD_NOT_READY` and exits 1. The capsule is a source-level contract,
-not installed files; this loader is an offline candidate, not a verified
+not installed files; this dormant loader is an offline candidate, not a verified
 production importer, guard decision, drop-in, installer or start permission.
 A Python script cannot authenticate
 itself before the interpreter has already read and executed its first lines;

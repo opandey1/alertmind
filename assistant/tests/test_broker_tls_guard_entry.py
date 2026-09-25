@@ -399,11 +399,13 @@ class GuardEntryTests(unittest.TestCase):
                                      for name in sys.modules))
                 self.assertEqual(tuple(sys.meta_path), before_finders)
 
-    def test_public_entry_loads_but_retains_permanent_nonzero_result(self):
+    def test_public_entry_does_not_execute_loader_and_remains_nonzero(self):
         fs = FakeOS()
         fake_sys = isolated_sys()
-        with patch.object(entry, 'os', fs), patch.object(entry, 'sys', fake_sys):
+        with patch.object(entry, 'os', fs), patch.object(entry, 'sys', fake_sys), patch.object(
+                entry, '_loaded_verified_bundle', side_effect=AssertionError('LOAD_CALLED')) as loader:
             self.assertEqual(entry.main(), 1)
+        loader.assert_not_called()
         self.assertEqual(fake_sys.stderr.getvalue(), 'GUARD_NOT_READY\n')
         self.assertEqual(fs.close.call_count, 25)
         self.assertFalse(any(name == entry.HELD_PACKAGE or

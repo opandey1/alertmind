@@ -238,8 +238,9 @@ class _DenyHeldFallback:
 def _loaded_verified_bundle(sources):
     """Execute only held, rechecked bytes in a temporary private namespace.
 
-    This is an offline loader candidate, not an interpreter/stdlib trust proof
-    or a sandbox. The entrypoint still refuses startup after this returns.
+    This offline candidate is not called by the entrypoint: interpreter,
+    standard-library and import-path trust must be established first. It is
+    neither a sandbox nor a startup decision.
     """
     compiled = _compile_verified_bundle(sources)
     # Import types only after the entry and descriptor checks in _check_entry.
@@ -292,8 +293,9 @@ def _check_entry():
                      os.O_NOFOLLOW | os.O_CLOEXEC)
         try:
             _check_entry_at(fd)
-            with _loaded_verified_bundle(_verify_bundle_at(fd)):
-                pass
+            # Keep execution disabled until the interpreter, stdlib and import
+            # system are independently trusted. The tested loader is dormant.
+            _compile_verified_bundle(_verify_bundle_at(fd))
         finally:
             os.close(fd)
     except OSError:
