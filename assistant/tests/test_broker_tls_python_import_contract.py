@@ -4,7 +4,9 @@ This does not authenticate an interpreter, stdlib, transitive import, or the
 module objects already present in a running Python process.
 """
 import ast
+import hashlib
 from pathlib import Path
+import re
 import sys
 import unittest
 
@@ -48,6 +50,55 @@ def _trees():
 
 
 class GuardPythonImportContractTests(unittest.TestCase):
+    def test_documented_diagnostic_imports_all_direct_roots(self):
+        runbook = (ROOT / 'docs' / 'runbooks' /
+                   'rbac-guard-python-runtime-trust.md').read_text(encoding='utf-8')
+        marker = "<<'ALERTMIND_IMPORT_ORIGINS'\n"
+        self.assertEqual(runbook.count(marker), 1)
+        source = runbook.split(marker, 1)[1].split('\nALERTMIND_IMPORT_ORIGINS', 1)[0]
+        tree = ast.parse(source)
+        imports = {alias.name.split('.', 1)[0]
+                   for node in tree.body if isinstance(node, ast.Import)
+                   for alias in node.names}
+        self.assertEqual(imports, ALL_DIRECT_ROOTS)
+
+    def test_c1_origin_manifest_matches_reviewed_b2_path_set(self):
+        runbook = (ROOT / 'docs' / 'runbooks' /
+                   'rbac-guard-python-runtime-trust.md').read_text(encoding='utf-8')
+        marker = "mapfile -t origins <<'ALERTMIND_B2_FILE_ORIGINS'\n"
+        self.assertEqual(runbook.count(marker), 1)
+        text = runbook.split(marker, 1)[1].split('\nALERTMIND_B2_FILE_ORIGINS', 1)[0]
+        paths = text.splitlines()
+        self.assertEqual(len(paths), 50)
+        self.assertEqual(len(set(paths)), 50)
+        self.assertEqual(paths[0],
+                         '/usr/lib/python3.14/lib-dynload/_hashlib.cpython-314-x86_64-linux-gnu.so')
+        self.assertTrue(all(path.startswith('/usr/lib/python3.14/') for path in paths))
+        self.assertEqual(len([path for path in paths if path.endswith('.py')]), 49)
+        self.assertEqual(len([path for path in paths if path.endswith('.so')]), 1)
+        digest = hashlib.sha256((text + '\n').encode('utf-8')).hexdigest()
+        self.assertEqual(digest,
+                         '0648932e6294710318bba50f9c829327a7f1fff3be030606174fd44822c06497')
+        self.assertIn(digest, runbook)
+
+    def test_c1_remains_a_metadata_only_stop_gate(self):
+        runbook = (ROOT / 'docs' / 'runbooks' /
+                   'rbac-guard-python-runtime-trust.md').read_text(encoding='utf-8')
+        marker = "sudo bash <<'ALERTMIND_PYTHON_ORIGIN_C1'\n"
+        self.assertEqual(runbook.count(marker), 1)
+        block = runbook.split(marker, 1)[1].split('\nALERTMIND_PYTHON_ORIGIN_C1', 1)[0]
+        self.assertIn('set -euo pipefail', block)
+        self.assertIn('readlink -e -- /usr/bin/python3', block)
+        self.assertIn('check_chain "$path"', block)
+        self.assertIn('dpkg-query --search -- "$path"', block)
+        self.assertIn('cache_present=', block)
+        self.assertIn('cache_absent=', block)
+        self.assertIn('no guard or root-run Python authorization', block)
+        for executable in ('python3.14', 'systemctl', 'curl', 'wget', 'ldd',
+                           'apt-get', 'dpkg --configure'):
+            self.assertIsNone(re.search(r'(?m)^\s*(?:/usr/bin/)?' +
+                                        re.escape(executable) + r'(?:\s|$)', block))
+
     def test_exact_direct_absolute_imports_per_pinned_module(self):
         self.assertEqual(set(DIRECT_ROOTS),
                          {name for name, _, _ in entry.PINNED_MODULES})
