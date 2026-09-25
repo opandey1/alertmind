@@ -867,6 +867,19 @@ no such command is configured here. Do not deploy this entrypoint alone: it
 would intentionally prevent Dashboard startup. This also does not solve
 service-mutable vendor-code changes after a pre-start check.
 
+### Python import contract — offline, not runtime attestation
+
+Four additional CI methods pin the direct absolute-import roots of each of
+the thirteen proposed capsule sources, check relative imports remain in
+dependency order, and reject recognized dynamic-import/execution call forms.
+The module bodies have sixteen direct standard-library roots; the later
+`operator_fs._identity()` path adds `pwd` and `grp`, for eighteen direct roots
+in the possible guard call path. This catches source-contract drift, not
+transitive imports, selected file origins, C extensions or a compromised
+interpreter. The exact roots and outstanding external checks are in the
+[Python runtime trust runbook](../../../docs/runbooks/rbac-guard-python-runtime-trust.md).
+The loader remains dormant and the entrypoint still exits 1.
+
 ## Required next adapter package — not released here
 
 1. Establish selected packaged Linux runtime and real Server certificate
