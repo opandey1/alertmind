@@ -878,7 +878,9 @@ in the possible guard call path. This catches source-contract drift, not
 transitive imports, selected file origins, C extensions or a compromised
 interpreter. The exact roots and outstanding external checks are in the
 [Python runtime trust runbook](../../../docs/runbooks/rbac-guard-python-runtime-trust.md).
-The loader remains dormant and the entrypoint still exits 1.
+That runbook now includes a metadata-only, owner-executed VM inventory of two
+fixed interpreter candidates. It selects or executes neither and cannot prove
+runtime trust. The loader remains dormant and the entrypoint still exits 1.
 
 ## Required next adapter package — not released here
 

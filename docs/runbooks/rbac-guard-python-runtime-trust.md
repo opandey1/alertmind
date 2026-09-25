@@ -1,8 +1,9 @@
 # Guard Python runtime trust — offline inventory boundary
 
 Status: **not selected, not installed, not approved for startup**. This records
-the next evidence required for the dormant held-code loader; it does not ask
-for a VM command or authorize a Dashboard change.
+the next evidence required for the dormant held-code loader. The metadata-only
+candidate inventory below asks for one owner-executed VM command; it does not
+authorize interpreter execution or a Dashboard change.
 
 The 13 source files in the proposed pre-start capsule have an exact, CI-checked
 direct-import contract. Their module bodies import these 16 standard-library
@@ -44,3 +45,70 @@ uses cached modules and finders; these also need review. Until the above is
 accepted, `operator_guard_entry.py` must continue to **compile only**, exit 1,
 and remain absent from the Dashboard service. Human `socanalyst` and broker
 acceptance remain separate later gates.
+
+## Gate A — metadata-only host candidate inventory
+
+Run this **on the Wazuh VM console**, only with Snapshot 1 available, a stable
+VM, all AlertMind apps stopped, and no simultaneous update/configuration work.
+It reads two fixed candidate paths: the historical Wazuh-packaged Python and
+the Ubuntu system Python. Neither is selected by this packet. Do not paste
+credentials or raw configuration. Do not use an SSH tunnel for this step.
+
+The block invokes `bash`, `readlink`, `namei`, `stat`, `sha256sum` and
+`dpkg-query`; it **never invokes either Python candidate**, imports modules,
+opens a network connection, writes a file, or changes a service. Its command
+toolchain and package registry are host observations, not independent trust
+anchors. If any command fails unexpectedly, stop and send the sanitized error
+without changing permissions or choosing a different interpreter.
+
+```bash
+sudo bash <<'ALERTMIND_PYTHON_INVENTORY'
+set -eu
+export LC_ALL=C
+
+for candidate in /var/ossec/framework/python/bin/python3 /usr/bin/python3; do
+    printf '\n=== candidate %s ===\n' "$candidate"
+    if [ ! -e "$candidate" ] && [ ! -L "$candidate" ]; then
+        printf 'ABSENT: fixed candidate path\n'
+        continue
+    fi
+    if ! resolved=$(readlink -e -- "$candidate"); then
+        printf 'STOP: candidate path does not resolve cleanly\n'
+        exit 1
+    fi
+    if [ ! -f "$resolved" ]; then
+        printf 'STOP: resolved target is not a regular file\n'
+        exit 1
+    fi
+    printf 'resolved=%s\n' "$resolved"
+    namei -l -- "$candidate"
+    stat -c 'entry: type=%F uid=%u gid=%g mode=%a size=%s mtime=%y' -- "$candidate"
+    stat -Lc 'target: type=%F uid=%u gid=%g mode=%a size=%s mtime=%y' -- "$candidate"
+    sha256sum -- "$resolved"
+    printf 'package ownership for entry:\n'
+    if ! dpkg-query --search -- "$candidate"; then
+        printf 'NOT LISTED in dpkg file ownership database\n'
+    fi
+    printf 'package ownership for resolved target:\n'
+    if ! dpkg-query --search -- "$resolved"; then
+        printf 'NOT LISTED in dpkg file ownership database\n'
+    fi
+done
+
+printf '\n=== installed package identities ===\n'
+for package in wazuh-manager python3 python3-minimal python3.14-minimal; do
+    if ! dpkg-query --show --showformat='${Package}\t${Version}\t${Status}\n' "$package"; then
+        printf 'NOT LISTED: %s\n' "$package"
+    fi
+done
+printf 'STOP: metadata-only candidate inventory complete; no Python executed.\n'
+ALERTMIND_PYTHON_INVENTORY
+```
+
+Return only the output of this block. Public path metadata, package names and
+binary digests are sufficient; no package archive, stdlib file contents,
+environment values, tokens, passwords or private keys are requested. The
+inventory is **not** runtime approval. After review, choose one candidate and
+design a separate, bounded provenance/import-origin test for that exact
+runtime; do not wire `_loaded_verified_bundle` or install the guard on the
+strength of this output.
