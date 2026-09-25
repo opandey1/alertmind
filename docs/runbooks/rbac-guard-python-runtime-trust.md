@@ -58,8 +58,10 @@ The block invokes `bash`, `readlink`, `namei`, `stat`, `sha256sum` and
 `dpkg-query`; it **never invokes either Python candidate**, imports modules,
 opens a network connection, writes a file, or changes a service. Its command
 toolchain and package registry are host observations, not independent trust
-anchors. If any command fails unexpectedly, stop and send the sanitized error
-without changing permissions or choosing a different interpreter.
+anchors. A nonzero dpkg lookup is reported as unresolved, **not** as proof that
+a package or owner is absent. If any other command fails unexpectedly, stop and
+send the sanitized error without changing permissions or choosing a different
+interpreter.
 
 ```bash
 sudo bash <<'ALERTMIND_PYTHON_INVENTORY'
@@ -87,18 +89,18 @@ for candidate in /var/ossec/framework/python/bin/python3 /usr/bin/python3; do
     sha256sum -- "$resolved"
     printf 'package ownership for entry:\n'
     if ! dpkg-query --search -- "$candidate"; then
-        printf 'NOT LISTED in dpkg file ownership database\n'
+        printf 'UNRESOLVED: no successful dpkg ownership lookup\n'
     fi
     printf 'package ownership for resolved target:\n'
     if ! dpkg-query --search -- "$resolved"; then
-        printf 'NOT LISTED in dpkg file ownership database\n'
+        printf 'UNRESOLVED: no successful dpkg ownership lookup\n'
     fi
 done
 
 printf '\n=== installed package identities ===\n'
 for package in wazuh-manager python3 python3-minimal python3.14-minimal; do
     if ! dpkg-query --show --showformat='${Package}\t${Version}\t${Status}\n' "$package"; then
-        printf 'NOT LISTED: %s\n' "$package"
+        printf 'UNRESOLVED: package identity lookup for %s\n' "$package"
     fi
 done
 printf 'STOP: metadata-only candidate inventory complete; no Python executed.\n'
