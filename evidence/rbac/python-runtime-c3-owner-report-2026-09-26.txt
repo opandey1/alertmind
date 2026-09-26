@@ -1,0 +1,35 @@
+PASS fixed C2 path list: count=9 sha256=0b112d9d770034238714593a83cc70c81cf232c2c7601d917e736b28e452e9ba
+FILE 00 sha256=52e0a13e60a981d8c4b6478be2ba5176f69da07948a056bf49cf6f077e30cb41 bytes=7477160 package=python3.14-minimal version=3.14.4-1ubuntu0.2 path=/usr/bin/python3.14
+ELF 00 NEEDED libm.so.6
+ELF 00 NEEDED libz.so.1
+ELF 00 NEEDED libexpat.so.1
+ELF 00 NEEDED libc.so.6
+FILE 01 sha256=f57bc22cc1b6f3b48c43778634af1a7e79c5ae0632350fa5144d050c7848112c bytes=64448 package=libpython3.14-minimal:amd64 version=3.14.4-1ubuntu0.2 path=/usr/lib/python3.14/lib-dynload/_hashlib.cpython-314-x86_64-linux-gnu.so
+ELF 01 NEEDED libcrypto.so.3
+ELF 01 NEEDED libc.so.6
+FILE 02 sha256=bda779ea9e9ad234f60315477d7cfd0bdde861cd8ddd9df8cdaf62f18c4cec14 bytes=254864 package=libc6:amd64 version=2.43-2ubuntu2.4 path=/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
+ELF 02 SONAME ld-linux-x86-64.so.2
+FILE 03 sha256=85e64f97e348786a8fb4d9f3d52fec289e2fb86bba20f0731dfe61990525e0f7 bytes=2190608 package=libc6:amd64 version=2.43-2ubuntu2.4 path=/usr/lib/x86_64-linux-gnu/libc.so.6
+ELF 03 NEEDED ld-linux-x86-64.so.2
+ELF 03 SONAME libc.so.6
+FILE 04 sha256=7cf7da0a671c553b7140d40ed0ee8f07d12d0fceedff87c930d1918d205b106f bytes=6386528 package=libssl3t64:amd64 version=3.5.5-1ubuntu3.5 path=/usr/lib/x86_64-linux-gnu/libcrypto.so.3
+ELF 04 NEEDED libz.so.1
+ELF 04 NEEDED libzstd.so.1
+ELF 04 NEEDED libc.so.6
+ELF 04 SONAME libcrypto.so.3
+FILE 05 sha256=2e5f66e2784c2746775567ff9916f6e7503182a8f1f2deb8ca729dfc1463849f bytes=186704 package=libexpat1:amd64 version=2.7.4-1ubuntu0.2 path=/usr/lib/x86_64-linux-gnu/libexpat.so.1.11.2
+ELF 05 NEEDED libc.so.6
+ELF 05 SONAME libexpat.so.1
+FILE 06 sha256=1c488db6f4fe8cecb72456bc018de000b7a9b539c2994864b0416b5e8371b3d8 bytes=1198376 package=libc6:amd64 version=2.43-2ubuntu2.4 path=/usr/lib/x86_64-linux-gnu/libm.so.6
+ELF 06 NEEDED libc.so.6
+ELF 06 NEEDED ld-linux-x86-64.so.2
+ELF 06 SONAME libm.so.6
+FILE 07 sha256=47b61967895b30e8c0c6818dd633ffeb87711cf637c688f981896f0dd84ce23b bytes=121272 package=zlib1g:amd64 version=1:1.3.dfsg+really1.3.1-1ubuntu3.1 path=/usr/lib/x86_64-linux-gnu/libz.so.1.3.1
+ELF 07 NEEDED libc.so.6
+ELF 07 SONAME libz.so.1
+FILE 08 sha256=060eeb79531d435306665fd78329d8a9dd579f95876c5960bb67937825362a80 bytes=796824 package=libzstd1:amd64 version=1.5.7+dfsg-3 path=/usr/lib/x86_64-linux-gnu/libzstd.so.1.5.7
+ELF 08 NEEDED libc.so.6
+ELF 08 SONAME libzstd.so.1
+LOADER_CACHE sha256=eab8c2e19e049bc84bbd2bd03d03adad92139ca7b1503f39b6b98e0a50456d4e bytes=70231 path=/etc/ld.so.cache
+PASS C3 metadata: mapped_files=9 packages=7 no_rpath_runpath=yes
+STOP: Gate C3 metadata only; no native-closure, package-authenticity or root-run guard authorization.

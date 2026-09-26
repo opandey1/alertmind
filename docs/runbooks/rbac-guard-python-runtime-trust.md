@@ -1,9 +1,10 @@
 # Guard Python runtime trust — offline inventory boundary
 
 Status: **not selected, not installed, not approved for startup**. Gates A,
-B1 and B2 below are completed owner-reported diagnostics. Gate C1 is the next
-read-only, metadata-only inventory; none authorizes the dormant held-code
-loader or a Dashboard change.
+B1, B2, C1, C2 and C3 below are completed owner-reported diagnostics. No VM
+output or rerun is requested for the current offline policy work. Historical
+command blocks are retained for provenance, not instructions to replay them.
+None authorizes the dormant held-code loader or a Dashboard change.
 
 The 13 source files in the proposed pre-start capsule have an exact, CI-checked
 direct-import contract. Their module bodies import these 16 standard-library
@@ -515,3 +516,472 @@ mode bits, loaded bytecode versus reported cache paths, resolved/transitive
 ELF dependencies, package signatures, atomicity across the many reads,
 root-run behavior, future updates or
 the guard decision. Do not install or invoke the guard.
+
+### C1 owner observations (25 September 2026)
+
+The owner reported `PASS C1 metadata: origins=50 cache_present=49
+cache_absent=0` and `ORIGIN_MANIFEST_SHA256
+6625b3d3dd24b51ceb4f4396d3eb21eada5fa2a7f87e8951cc3b7ceaded61c1d`.
+The 50 origin records were recomputed into that manifest from the reported
+lines. `_hashlib` declared `libcrypto.so.3` and `libc.so.6` as direct ELF
+dependencies; no `RPATH`/`RUNPATH` entry was reported. This is owner-supplied
+host metadata. The 49 present `.pyc` files were *not* established as the
+bytecode actually loaded or equivalent to their source. Do not rerun C1,
+delete caches, or treat local dpkg drift checks as package authenticity.
+
+## Gate C2 — unprivileged cache-redirection and mapped-file diagnostic
+
+Run this block **only on the VM console as `notroot`**, after reviewing it,
+with Snapshot 1 available, a stable VM, stopped AlertMind apps, and no
+concurrent updates/configuration work. C2 is read-only; it neither runs the
+guard nor changes a file, role, service or package. It rechecks the pinned
+interpreter before launching a fresh, unprivileged Python process under an
+empty inherited environment and `-I -S -B`. `-X
+pycache_prefix=/dev/null/alertmind-c2` points Python's cache lookup at a
+path that cannot be traversed because `/dev/null` is a character device;
+`-B` prevents cache writes. Python [documents that a non-`None`
+`sys.pycache_prefix` redirects cache **reads and writes** away from source-tree
+`__pycache__` directories](https://docs.python.org/3.14/library/sys.html#sys.pycache_prefix).
+The command checks the reported prefix and all 49 source-backed cache
+candidates, then imports the same 18 direct roots as B2. It reports only the
+unique absolute pathname fields from `/proc/self/maps`, which [describes
+currently mapped memory regions](https://man7.org/linux/man-pages/man5/proc_pid_maps.5.html),
+not future loads or package authenticity. Unexpected mapped paths are not
+printed; the script stops with their SHA-256 instead.
+
+This diagnostic tests the intended *cache-bypass launch shape*, but its
+in-process checks and mapped-file report are still observations from the
+interpreter being assessed. They do not independently attest its startup,
+prove all transitive/native loads, or authorize root-run use. No `ldd`,
+`LD_TRACE_LOADED_OBJECTS`, `strace`, root-run Python or guard invocation is
+part of this block. The C2 origin-path digest below uses **lexicographic
+order**, unlike C1's ordered B2 path list, so its expected value is distinct.
+C2 does not rehash the 50 source/extension files or the 49 existing caches;
+their byte stability since C1 remains unproven.
+
+```bash
+(
+set -euo pipefail
+export LC_ALL=C
+cd /
+if [ "$(id -u)" -eq 0 ]; then
+    printf 'STOP: Gate C2 must run as the unprivileged console user\n'
+    exit 1
+fi
+if [ "$(readlink -e -- /usr/bin/python3)" != /usr/bin/python3.14 ]; then
+    printf 'STOP: Gate C2 interpreter target drift\n'
+    exit 1
+fi
+binary_hash=$(sha256sum -- /usr/bin/python3.14)
+if [ "${binary_hash%% *}" != 52e0a13e60a981d8c4b6478be2ba5176f69da07948a056bf49cf6f077e30cb41 ]; then
+    printf 'STOP: Gate C2 interpreter digest drift\n'
+    exit 1
+fi
+if [ -e /usr/lib/python314.zip ] || [ -L /usr/lib/python314.zip ]; then
+    printf 'STOP: Gate C2 zip search-path candidate appeared\n'
+    exit 1
+fi
+if /usr/bin/env -i HOME=/nonexistent LC_ALL=C PATH=/usr/bin:/bin \
+    /usr/bin/timeout 30s /usr/bin/python3.14 -I -S -B \
+    -X pycache_prefix=/dev/null/alertmind-c2 - <<'ALERTMIND_CACHE_LOADER_C2'
+import base64
+import binascii
+import contextlib
+import dataclasses
+import errno
+import grp
+import hashlib
+import json
+import os
+import pathlib
+import pwd
+import re
+import selectors
+import stat
+import subprocess
+import sys
+import time
+import types
+
+def stop(message):
+    raise SystemExit('STOP: Gate C2 ' + message)
+
+prefix = '/dev/null/alertmind-c2'
+flags = sys.flags
+if (sys.platform != 'linux' or os.geteuid() == 0 or
+        sys.executable != '/usr/bin/python3.14' or
+        sys.version_info[:3] != (3, 14, 4) or
+        any(getattr(flags, name, None) != 1 for name in
+            ('isolated', 'ignore_environment', 'no_site', 'dont_write_bytecode')) or
+        sys.pycache_prefix != prefix):
+    stop('unexpected unprivileged Python launch')
+device = os.stat('/dev/null')
+if not stat.S_ISCHR(device.st_mode) or os.path.lexists(prefix):
+    stop('cache prefix is traversable or /dev/null is not a character device')
+if sys.path != ['/usr/lib/python314.zip', '/usr/lib/python3.14',
+                '/usr/lib/python3.14/lib-dynload']:
+    stop('search path differs from B2')
+
+origins = set()
+source_caches = []
+for module in sys.modules.values():
+    spec = getattr(module, '__spec__', None)
+    origin = getattr(spec, 'origin', None)
+    if not isinstance(origin, str) or not origin.startswith('/'):
+        continue
+    if not origin.startswith('/usr/lib/python3.14/'):
+        stop('unexpected origin path digest=' +
+             hashlib.sha256(origin.encode()).hexdigest())
+    origins.add(origin)
+    if origin.endswith('.py'):
+        source_caches.append(getattr(spec, 'cached', None))
+if len(origins) != 50 or len(source_caches) != 49:
+    stop('origin or source-cache count differs from B2/C1')
+if any(not isinstance(path, str) or not path.startswith(prefix + '/')
+       for path in source_caches):
+    stop('a source-backed cache path is outside the redirected prefix')
+origin_manifest = hashlib.sha256(
+    ('\n'.join(sorted(origins)) + '\n').encode()).hexdigest()
+if origin_manifest != '41fe4f2680be2f097dcfd240ab15f6334957a629d822533212821364c5aacfeb':
+    stop('sorted origin path-list digest differs from B2/C1')
+
+mapped = set()
+with open('/proc/self/maps', encoding='utf-8') as stream:
+    for line in stream:
+        fields = line.rstrip('\n').split(None, 5)
+        if len(fields) < 6 or not fields[5].startswith('/'):
+            continue
+        path = fields[5]
+        if (path.endswith(' (deleted)') or len(path) > 512 or
+                not path.startswith(('/usr/', '/lib/', '/lib64/'))):
+            stop('unexpected mapped pathname digest=' +
+                 hashlib.sha256(path.encode()).hexdigest())
+        mapped.add(path)
+if ('/usr/bin/python3.14' not in mapped or
+        '/usr/lib/python3.14/lib-dynload/_hashlib.cpython-314-x86_64-linux-gnu.so'
+        not in mapped or not any(path.endswith('/libcrypto.so.3') for path in mapped)):
+    stop('expected interpreter, _hashlib or libcrypto mapping absent')
+if len(mapped) > 64:
+    stop('mapped-path count exceeds diagnostic cap')
+
+print('C2_ORIGIN_PATHS_SHA256 ' + origin_manifest)
+for path in sorted(mapped):
+    print('C2_MAPPED ' + path)
+print(f'PASS C2 diagnostic: source_cache_candidates={len(source_caches)} '
+      f'mapped_files={len(mapped)} prefix=/dev/null/alertmind-c2')
+ALERTMIND_CACHE_LOADER_C2
+then
+    printf 'STOP: Gate C2 diagnostic only; no guard or root-run Python authorization.\n'
+else
+    status=$?
+    printf 'STOP: Gate C2 diagnostic failed (exit=%s); do not retry with altered flags.\n' "$status"
+    exit 1
+fi
+)
+```
+
+Return the complete `C2_MAPPED` list, the origin-path digest, `PASS` and
+final `STOP` lines. If the diagnostic fails, send only the STOP/error without
+retrying or repairing the host. **Do not run it as root** and do not start,
+install or wire the guard into the Dashboard service. The mapped paths still
+need an independent, bounded host metadata and package-ownership review
+before any root-run decision. A later launch policy must externally pin the
+interpreter, flags, empty environment, cache redirection and all relevant
+loader inputs; the diagnostic cannot substitute for that policy.
+
+### C2 owner observations (25 September 2026)
+
+The owner reported the expected sorted-origin digest
+`41fe4f2680be2f097dcfd240ab15f6334957a629d822533212821364c5aacfeb`,
+49 redirected cache candidates, nine unique mapped file paths, and the
+required diagnostic STOP. Those nine paths are fixed in Gate C3 below. They
+include `libzstd.so.1.5.7`; C2 does not show which object required it. The
+reported result is consistent with C2 passing for **one unprivileged launch**.
+It is neither independently observed host state nor a root-run guard permit.
+Do not rerun C2 to collect more output.
+
+## Gate C3 — fixed mapped-file metadata and direct ELF declarations
+
+Run this **at the VM console as `notroot`**, only after reviewing the committed
+block, with Snapshot 1 available, a stable VM, stopped AlertMind apps, and no
+concurrent updates/configuration work. Its mapped-file set is exactly the nine
+paths in the owner's C2 output. It rechecks that `/dev/null` is a root-owned character
+device, the redirected child cache path cannot exist, the Python zip-search
+candidate is absent, and `/etc/ld.so.preload` is absent. For each mapped path,
+it requires a canonical, non-symlinked root:root chain with no group/other
+write bit, a bounded regular ELF file, one exact dpkg file-owner record and a
+fully installed package with no *local* `dpkg --verify` drift. It prints the
+file SHA-256, package version and only sanitized `NEEDED`/`SONAME` dynamic
+entries; any `RPATH`/`RUNPATH` entry stops for separate review. It also prints
+the metadata/digest of `/etc/ld.so.cache`, a loader input, without assuming
+that this generated cache is package-owned. The fixed nine-path list has an
+LF-delimited SHA-256 of
+`0b112d9d770034238714593a83cc70c81cf232c2c7601d917e736b28e452e9ba`.
+
+`readelf -d` [reports ELF dynamic entries](https://sourceware.org/binutils/docs/binutils/readelf.html);
+it does not run the mapped object or establish which dependency selected a
+particular path. The dynamic linker can consult RPATH/RUNPATH, the environment
+and its cache [when resolving libraries](https://man7.org/linux/man-pages/man8/ld.so.8.html).
+`dpkg --verify` is [only a local database integrity check, not a security
+verification](https://manpages.debian.org/unstable/dpkg/dpkg.1.en.html).
+This block neither invokes Python/`ldd` nor creates or changes a file,
+package, service, role or dashboard. An early STOP is a finding; do not
+repair the VM, follow a symlink, loosen a permission, or substitute another
+command to make it pass. A non-exact package-owner lookup (including a
+different merged-`/usr` registry spelling), or an unreadable package file
+during the unprivileged drift check, requires review rather than a `sudo` retry.
+
+```bash
+/usr/bin/env -i HOME=/nonexistent LC_ALL=C PATH=/usr/bin:/bin \
+    /bin/bash <<'ALERTMIND_MAPPED_FILE_C3'
+set -euo pipefail
+cd /
+
+stop() {
+    printf 'STOP: Gate C3 %s\n' "$1"
+    exit 1
+}
+
+[ "$(id -u)" -ne 0 ] || stop 'must run as the unprivileged console user'
+[ "$(readlink -e -- /usr/bin/python3)" = /usr/bin/python3.14 ] || stop 'interpreter target drift'
+[ -c /dev/null ] && [ ! -L /dev/null ] || stop '/dev/null is not a direct character device'
+[ "$(stat -c '%u:%g' -- /dev/null)" = 0:0 ] || stop '/dev/null owner changed'
+[ ! -e /dev/null/alertmind-c2 ] && [ ! -L /dev/null/alertmind-c2 ] || stop 'cache prefix became traversable'
+[ ! -e /usr/lib/python314.zip ] && [ ! -L /usr/lib/python314.zip ] || stop 'zip search-path candidate appeared'
+[ ! -e /etc/ld.so.preload ] && [ ! -L /etc/ld.so.preload ] || stop 'global loader preload requires separate review'
+
+check_chain() {
+    local path=$1 kind=$2 component uid gid mode
+    [ "$(readlink -e -- "$path")" = "$path" ] || stop "non-canonical path: $path"
+    component=$path
+    while :; do
+        uid=$(stat -c '%u' -- "$component") || stop "stat failed: $component"
+        gid=$(stat -c '%g' -- "$component") || stop "stat failed: $component"
+        mode=$(stat -c '%a' -- "$component") || stop "stat failed: $component"
+        [[ "$mode" =~ ^[0-7]{3,4}$ ]] || stop "invalid mode: $component"
+        [ "$uid" = 0 ] && [ "$gid" = 0 ] || stop "non-root path component: $component"
+        (( (8#$mode & 8#022) == 0 )) || stop "writable path component: $component"
+        if [ "$component" = "$path" ] && [ "$kind" = file ]; then
+            [ -f "$component" ] && [ ! -L "$component" ] || stop "non-regular file: $component"
+        else
+            [ -d "$component" ] && [ ! -L "$component" ] || stop "non-directory ancestor: $component"
+        fi
+        [ "$component" = / ] && break
+        component=${component%/*}
+        [ -n "$component" ] || component=/
+    done
+}
+
+mapfile -t mapped <<'ALERTMIND_C2_MAPPED_FILES'
+/usr/bin/python3.14
+/usr/lib/python3.14/lib-dynload/_hashlib.cpython-314-x86_64-linux-gnu.so
+/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
+/usr/lib/x86_64-linux-gnu/libc.so.6
+/usr/lib/x86_64-linux-gnu/libcrypto.so.3
+/usr/lib/x86_64-linux-gnu/libexpat.so.1.11.2
+/usr/lib/x86_64-linux-gnu/libm.so.6
+/usr/lib/x86_64-linux-gnu/libz.so.1.3.1
+/usr/lib/x86_64-linux-gnu/libzstd.so.1.5.7
+ALERTMIND_C2_MAPPED_FILES
+
+[ "${#mapped[@]}" -eq 9 ] || stop 'mapped-file count drift'
+list_hash=$(printf '%s\n' "${mapped[@]}" | sha256sum)
+[ "${list_hash%% *}" = 0b112d9d770034238714593a83cc70c81cf232c2c7601d917e736b28e452e9ba ] || stop 'mapped-file list drift'
+printf 'PASS fixed C2 path list: count=9 sha256=%s\n' "${list_hash%% *}"
+
+declare -A checked_packages=()
+for index in "${!mapped[@]}"; do
+    path=${mapped[$index]}
+    check_chain "$path" file
+    size=$(stat -c '%s' -- "$path") || stop "size lookup failed: $path"
+    [[ "$size" =~ ^[0-9]+$ ]] && (( size > 0 && size <= 33554432 )) || stop "file size outside 1..33554432: $path"
+    digest_line=$(sha256sum -- "$path") || stop "hash failed: $path"
+    digest=${digest_line%% *}
+    if [ "$path" = /usr/bin/python3.14 ] &&
+       [ "$digest" != 52e0a13e60a981d8c4b6478be2ba5176f69da07948a056bf49cf6f077e30cb41 ]; then
+        stop 'pinned interpreter digest drift'
+    fi
+    if [ "$path" = /usr/lib/python3.14/lib-dynload/_hashlib.cpython-314-x86_64-linux-gnu.so ] &&
+       [ "$digest" != f57bc22cc1b6f3b48c43778634af1a7e79c5ae0632350fa5144d050c7848112c ]; then
+        stop 'C1 _hashlib digest drift'
+    fi
+    owner_line=$(dpkg-query --search -- "$path") || stop "package lookup failed: $path"
+    [[ "$owner_line" != *$'\n'* ]] || stop "ambiguous package lookup: $path"
+    owner=${owner_line%%: *}
+    listed=${owner_line#*: }
+    [ "$owner" != "$owner_line" ] && [ "$listed" = "$path" ] || stop "non-exact package lookup: $path"
+    status=$(dpkg-query --show --showformat='${Status}' "$owner") || stop "package status lookup failed: $owner"
+    version=$(dpkg-query --show --showformat='${Version}' "$owner") || stop "package version lookup failed: $owner"
+    [ "$status" = 'install ok installed' ] || stop "package not fully installed: $owner"
+    if [ -z "${checked_packages[$owner]+x}" ]; then
+        verify_output=$(dpkg --verify "$owner" 2>&1) || stop "local package drift: $owner"
+        [ -z "$verify_output" ] || stop "local package drift output: $owner"
+        checked_packages[$owner]=1
+    fi
+    header=$(readelf -hW -- "$path") || stop "ELF header read failed: $path"
+    printf '%s\n' "$header" | grep -Eq 'Class:[[:space:]]+ELF64' || stop "not ELF64: $path"
+    dynamic=$(readelf -dW -- "$path") || stop "ELF dynamic read failed: $path"
+    [[ "$dynamic" != *'(RPATH)'* && "$dynamic" != *'(RUNPATH)'* ]] || stop "ELF search-path tag requires review: $path"
+    printf 'FILE %02d sha256=%s bytes=%s package=%s version=%s path=%s\n' "$index" "$digest" "$size" "$owner" "$version" "$path"
+    while IFS= read -r line; do
+        if [[ "$line" == *'(NEEDED)'* || "$line" == *'(SONAME)'* ]]; then
+            if [[ "$line" =~ \((NEEDED|SONAME)\).*\[([A-Za-z0-9._+-]+)\] ]]; then
+                printf 'ELF %02d %s %s\n' "$index" "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}"
+            else
+                stop "unparseable ELF dependency entry: $path"
+            fi
+        fi
+    done <<< "$dynamic"
+done
+
+check_chain /etc/ld.so.cache file
+cache_size=$(stat -c '%s' -- /etc/ld.so.cache) || stop 'loader cache size lookup failed'
+[[ "$cache_size" =~ ^[0-9]+$ ]] && (( cache_size > 0 && cache_size <= 33554432 )) || stop 'loader cache size outside bound'
+cache_hash=$(sha256sum -- /etc/ld.so.cache) || stop 'loader cache hash failed'
+printf 'LOADER_CACHE sha256=%s bytes=%s path=/etc/ld.so.cache\n' "${cache_hash%% *}" "$cache_size"
+printf 'PASS C3 metadata: mapped_files=9 packages=%s no_rpath_runpath=yes\n' "${#checked_packages[@]}"
+printf 'STOP: Gate C3 metadata only; no native-closure, package-authenticity or root-run guard authorization.\n'
+ALERTMIND_MAPPED_FILE_C3
+```
+
+Return `PASS`, `FILE`, `ELF`, `LOADER_CACHE` and final `STOP` lines only. If a
+check stops, send that STOP and do not rerun with altered code or privileges.
+The package names/versions and hashes are public metadata, not credentials.
+C3's sequential reads are not an atomic snapshot, a signed-package proof or
+an exhaustive dependency graph. The exact root-run launch environment,
+other loader inputs, import machinery and durable update/recovery policy
+remain separate gates. Do not run or install the guard.
+
+## C3 accepted owner report and offline policy (26 September 2026)
+
+The [retained sanitized transcript](../../evidence/rbac/python-runtime-c3-owner-report-2026-09-26.txt)
+is a transcription of the owner's chat output, not an independently captured
+VM artifact. It reports all nine files across seven packages, matching Python
+and `_hashlib` pins, no RPATH/RUNPATH and the final metadata-only STOP. The
+35 lines retain public values and ordering; only text line endings may differ.
+The producer was Gate C3 at `795b7a062771fb0bb001a45aaf66f860d4c79183`.
+The report's date is its receipt/recording date, not a proven VM execution time.
+
+The declared graph has 15 `NEEDED` edges. Every name has a matching `SONAME`
+among the nine files; `libcrypto.so.3` explicitly needs `libzstd.so.1`. This
+accounts for a declared dependency consistent with the C2 mapping, not proof
+of which loader path was selected, runtime `dlopen` coverage or complete
+native closure. C3's path/mode/package checks were sequential and reported
+by the owner. No root-runtime authorization follows.
+
+`siem/rbac/broker_tls/operator_python_policy.py` now implements an **offline
+comparison contract**, deliberately outside the thirteen-module guard capsule:
+
+- `check_c3_report(raw)` requires the complete bounded transcript, validates
+  its grammar/counts/order and compares every file/cache value with explicit
+  pins. Truncation, duplicate/unknown records, drift, missing final STOP and
+  extra output fail with fixed diagnostic codes. LF and CRLF are equivalent;
+  other text normalization is not performed.
+- `compare_metadata(files, cache)` compares caller-supplied immutable records
+  for the nine mapped files, package versions, ELF declarations and generated
+  loader cache. It does not read current files, repeat dpkg checks or validate
+  current metadata/ownership. The 49 source origins are not covered by this
+  mapped-file-only contract.
+- `check_candidate_launch(argv, environment)` checks **proposed data only**:
+  the fixed Python target, `-I -S -B`, explicit `-X` cache redirection using
+  C2's `/dev/null/alertmind-c2` prefix, and the proposed guard script path.
+  The environment must contain exactly HOME=/nonexistent, LC_ALL=C and
+  PATH=/usr/bin:/bin. Missing/extra options or variables are rejected, including
+  empty `LD_*`/`PYTHON*` entries. This is not an executable launcher or unit.
+
+All results keep runtime trust/startup authorization false. The metadata
+result also keeps live-host, package-authenticity and native-resolution proof
+false; the launch result keeps effective-environment proof false. A perfectly
+matching historical transcript is replayable and cannot authorize startup.
+
+Python documents [cache redirection](https://docs.python.org/3.14/library/sys.html#sys.pycache_prefix)
+and the [isolation flags](https://docs.python.org/3.14/using/cmdline.html#cmdoption-I).
+These explain the candidate shape, not its deployment safety. A separately
+trusted launcher must establish the environment before interpreter/ELF startup;
+checking or clearing it inside Python is too late. The launch helper and its
+own loader inputs must also be trusted. No implementation here does that.
+
+### Dormant native read/compare adapter (updated 27 September 2026)
+
+`siem/rbac/broker_tls/operator_python_runtime.py` now implements the fixed-file
+read/compare slice separately from the pure policy and the guard. It reads the
+nine C3-pinned files, generated loader cache and 49 C1 source files twice, and
+the fixed dpkg status database three times. The existing root-only no-follow reader bounds
+each read and rechecks metadata/ancestors; the adapter checks mapped/cache exact
+sizes, all SHA-256 values and seven selected amd64 package versions/installed
+states. C1 source sizes were not recorded; source reads use a 1 MiB per-file
+ceiling rather than an invented exact size. There are 121 reads per observation.
+An unchanged fully installed `hold` selection is allowed; selection drift
+between reads is not. No commands, transcript replay, writes or pin refresh
+are used. The [operator contract](../../siem/rbac/broker_tls/OPERATOR.md#python-fixed-file-reader--dormant-not-a-runtime-trust-decision)
+describes the 21 adapter tests, including two Linux-only temporary-file cases,
+and seven additional source-pin tests.
+
+The module is **not deployed or wired into the guard**. Package status is not
+package-file ownership or signed authenticity. The 49 source paths' byte pins
+are now covered, but their actual selection and remaining loader inputs are
+not; the reader does not prove actual
+resolution, loaded code, an atomic snapshot or a trusted launch environment.
+Its runtime/startup flags remain false. This is an offline implementation,
+not a new live gate or authorization to execute root-run Python on the VM.
+
+### C1 source-pin provenance (recorded 26–27 September 2026)
+
+The [retained C1 transcript](../../evidence/rbac/python-runtime-c1-owner-report-2026-09-26.txt)
+copies the owner's earlier attachment, removing only the leading empty sudo
+password prompt and normalizing CRLF to LF. It contains 107 public-metadata
+lines, including all 50 ORIGIN records, 49 CACHE_PRESENT records, the summary
+and diagnostic STOP. Its filename records the start of transcription, not a
+VM execution timestamp. Producer: the Gate C1 block at
+`d79875b2ef327095b49719315dc6fb0a6fc56fd3`. The LF-normalized transcript SHA-256 is
+`b67be416f452f7ca3159195a2632bada396c8c509439d22171d08a917ba3d187`.
+
+Tests re-derive the already accepted origin-record manifest
+`6625b3d3dd24b51ceb4f4396d3eb21eada5fa2a7f87e8951cc3b7ceaded61c1d`
+and ordered B2/sorted C2 path sets. The 49 source pins in
+`operator_python_policy.py` version 2 reproduce the source rows exactly;
+the extension row matches the existing C3 `_hashlib` pin. All source rows
+report libpython3.14-minimal:amd64; its version is from the accepted B1/C1
+package preflight, not a new observation or a version field invented in ORIGIN.
+
+The observer never loads this transcript, imports/executes these source files,
+or uses the `.pyc` hashes as approved bytecode. Matching source bytes cannot
+prove Python did not use a cache, frozen code or a shadowing module. Python's
+[cache-prefix documentation](https://docs.python.org/3.14/library/sys.html#sys.pycache_prefix)
+describes redirection of source cache lookups; this does not establish complete
+import resolution or make the existing launch-data check an actual launcher.
+
+### Dormant fixed-name input observer (27 September 2026)
+
+`siem/rbac/broker_tls/operator_python_paths.py` implements the next bounded
+offline slice. Two fixed-name passes reject any `/usr/lib/python314.zip` or
+`/etc/ld.so.preload` object and inspect `/dev/null` through an `O_PATH`
+metadata-only descriptor. Trusted ancestors, root ownership, character-device
+1:3 identity and before/open/after/name comparisons are required. Ordinary
+0666 null-device permissions are allowed, not treated as a writable code file.
+These are candidate requirements, not additional C3 observations.
+
+The [operator contract](../../siem/rbac/broker_tls/OPERATOR.md#python-fixed-name-inputs--dormant-observations-only)
+documents the fifteen tests, two Linux-only, and precise limitations. The
+observer neither reads/writes the device payload nor opens the cache prefix.
+It does not prove that cache redirection took effect, exclude every import or
+loader input, establish loaded-code provenance, or prevent injection before
+Python starts. Its trust/startup flags remain false. It is separate from the
+byte reader and is not a complete snapshot or a deployed guard component.
+
+### Next work and VM availability
+
+The owner may shut down the VM normally after stopping the Windows tunnel.
+No more VM output is needed **for this offline slice**. Do not rerun A–C3.
+The mapped/cache/source byte adapter and fixed optional-path/null-anchor
+observer are implemented. Remaining work includes actual import/cache/loader
+resolution and externally trusted launch/composition; the fixed-name observer
+does not complete these broader controls. Neither adapter nor later composition may use a stored C3 report
+as a substitute for fresh reads or auto-refresh pins after package drift.
+A changed generated loader cache also needs review; it is not automatically
+evidence of compromise.
+
+Independent review, native Linux/version tests, externally established launch
+trust, durable installation/recovery and actual broker acceptance still precede
+deployment. Later live checks will need the VM again and must be separately
+released. The guard entry remains compile-only, exits 1, and is not installed.

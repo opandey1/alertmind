@@ -878,13 +878,132 @@ in the possible guard call path. This catches source-contract drift, not
 transitive imports, selected file origins, C extensions or a compromised
 interpreter. The exact roots and outstanding external checks are in the
 [Python runtime trust runbook](../../../docs/runbooks/rbac-guard-python-runtime-trust.md).
-That runbook now includes a metadata-only, owner-executed VM inventory of two
-fixed interpreter candidates. It selects or executes neither and cannot prove
-runtime trust. The owner reported both candidates package-owned at Gate A;
-system Python 3.14 is a **provisional diagnostic target**, not a selected guard
-runtime. Gate B1 now holds package/ELF preflight and Gate B2 holds an
-unprivileged import-origin probe pending B1 review. Neither authorizes a
-root-run guard. The loader remains dormant and the entrypoint still exits 1.
+The owner has reported completed A/B1/B2/C1/C2/C3 diagnostics: candidate
+metadata, system-Python package/import observations, source/cache metadata,
+unprivileged redirected-cache/mapped-path observations and nine mapped files'
+metadata/direct ELF declarations. System Python 3.14 is still a **provisional
+diagnostic target**, not a selected guard runtime. None is independent
+runtime attestation. The loader remains dormant and the entrypoint exits 1.
+
+### Python mapped-file and launch-data policy — offline only
+
+`operator_python_policy.py` pins the nine mapped files, seven package versions,
+15 declared dependency edges and generated loader-cache hash reported at C3.
+It validates the retained owner transcript and compares typed caller-supplied
+metadata without I/O. A separate pure check constrains proposed interpreter
+argv/cache redirection and an exact three-variable environment. Sixteen tests
+exercise pin drift, partial/duplicate/malformed reports, false authority flags,
+argument/environment injection and continued exclusion from the guard capsule.
+
+This is not a native reader, a launch wrapper, package authenticity, complete
+stdlib/native closure, an update lock or a proof of a fresh host observation.
+The launch environment must be established by an independently trusted launcher
+before interpreter startup; matching a Python-side data structure cannot do so.
+No policy function executes a command, reads an environment/file or modifies
+state. All returned runtime-trust/startup flags remain false. See the
+[accepted C3 report and limitations](../../../docs/runbooks/rbac-guard-python-runtime-trust.md#c3-accepted-owner-report-and-offline-policy-26-september-2026).
+The new module is intentionally not added to the pinned capsule or called by
+the guard entry. No VM output is requested for this offline policy slice.
+
+### Python fixed-file reader — dormant, not a runtime trust decision
+
+`operator_python_runtime.py` adds a no-argument Linux/root-only reader for the
+existing C3 byte pins and 49 C1 source pins. It makes two passes over the nine
+mapped files, generated `/etc/ld.so.cache` and 49 standard-library source files,
+bracketed by three reads of the fixed `/var/lib/dpkg/status` database: 121
+bounded reads in total. Mapped/cache reads match exact size and SHA-256;
+source reads match SHA-256 within a 1 MiB ceiling. C1 did not report source
+sizes: that ceiling is a policy bound, not an observed exact size. Nothing
+refreshes pins on drift; file bytes are not normalized before hashing.
+The adapter reuses the unchanged root-owned descriptor-relative reader in
+`operator_fs.py`, including no-follow opens and before/open/after metadata and
+ancestor checks. There is no service-owner exception, NSS lookup, command,
+network request, report replay, alternate root or caller-supplied pin.
+
+The bounded status parser selects seven exact amd64 package names/versions.
+It handles the unqualified `Package` field and separate `Architecture` field;
+foreign architectures cannot substitute for amd64. Duplicate selected records,
+malformed identity fields, changed versions and non-installed states fail.
+An `install` or `hold` selection is accepted only with `ok installed`; the
+selection is retained, so a change between snapshots fails too. Unrelated
+field values never enter the result or error codes. See the
+[dpkg-query field/status contract](https://manpages.debian.org/unstable/dpkg/dpkg-query.1.en.html).
+
+This reads current **on-disk bytes and package status identities**, not the
+package file-ownership registry, whole-package verification or signed package
+authenticity. It compares the 49 reported source paths' bytes, but does not
+establish that Python selected those origins, resolve ELF imports,
+prove loaded code or establish the caller's launch environment. Two equal
+passes are not an atomic snapshot or an update lock. Those proof flags and
+`runtime_trusted`/`startup_authorized` stay false. The calling interpreter and
+import environment must already be trusted by a separate mechanism; this
+Python reader cannot bootstrap that trust.
+
+Twenty-one tests cover the package parser, exact read order/bounds, every byte
+pin drifting on either pass, package drift, sanitized errors, shared-reader
+metadata failures and non-authorizing results. Two use Linux temporary-file
+fixtures and are skipped on Windows; the portable tests use synthetic bytes
+and fake descriptors, not a live VM or production-root trust proof. The module
+is outside the thirteen-source capsule, not installed and never called by
+the compile-only guard. No VM command is released by this implementation.
+
+Seven additional source-pin tests reproduce the accepted C1 manifest, B2/C2
+path sets and `_hashlib` overlap, and cover evidence integrity, every source
+digest, index/type/size bounds and immutable pins. The retained
+[C1 owner transcript](../../../evidence/rbac/python-runtime-c1-owner-report-2026-09-26.txt)
+is historical evidence, not a fresh or independently captured VM observation.
+Its 49 cache records are retained only as reported metadata; they are not
+accepted as bytecode equivalent to the sources or code actually loaded.
+The new source pins all name the already-covered libpython3.14-minimal amd64
+package/version, so the package count remains seven. Source-pin coverage is
+not complete import closure: unobserved function-local/dynamic imports, caches,
+shadowing, import machinery and loader-input controls remain separate work.
+
+### Python fixed-name inputs — dormant observations only
+
+`operator_python_paths.py` adds `observe_python_path_inputs()`, a no-argument
+root/Linux observer separate from the byte-pin reader and proposed guard:
+
+- Two passes require `/usr/lib/python314.zip` and `/etc/ld.so.preload` to be
+  absent. Any object, including an empty file, directory or dangling symlink,
+  fails. Required ancestors are held through no-follow descriptors and must be
+  root:root without group/other write permission. Missing ancestors are errors,
+  not evidence that the optional child is safely absent.
+- Both passes inspect `/dev/null` as a direct root:root character device with
+  Linux major/minor 1:3. Normal 0666 or stricter rw-only permissions are allowed;
+  execute, set-ID and sticky bits are rejected. These are explicit candidate
+  policy requirements, not metadata claimed to have appeared in C3.
+- The device is opened only with `O_PATH|O_NOFOLLOW|O_CLOEXEC`, never for
+  payload reads/writes. Device numbers participate in before/open/after/name
+  comparisons, as well as descriptor and ancestor metadata. A replacement
+  between passes fails. Missing `O_PATH` support fails without a read-open
+  fallback. OS failures become fixed codes; descriptors close on failure.
+
+The [Linux null-device contract](https://man7.org/linux/man-pages/man4/null.4.html)
+defines device 1:3 and usual writable permissions. The
+[O_PATH contract](https://man7.org/linux/man-pages/man2/open.2.html) permits
+metadata inspection without opening the device for I/O. A character-device
+anchor cannot be traversed as a cache directory. This does **not** establish
+that the running interpreter actually uses the proposed
+`/dev/null/alertmind-c2` cache prefix. Likewise, absence of the
+[global loader-preload file](https://man7.org/linux/man-pages/man8/ld.so.8.html)
+does not establish the absence of environment-driven or earlier injection.
+
+Fifteen tests exercise fixed paths/order, first/second-pass presence, symlink
+and owner/mode/device failures, absence/name/descriptor races, metadata-only
+open flags, cleanup and non-authorizing results. Two Linux-only tests use
+temporary-tree absence fixtures and the test host's `/dev/null` metadata;
+they need no VM or device-payload I/O and are skipped on Windows. Native
+Linux execution remains necessary; portable fake-descriptor passes do not
+substitute for it.
+
+No complete import-search, cache-redirection, loader-environment, native-
+resolution, loaded-code or atomic-snapshot proof is claimed. Runtime trust
+and startup authorization remain false. Kernel/device semantics and the
+caller's interpreter/import environment must already be trusted separately.
+The byte adapter and this observer run independently, not as one coherent
+snapshot. Neither is in the thirteen-source capsule, installed, or called by
+the compile-only guard. No launcher, pin refresh or new VM gate is released.
 
 ## Required next adapter package — not released here
 
