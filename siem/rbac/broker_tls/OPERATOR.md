@@ -878,13 +878,32 @@ in the possible guard call path. This catches source-contract drift, not
 transitive imports, selected file origins, C extensions or a compromised
 interpreter. The exact roots and outstanding external checks are in the
 [Python runtime trust runbook](../../../docs/runbooks/rbac-guard-python-runtime-trust.md).
-That runbook now includes a metadata-only, owner-executed VM inventory of two
-fixed interpreter candidates. It selects or executes neither and cannot prove
-runtime trust. The owner reported both candidates package-owned at Gate A;
-system Python 3.14 is a **provisional diagnostic target**, not a selected guard
-runtime. Gate B1 now holds package/ELF preflight and Gate B2 holds an
-unprivileged import-origin probe pending B1 review. Neither authorizes a
-root-run guard. The loader remains dormant and the entrypoint still exits 1.
+The owner has reported completed A/B1/B2/C1/C2/C3 diagnostics: candidate
+metadata, system-Python package/import observations, source/cache metadata,
+unprivileged redirected-cache/mapped-path observations and nine mapped files'
+metadata/direct ELF declarations. System Python 3.14 is still a **provisional
+diagnostic target**, not a selected guard runtime. None is independent
+runtime attestation. The loader remains dormant and the entrypoint exits 1.
+
+### Python mapped-file and launch-data policy — offline only
+
+`operator_python_policy.py` pins the nine mapped files, seven package versions,
+15 declared dependency edges and generated loader-cache hash reported at C3.
+It validates the retained owner transcript and compares typed caller-supplied
+metadata without I/O. A separate pure check constrains proposed interpreter
+argv/cache redirection and an exact three-variable environment. Sixteen tests
+exercise pin drift, partial/duplicate/malformed reports, false authority flags,
+argument/environment injection and continued exclusion from the guard capsule.
+
+This is not a native reader, a launch wrapper, package authenticity, complete
+stdlib/native closure, an update lock or a proof of a fresh host observation.
+The launch environment must be established by an independently trusted launcher
+before interpreter startup; matching a Python-side data structure cannot do so.
+No policy function executes a command, reads an environment/file or modifies
+state. All returned runtime-trust/startup flags remain false. See the
+[accepted C3 report and limitations](../../../docs/runbooks/rbac-guard-python-runtime-trust.md#c3-accepted-owner-report-and-offline-policy-26-september-2026).
+The new module is intentionally not added to the pinned capsule or called by
+the guard entry. No VM output is requested for this offline policy slice.
 
 ## Required next adapter package — not released here
 

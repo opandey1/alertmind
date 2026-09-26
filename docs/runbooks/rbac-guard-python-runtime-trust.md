@@ -1,9 +1,10 @@
 # Guard Python runtime trust — offline inventory boundary
 
 Status: **not selected, not installed, not approved for startup**. Gates A,
-B1, B2, C1 and C2 below are completed owner-reported diagnostics. Gate C3 is
-the next read-only, unprivileged metadata check; none authorizes the dormant
-held-code loader or a Dashboard change.
+B1, B2, C1, C2 and C3 below are completed owner-reported diagnostics. No VM
+output or rerun is requested for the current offline policy work. Historical
+command blocks are retained for provenance, not instructions to replay them.
+None authorizes the dormant held-code loader or a Dashboard change.
 
 The 13 source files in the proposed pre-start capsule have an exact, CI-checked
 direct-import contract. Their module bodies import these 16 standard-library
@@ -850,3 +851,67 @@ C3's sequential reads are not an atomic snapshot, a signed-package proof or
 an exhaustive dependency graph. The exact root-run launch environment,
 other loader inputs, import machinery and durable update/recovery policy
 remain separate gates. Do not run or install the guard.
+
+## C3 accepted owner report and offline policy (26 September 2026)
+
+The [retained sanitized transcript](../../evidence/rbac/python-runtime-c3-owner-report-2026-09-26.txt)
+is a transcription of the owner's chat output, not an independently captured
+VM artifact. It reports all nine files across seven packages, matching Python
+and `_hashlib` pins, no RPATH/RUNPATH and the final metadata-only STOP. The
+35 lines retain public values and ordering; only text line endings may differ.
+The producer was Gate C3 at `795b7a062771fb0bb001a45aaf66f860d4c79183`.
+The report's date is its receipt/recording date, not a proven VM execution time.
+
+The declared graph has 15 `NEEDED` edges. Every name has a matching `SONAME`
+among the nine files; `libcrypto.so.3` explicitly needs `libzstd.so.1`. This
+accounts for a declared dependency consistent with the C2 mapping, not proof
+of which loader path was selected, runtime `dlopen` coverage or complete
+native closure. C3's path/mode/package checks were sequential and reported
+by the owner. No root-runtime authorization follows.
+
+`siem/rbac/broker_tls/operator_python_policy.py` now implements an **offline
+comparison contract**, deliberately outside the thirteen-module guard capsule:
+
+- `check_c3_report(raw)` requires the complete bounded transcript, validates
+  its grammar/counts/order and compares every file/cache value with explicit
+  pins. Truncation, duplicate/unknown records, drift, missing final STOP and
+  extra output fail with fixed diagnostic codes. LF and CRLF are equivalent;
+  other text normalization is not performed.
+- `compare_metadata(files, cache)` compares caller-supplied immutable records
+  for the nine mapped files, package versions, ELF declarations and generated
+  loader cache. It does not read current files, repeat dpkg checks or validate
+  current metadata/ownership. The 49 source origins are not covered by this
+  mapped-file-only contract.
+- `check_candidate_launch(argv, environment)` checks **proposed data only**:
+  the fixed Python target, `-I -S -B`, explicit `-X` cache redirection using
+  C2's `/dev/null/alertmind-c2` prefix, and the proposed guard script path.
+  The environment must contain exactly HOME=/nonexistent, LC_ALL=C and
+  PATH=/usr/bin:/bin. Missing/extra options or variables are rejected, including
+  empty `LD_*`/`PYTHON*` entries. This is not an executable launcher or unit.
+
+All results keep runtime trust/startup authorization false. The metadata
+result also keeps live-host, package-authenticity and native-resolution proof
+false; the launch result keeps effective-environment proof false. A perfectly
+matching historical transcript is replayable and cannot authorize startup.
+
+Python documents [cache redirection](https://docs.python.org/3.14/library/sys.html#sys.pycache_prefix)
+and the [isolation flags](https://docs.python.org/3.14/using/cmdline.html#cmdoption-I).
+These explain the candidate shape, not its deployment safety. A separately
+trusted launcher must establish the environment before interpreter/ELF startup;
+checking or clearing it inside Python is too late. The launch helper and its
+own loader inputs must also be trusted. No implementation here does that.
+
+### Next work and VM availability
+
+The owner may shut down the VM normally after stopping the Windows tunnel.
+No more VM output is needed **for this offline slice**. Do not rerun A–C3.
+Next offline work is the bounded native read/compare adapter and remaining
+stdlib/import/loader-input policy, with negative tests, before composing the
+guard. It must not use a stored C3 report as a substitute for fresh reads or
+auto-refresh pins after package drift. A changed generated loader cache also
+needs review; it is not automatically evidence of compromise.
+
+Independent review, native Linux/version tests, externally established launch
+trust, durable installation/recovery and actual broker acceptance still precede
+deployment. Later live checks will need the VM again and must be separately
+released. The guard entry remains compile-only, exits 1, and is not installed.
