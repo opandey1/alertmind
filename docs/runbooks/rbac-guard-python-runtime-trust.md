@@ -1,8 +1,8 @@
 # Guard Python runtime trust — offline inventory boundary
 
 Status: **not selected, not installed, not approved for startup**. Gates A,
-B1, B2 and C1 below are completed owner-reported diagnostics. Gate C2 is the
-next read-only, unprivileged runtime diagnostic; none authorizes the dormant
+B1, B2, C1 and C2 below are completed owner-reported diagnostics. Gate C3 is
+the next read-only, unprivileged metadata check; none authorizes the dormant
 held-code loader or a Dashboard change.
 
 The 13 source files in the proposed pre-start capsule have an exact, CI-checked
@@ -687,3 +687,166 @@ need an independent, bounded host metadata and package-ownership review
 before any root-run decision. A later launch policy must externally pin the
 interpreter, flags, empty environment, cache redirection and all relevant
 loader inputs; the diagnostic cannot substitute for that policy.
+
+### C2 owner observations (25 September 2026)
+
+The owner reported the expected sorted-origin digest
+`41fe4f2680be2f097dcfd240ab15f6334957a629d822533212821364c5aacfeb`,
+49 redirected cache candidates, nine unique mapped file paths, and the
+required diagnostic STOP. Those nine paths are fixed in Gate C3 below. They
+include `libzstd.so.1.5.7`; C2 does not show which object required it. The
+reported result is consistent with C2 passing for **one unprivileged launch**.
+It is neither independently observed host state nor a root-run guard permit.
+Do not rerun C2 to collect more output.
+
+## Gate C3 — fixed mapped-file metadata and direct ELF declarations
+
+Run this **at the VM console as `notroot`**, only after reviewing the committed
+block, with Snapshot 1 available, a stable VM, stopped AlertMind apps, and no
+concurrent updates/configuration work. Its mapped-file set is exactly the nine
+paths in the owner's C2 output. It rechecks that `/dev/null` is a root-owned character
+device, the redirected child cache path cannot exist, the Python zip-search
+candidate is absent, and `/etc/ld.so.preload` is absent. For each mapped path,
+it requires a canonical, non-symlinked root:root chain with no group/other
+write bit, a bounded regular ELF file, one exact dpkg file-owner record and a
+fully installed package with no *local* `dpkg --verify` drift. It prints the
+file SHA-256, package version and only sanitized `NEEDED`/`SONAME` dynamic
+entries; any `RPATH`/`RUNPATH` entry stops for separate review. It also prints
+the metadata/digest of `/etc/ld.so.cache`, a loader input, without assuming
+that this generated cache is package-owned. The fixed nine-path list has an
+LF-delimited SHA-256 of
+`0b112d9d770034238714593a83cc70c81cf232c2c7601d917e736b28e452e9ba`.
+
+`readelf -d` [reports ELF dynamic entries](https://sourceware.org/binutils/docs/binutils/readelf.html);
+it does not run the mapped object or establish which dependency selected a
+particular path. The dynamic linker can consult RPATH/RUNPATH, the environment
+and its cache [when resolving libraries](https://man7.org/linux/man-pages/man8/ld.so.8.html).
+`dpkg --verify` is [only a local database integrity check, not a security
+verification](https://manpages.debian.org/unstable/dpkg/dpkg.1.en.html).
+This block neither invokes Python/`ldd` nor creates or changes a file,
+package, service, role or dashboard. An early STOP is a finding; do not
+repair the VM, follow a symlink, loosen a permission, or substitute another
+command to make it pass. A non-exact package-owner lookup (including a
+different merged-`/usr` registry spelling), or an unreadable package file
+during the unprivileged drift check, requires review rather than a `sudo` retry.
+
+```bash
+/usr/bin/env -i HOME=/nonexistent LC_ALL=C PATH=/usr/bin:/bin \
+    /bin/bash <<'ALERTMIND_MAPPED_FILE_C3'
+set -euo pipefail
+cd /
+
+stop() {
+    printf 'STOP: Gate C3 %s\n' "$1"
+    exit 1
+}
+
+[ "$(id -u)" -ne 0 ] || stop 'must run as the unprivileged console user'
+[ "$(readlink -e -- /usr/bin/python3)" = /usr/bin/python3.14 ] || stop 'interpreter target drift'
+[ -c /dev/null ] && [ ! -L /dev/null ] || stop '/dev/null is not a direct character device'
+[ "$(stat -c '%u:%g' -- /dev/null)" = 0:0 ] || stop '/dev/null owner changed'
+[ ! -e /dev/null/alertmind-c2 ] && [ ! -L /dev/null/alertmind-c2 ] || stop 'cache prefix became traversable'
+[ ! -e /usr/lib/python314.zip ] && [ ! -L /usr/lib/python314.zip ] || stop 'zip search-path candidate appeared'
+[ ! -e /etc/ld.so.preload ] && [ ! -L /etc/ld.so.preload ] || stop 'global loader preload requires separate review'
+
+check_chain() {
+    local path=$1 kind=$2 component uid gid mode
+    [ "$(readlink -e -- "$path")" = "$path" ] || stop "non-canonical path: $path"
+    component=$path
+    while :; do
+        uid=$(stat -c '%u' -- "$component") || stop "stat failed: $component"
+        gid=$(stat -c '%g' -- "$component") || stop "stat failed: $component"
+        mode=$(stat -c '%a' -- "$component") || stop "stat failed: $component"
+        [[ "$mode" =~ ^[0-7]{3,4}$ ]] || stop "invalid mode: $component"
+        [ "$uid" = 0 ] && [ "$gid" = 0 ] || stop "non-root path component: $component"
+        (( (8#$mode & 8#022) == 0 )) || stop "writable path component: $component"
+        if [ "$component" = "$path" ] && [ "$kind" = file ]; then
+            [ -f "$component" ] && [ ! -L "$component" ] || stop "non-regular file: $component"
+        else
+            [ -d "$component" ] && [ ! -L "$component" ] || stop "non-directory ancestor: $component"
+        fi
+        [ "$component" = / ] && break
+        component=${component%/*}
+        [ -n "$component" ] || component=/
+    done
+}
+
+mapfile -t mapped <<'ALERTMIND_C2_MAPPED_FILES'
+/usr/bin/python3.14
+/usr/lib/python3.14/lib-dynload/_hashlib.cpython-314-x86_64-linux-gnu.so
+/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
+/usr/lib/x86_64-linux-gnu/libc.so.6
+/usr/lib/x86_64-linux-gnu/libcrypto.so.3
+/usr/lib/x86_64-linux-gnu/libexpat.so.1.11.2
+/usr/lib/x86_64-linux-gnu/libm.so.6
+/usr/lib/x86_64-linux-gnu/libz.so.1.3.1
+/usr/lib/x86_64-linux-gnu/libzstd.so.1.5.7
+ALERTMIND_C2_MAPPED_FILES
+
+[ "${#mapped[@]}" -eq 9 ] || stop 'mapped-file count drift'
+list_hash=$(printf '%s\n' "${mapped[@]}" | sha256sum)
+[ "${list_hash%% *}" = 0b112d9d770034238714593a83cc70c81cf232c2c7601d917e736b28e452e9ba ] || stop 'mapped-file list drift'
+printf 'PASS fixed C2 path list: count=9 sha256=%s\n' "${list_hash%% *}"
+
+declare -A checked_packages=()
+for index in "${!mapped[@]}"; do
+    path=${mapped[$index]}
+    check_chain "$path" file
+    size=$(stat -c '%s' -- "$path") || stop "size lookup failed: $path"
+    [[ "$size" =~ ^[0-9]+$ ]] && (( size > 0 && size <= 33554432 )) || stop "file size outside 1..33554432: $path"
+    digest_line=$(sha256sum -- "$path") || stop "hash failed: $path"
+    digest=${digest_line%% *}
+    if [ "$path" = /usr/bin/python3.14 ] &&
+       [ "$digest" != 52e0a13e60a981d8c4b6478be2ba5176f69da07948a056bf49cf6f077e30cb41 ]; then
+        stop 'pinned interpreter digest drift'
+    fi
+    if [ "$path" = /usr/lib/python3.14/lib-dynload/_hashlib.cpython-314-x86_64-linux-gnu.so ] &&
+       [ "$digest" != f57bc22cc1b6f3b48c43778634af1a7e79c5ae0632350fa5144d050c7848112c ]; then
+        stop 'C1 _hashlib digest drift'
+    fi
+    owner_line=$(dpkg-query --search -- "$path") || stop "package lookup failed: $path"
+    [[ "$owner_line" != *$'\n'* ]] || stop "ambiguous package lookup: $path"
+    owner=${owner_line%%: *}
+    listed=${owner_line#*: }
+    [ "$owner" != "$owner_line" ] && [ "$listed" = "$path" ] || stop "non-exact package lookup: $path"
+    status=$(dpkg-query --show --showformat='${Status}' "$owner") || stop "package status lookup failed: $owner"
+    version=$(dpkg-query --show --showformat='${Version}' "$owner") || stop "package version lookup failed: $owner"
+    [ "$status" = 'install ok installed' ] || stop "package not fully installed: $owner"
+    if [ -z "${checked_packages[$owner]+x}" ]; then
+        verify_output=$(dpkg --verify "$owner" 2>&1) || stop "local package drift: $owner"
+        [ -z "$verify_output" ] || stop "local package drift output: $owner"
+        checked_packages[$owner]=1
+    fi
+    header=$(readelf -hW -- "$path") || stop "ELF header read failed: $path"
+    printf '%s\n' "$header" | grep -Eq 'Class:[[:space:]]+ELF64' || stop "not ELF64: $path"
+    dynamic=$(readelf -dW -- "$path") || stop "ELF dynamic read failed: $path"
+    [[ "$dynamic" != *'(RPATH)'* && "$dynamic" != *'(RUNPATH)'* ]] || stop "ELF search-path tag requires review: $path"
+    printf 'FILE %02d sha256=%s bytes=%s package=%s version=%s path=%s\n' "$index" "$digest" "$size" "$owner" "$version" "$path"
+    while IFS= read -r line; do
+        if [[ "$line" == *'(NEEDED)'* || "$line" == *'(SONAME)'* ]]; then
+            if [[ "$line" =~ \((NEEDED|SONAME)\).*\[([A-Za-z0-9._+-]+)\] ]]; then
+                printf 'ELF %02d %s %s\n' "$index" "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}"
+            else
+                stop "unparseable ELF dependency entry: $path"
+            fi
+        fi
+    done <<< "$dynamic"
+done
+
+check_chain /etc/ld.so.cache file
+cache_size=$(stat -c '%s' -- /etc/ld.so.cache) || stop 'loader cache size lookup failed'
+[[ "$cache_size" =~ ^[0-9]+$ ]] && (( cache_size > 0 && cache_size <= 33554432 )) || stop 'loader cache size outside bound'
+cache_hash=$(sha256sum -- /etc/ld.so.cache) || stop 'loader cache hash failed'
+printf 'LOADER_CACHE sha256=%s bytes=%s path=/etc/ld.so.cache\n' "${cache_hash%% *}" "$cache_size"
+printf 'PASS C3 metadata: mapped_files=9 packages=%s no_rpath_runpath=yes\n' "${#checked_packages[@]}"
+printf 'STOP: Gate C3 metadata only; no native-closure, package-authenticity or root-run guard authorization.\n'
+ALERTMIND_MAPPED_FILE_C3
+```
+
+Return `PASS`, `FILE`, `ELF`, `LOADER_CACHE` and final `STOP` lines only. If a
+check stops, send that STOP and do not rerun with altered code or privileges.
+The package names/versions and hashes are public metadata, not credentials.
+C3's sequential reads are not an atomic snapshot, a signed-package proof or
+an exhaustive dependency graph. The exact root-run launch environment,
+other loader inputs, import machinery and durable update/recovery policy
+remain separate gates. Do not run or install the guard.
