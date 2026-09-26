@@ -951,13 +951,32 @@ prove Python did not use a cache, frozen code or a shadowing module. Python's
 describes redirection of source cache lookups; this does not establish complete
 import resolution or make the existing launch-data check an actual launcher.
 
+### Dormant fixed-name input observer (27 September 2026)
+
+`siem/rbac/broker_tls/operator_python_paths.py` implements the next bounded
+offline slice. Two fixed-name passes reject any `/usr/lib/python314.zip` or
+`/etc/ld.so.preload` object and inspect `/dev/null` through an `O_PATH`
+metadata-only descriptor. Trusted ancestors, root ownership, character-device
+1:3 identity and before/open/after/name comparisons are required. Ordinary
+0666 null-device permissions are allowed, not treated as a writable code file.
+These are candidate requirements, not additional C3 observations.
+
+The [operator contract](../../siem/rbac/broker_tls/OPERATOR.md#python-fixed-name-inputs--dormant-observations-only)
+documents the fifteen tests, two Linux-only, and precise limitations. The
+observer neither reads/writes the device payload nor opens the cache prefix.
+It does not prove that cache redirection took effect, exclude every import or
+loader input, establish loaded-code provenance, or prevent injection before
+Python starts. Its trust/startup flags remain false. It is separate from the
+byte reader and is not a complete snapshot or a deployed guard component.
+
 ### Next work and VM availability
 
 The owner may shut down the VM normally after stopping the Windows tunnel.
 No more VM output is needed **for this offline slice**. Do not rerun A–C3.
-The mapped/cache/source byte adapter is implemented. Next offline work is the
-remaining import-search/cache and loader-input controls, with negative tests,
-before composing the guard. Neither the adapter nor later composition may use a stored C3 report
+The mapped/cache/source byte adapter and fixed optional-path/null-anchor
+observer are implemented. Remaining work includes actual import/cache/loader
+resolution and externally trusted launch/composition; the fixed-name observer
+does not complete these broader controls. Neither adapter nor later composition may use a stored C3 report
 as a substitute for fresh reads or auto-refresh pins after package drift.
 A changed generated loader cache also needs review; it is not automatically
 evidence of compromise.

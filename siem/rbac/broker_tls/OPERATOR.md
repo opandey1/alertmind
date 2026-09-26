@@ -959,6 +959,52 @@ package/version, so the package count remains seven. Source-pin coverage is
 not complete import closure: unobserved function-local/dynamic imports, caches,
 shadowing, import machinery and loader-input controls remain separate work.
 
+### Python fixed-name inputs — dormant observations only
+
+`operator_python_paths.py` adds `observe_python_path_inputs()`, a no-argument
+root/Linux observer separate from the byte-pin reader and proposed guard:
+
+- Two passes require `/usr/lib/python314.zip` and `/etc/ld.so.preload` to be
+  absent. Any object, including an empty file, directory or dangling symlink,
+  fails. Required ancestors are held through no-follow descriptors and must be
+  root:root without group/other write permission. Missing ancestors are errors,
+  not evidence that the optional child is safely absent.
+- Both passes inspect `/dev/null` as a direct root:root character device with
+  Linux major/minor 1:3. Normal 0666 or stricter rw-only permissions are allowed;
+  execute, set-ID and sticky bits are rejected. These are explicit candidate
+  policy requirements, not metadata claimed to have appeared in C3.
+- The device is opened only with `O_PATH|O_NOFOLLOW|O_CLOEXEC`, never for
+  payload reads/writes. Device numbers participate in before/open/after/name
+  comparisons, as well as descriptor and ancestor metadata. A replacement
+  between passes fails. Missing `O_PATH` support fails without a read-open
+  fallback. OS failures become fixed codes; descriptors close on failure.
+
+The [Linux null-device contract](https://man7.org/linux/man-pages/man4/null.4.html)
+defines device 1:3 and usual writable permissions. The
+[O_PATH contract](https://man7.org/linux/man-pages/man2/open.2.html) permits
+metadata inspection without opening the device for I/O. A character-device
+anchor cannot be traversed as a cache directory. This does **not** establish
+that the running interpreter actually uses the proposed
+`/dev/null/alertmind-c2` cache prefix. Likewise, absence of the
+[global loader-preload file](https://man7.org/linux/man-pages/man8/ld.so.8.html)
+does not establish the absence of environment-driven or earlier injection.
+
+Fifteen tests exercise fixed paths/order, first/second-pass presence, symlink
+and owner/mode/device failures, absence/name/descriptor races, metadata-only
+open flags, cleanup and non-authorizing results. Two Linux-only tests use
+temporary-tree absence fixtures and the test host's `/dev/null` metadata;
+they need no VM or device-payload I/O and are skipped on Windows. Native
+Linux execution remains necessary; portable fake-descriptor passes do not
+substitute for it.
+
+No complete import-search, cache-redirection, loader-environment, native-
+resolution, loaded-code or atomic-snapshot proof is claimed. Runtime trust
+and startup authorization remain false. Kernel/device semantics and the
+caller's interpreter/import environment must already be trusted separately.
+The byte adapter and this observer run independently, not as one coherent
+snapshot. Neither is in the thirteen-source capsule, installed, or called by
+the compile-only guard. No launcher, pin refresh or new VM gate is released.
+
 ## Required next adapter package — not released here
 
 1. Establish selected packaged Linux runtime and real Server certificate
