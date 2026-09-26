@@ -1095,6 +1095,50 @@ No earlier/later or atomic snapshot is claimed. Runtime/startup flags remain
 false; this observer is outside the capsule and unused by the compile-only
 entrypoint. No VM command or deployment is released.
 
+### Selected Python filesystem candidates — dormant fixed-name checks
+
+`operator_python_candidates.py` adds a no-argument root/Linux observer for
+the **50 selected file-backed module names**, not the whole standard library.
+Its fixed policy derives 514 alternate names from the existing source/extension
+origins, two directory search roots, six package paths and the prior candidate
+suffix policy. It requires all selected origins to be trusted regular files
+and rejects any object at the alternate names, including dangling symlinks,
+directories and special files. Filesystem names are never auto-learned.
+
+The checks cover sibling source, legacy standalone bytecode, three native
+extension suffixes, same-name package directories and alternate package
+initializers. This uses the candidate structure of
+[CPython 3.14.4 FileFinder](https://github.com/python/cpython/blob/v3.14.4/Lib/importlib/_bootstrap_external.py).
+The policy is deliberately stricter than resolution precedence: later fallback
+peers and even empty same-name namespace directories are rejected. A collision
+requires review, not deletion or automatic acceptance. This is proposed policy,
+not a claim that these names were absent in the earlier VM diagnostics.
+
+Eleven directory descriptors, including `/`, are held across two passes. All
+ancestors are root-owned, no-follow, non-group/world-writable directories.
+Selected origins receive no-follow metadata checks and across-pass comparisons;
+each alternate receives an absence check in both passes. Directory names and
+held descriptors are rechecked after each pass. There are no payload reads,
+candidate-file opens, directory listings, NSS calls, subject imports or writes.
+Extension size is pinned; sources use the existing 1 MiB ceiling. Byte hashes
+remain the separate fixed-file reader's responsibility. Descriptors close on
+success and failure, and OS errors use fixed diagnostic codes.
+
+Twenty regression methods include exhaustive rejection of all 514 alternates,
+both-pass object checks, every expected origin, unsafe ownership/symlinks,
+descriptor/name races, errors and cleanup. Two Linux-only tests use disposable
+trees, including a FIFO and dangling symlink, without reading their payloads.
+Windows synthetic results are not native selected-runtime acceptance.
+
+This does not enumerate or reject unrelated modules, authenticate built-in or
+frozen code, check the ZIP input, prove effective cache-prefix use, or validate
+native dependency resolution. Existing `__pycache__` files are deliberately
+untouched; the separate cache-redirection controls remain necessary. Leaf
+contents are not held or hashed here, and directory descriptors do not freeze
+names or content. There is no earlier/future-import or atomic-snapshot proof.
+It stays outside the guard capsule; runtime/startup authorization remains false.
+No deployment command or additional VM output is requested.
+
 ## Required next adapter package — not released here
 
 1. Establish selected packaged Linux runtime and real Server certificate
