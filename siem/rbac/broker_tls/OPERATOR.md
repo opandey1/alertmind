@@ -1054,6 +1054,47 @@ prevent subsequent changes. All runtime/startup authority flags stay false.
 This does not compose the byte/path observers into a trusted guard or release
 a new VM command; the entrypoint remains compile-only and exits 1.
 
+### Python path hooks and cached importers — candidate metadata only
+
+`operator_python_path_importers.py` is a separate dormant no-argument
+root/Linux observer. It reuses the candidate runtime/settings checks and
+examines `sys.path_hooks` and `sys.path_importer_cache` twice. It neither
+loads missing modules nor invokes hooks, finders, loaders or cache invalidation.
+
+The proposed policy requires the current ZIP importer class followed by the
+current FileFinder factory's closure. Code-object/global-dictionary identity,
+closure class and loader details are checked against current bootstrap objects.
+It requires extension/source/sourceless loader order and the proposed release
+Linux x86-64 suffixes (`.cpython-314-x86_64-linux-gnu.so`, `.abi3.so`, `.so`,
+`.py`, `.pyc`). This follows the structure in
+[CPython 3.14.4's path-import implementation](https://github.com/python/cpython/blob/v3.14.4/Lib/importlib/_bootstrap_external.py),
+but is **candidate policy, not a B2/C2 observation or native compatibility proof**.
+
+The importer cache may contain only the two stdlib directories, six selected
+package directories and an optional negative (`None`) ZIP entry. Missing keys,
+including an empty cache, are allowed without populating them. Present directory
+entries must be exact current FileFinder instances with matching paths and
+loader tables. Extra instance fields, including method overrides, fail closed.
+Directory-name caches are type/size bounded; the Linux relaxed-name cache must
+be empty. The two passes compare retained object references and copied directory
+name/mtime values. No source/cache/device payload is read or modified.
+
+Twenty portable synthetic tests cover hooks/closures, loader identity/order,
+cache paths, instance-method shadows, bounded metadata, replacements and
+between-pass drift. They do not run the selected Linux Python 3.14 interpreter.
+The strict cache policy may need a separately reviewed adjustment for the final
+initializer; it must never auto-learn paths or silently clear rejected state.
+
+Matching mutable metadata is not authenticated hook code or actual resolution.
+Directory caches can be stale or forged; no directory inventory is proved.
+The default sourceless loader remains present: cache-prefix redirection does
+**not** rule out standalone `.pyc` files or native modules shadowing sources.
+Filesystem candidate exclusion, remaining module coverage, bootstrap provenance,
+native resolution and externally trusted initialization/composition stay open.
+No earlier/later or atomic snapshot is claimed. Runtime/startup flags remain
+false; this observer is outside the capsule and unused by the compile-only
+entrypoint. No VM command or deployment is released.
+
 ## Required next adapter package — not released here
 
 1. Establish selected packaged Linux runtime and real Server certificate
