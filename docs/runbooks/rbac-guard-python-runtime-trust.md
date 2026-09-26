@@ -969,14 +969,32 @@ loader input, establish loaded-code provenance, or prevent injection before
 Python starts. Its trust/startup flags remain false. It is separate from the
 byte reader and is not a complete snapshot or a deployed guard component.
 
+### Dormant in-process import-state observer (27 September 2026)
+
+`siem/rbac/broker_tls/operator_python_import_state.py` checks current reported
+interpreter/argv/isolation/search-path/cache-prefix settings and the 50
+selected file-backed modules' origin/loader/cache/package metadata twice.
+It requires those subjects already loaded, never preloads them, and invokes
+no finder/loader or lazy cache property. Dotted names follow C1 source paths
+and agree with B2; this is not a new VM observation. The candidate's full
+combined launch/call point still requires review and selected-runtime testing.
+
+The [operator contract](../../siem/rbac/broker_tls/OPERATOR.md#python-in-process-import-state--selected-metadata-only)
+describes seventeen portable synthetic tests and the limitations. Mutable
+metadata and matching current finder identities cannot authenticate loaded
+code. Other modules, path hooks/importer caches, native resolution and initial
+environment are not attested. The observer is not installed or wired into the
+guard; runtime/startup authority stays false.
+
 ### Next work and VM availability
 
 The owner may shut down the VM normally after stopping the Windows tunnel.
 No more VM output is needed **for this offline slice**. Do not rerun A–C3.
-The mapped/cache/source byte adapter and fixed optional-path/null-anchor
-observer are implemented. Remaining work includes actual import/cache/loader
-resolution and externally trusted launch/composition; the fixed-name observer
-does not complete these broader controls. Neither adapter nor later composition may use a stored C3 report
+The mapped/cache/source byte adapter, fixed optional-path/null-anchor observer
+and selected in-process import-state observer are implemented. Remaining work
+includes the rest of import machinery/module coverage, native resolution and
+externally trusted launch/composition. Matching selected mutable metadata does
+not complete those controls. Neither an observer nor later composition may use a stored C3 report
 as a substitute for fresh reads or auto-refresh pins after package drift.
 A changed generated loader cache also needs review; it is not automatically
 evidence of compromise.

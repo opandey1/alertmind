@@ -1005,6 +1005,55 @@ The byte adapter and this observer run independently, not as one coherent
 snapshot. Neither is in the thirteen-source capsule, installed, or called by
 the compile-only guard. No launcher, pin refresh or new VM gate is released.
 
+### Python in-process import state — selected metadata only
+
+`operator_python_import_state.py` adds a dormant no-argument root/Linux
+observer, still outside the guard capsule. It reads the current process's
+reported settings and selected module metadata twice, without file reads,
+module imports, finder/loader calls, environment repair or process launch.
+
+It requires the proposed CPython 3.14.4 executable/argv, isolation and no-site
+flags, safe-path and no-bytecode settings, optimization level zero, the
+three B2 search paths and C2's explicit cache prefix. These are candidate
+requirements; the full combination has not been exercised on the VM. It
+checks `sys.orig_argv` separately from script `sys.argv` and requires exactly
+the proposed `pycache_prefix` X option. It does not read the environment.
+
+All **50 selected file-backed modules must already be loaded**: the 49
+C1-pinned sources plus `_hashlib`. Source paths determine the B2 dotted names;
+`__init__.py` identifies six packages. Missing modules fail; the observer does
+not preload them. A future reviewed initializer must arrange the call point.
+For these modules it checks module/spec name and file/origin independently,
+exact current source/extension loader types and object identity, loader
+name/path, materialized cache paths, package search paths and parent-child
+bindings. It inspects dictionaries, not lazy `ModuleSpec.cached` properties.
+The three meta finders must match the current bootstrap classes by identity,
+not just class-name strings. Selected module/spec/loader references are held
+between passes to detect replacements without relying on reusable object IDs.
+
+These checks use Python's documented [original argv and cache-prefix state](https://docs.python.org/3.14/library/sys.html)
+and [module/spec metadata contract](https://docs.python.org/3.14/library/importlib.html#importlib.machinery.ModuleSpec).
+Module and spec fields are mutable and not automatically synchronized. The
+[import system](https://docs.python.org/3.14/reference/import.html) also uses
+cached modules and path hooks; checking these selected fields is not a full
+import-resolution proof.
+
+Seventeen portable tests use synthetic Python module/spec/loader objects.
+They cover settings drift, every selected source/origin/cache, finder identity,
+package shadows, module/spec/loader replacements, malformed metadata, bounded
+module tables, no subject execution and deliberately non-authorizing results.
+They do **not** constitute execution on the selected Linux Python 3.14 runtime.
+
+The result describes matching **reported settings and selected metadata**,
+not authenticated machine code, bytecode or module functions. Other modules,
+built-in/frozen provenance, `path_hooks`, `path_importer_cache`, native loader
+resolution and the initial environment remain unproven. Even matching finder
+identities are relative to the current mutable interpreter, not independent
+authentication. Two passes do not lock state, attest earlier imports or
+prevent subsequent changes. All runtime/startup authority flags stay false.
+This does not compose the byte/path observers into a trusted guard or release
+a new VM command; the entrypoint remains compile-only and exits 1.
+
 ## Required next adapter package — not released here
 
 1. Establish selected packaged Linux runtime and real Server certificate
