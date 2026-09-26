@@ -986,14 +986,33 @@ code. Other modules, path hooks/importer caches, native resolution and initial
 environment are not attested. The observer is not installed or wired into the
 guard; runtime/startup authority stays false.
 
+### Dormant path-hook/importer-cache observer (27 September 2026)
+
+`siem/rbac/broker_tls/operator_python_path_importers.py` now checks the proposed
+default hook/closure structure and bounded cached FileFinder metadata twice,
+without invoking import machinery or filling/clearing caches. It accepts only
+the two stdlib roots, six selected package paths and an optional negative ZIP
+entry; absent cache entries are not failures. The proposed suffix/loader policy
+comes from the version-matched implementation shape, not new VM evidence.
+
+The [operator contract](../../siem/rbac/broker_tls/OPERATOR.md#python-path-hooks-and-cached-importers--candidate-metadata-only)
+describes the twenty synthetic tests, exact checks and limitations. In particular,
+matching hook identities cannot authenticate mutable bootstrap code, directory
+caches are not filesystem inventory, and the default `.pyc`/extension loaders
+do not prove source-only imports. The earlier selected-module observer still
+does not check path hooks itself; these remain separate observations, not a
+combined trust decision. The new observer is neither installed nor wired into
+the guard, and all runtime/startup authority remains false.
+
 ### Next work and VM availability
 
 The owner may shut down the VM normally after stopping the Windows tunnel.
 No more VM output is needed **for this offline slice**. Do not rerun A–C3.
 The mapped/cache/source byte adapter, fixed optional-path/null-anchor observer
-and selected in-process import-state observer are implemented. Remaining work
-includes the rest of import machinery/module coverage, native resolution and
-externally trusted launch/composition. Matching selected mutable metadata does
+and selected in-process import-state and path-hook/importer-cache metadata
+observers are implemented. Remaining work includes filesystem import-candidate
+exclusion, remaining module/bootstrap coverage, native resolution and externally
+trusted launch/composition. Matching selected mutable metadata does
 not complete those controls. Neither an observer nor later composition may use a stored C3 report
 as a substitute for fresh reads or auto-refresh pins after package drift.
 A changed generated loader cache also needs review; it is not automatically
