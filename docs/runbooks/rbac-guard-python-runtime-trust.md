@@ -901,33 +901,63 @@ trusted launcher must establish the environment before interpreter/ELF startup;
 checking or clearing it inside Python is too late. The launch helper and its
 own loader inputs must also be trusted. No implementation here does that.
 
-### Dormant native read/compare adapter (26 September 2026)
+### Dormant native read/compare adapter (updated 27 September 2026)
 
 `siem/rbac/broker_tls/operator_python_runtime.py` now implements the fixed-file
 read/compare slice separately from the pure policy and the guard. It reads the
-nine C3-pinned files plus generated loader cache twice and the fixed dpkg
-status database three times. The existing root-only no-follow reader bounds
-each read and rechecks metadata/ancestors; the adapter checks exact byte sizes,
-SHA-256 values and seven selected amd64 package versions/installed states.
+nine C3-pinned files, generated loader cache and 49 C1 source files twice, and
+the fixed dpkg status database three times. The existing root-only no-follow reader bounds
+each read and rechecks metadata/ancestors; the adapter checks mapped/cache exact
+sizes, all SHA-256 values and seven selected amd64 package versions/installed
+states. C1 source sizes were not recorded; source reads use a 1 MiB per-file
+ceiling rather than an invented exact size. There are 121 reads per observation.
 An unchanged fully installed `hold` selection is allowed; selection drift
 between reads is not. No commands, transcript replay, writes or pin refresh
 are used. The [operator contract](../../siem/rbac/broker_tls/OPERATOR.md#python-fixed-file-reader--dormant-not-a-runtime-trust-decision)
-describes the 19 tests, including two Linux-only temporary-file cases.
+describes the 21 adapter tests, including two Linux-only temporary-file cases,
+and seven additional source-pin tests.
 
 The module is **not deployed or wired into the guard**. Package status is not
-package-file ownership or signed authenticity. The 49 source origins and
-remaining loader inputs are outside this reader; it does not prove actual
+package-file ownership or signed authenticity. The 49 source paths' byte pins
+are now covered, but their actual selection and remaining loader inputs are
+not; the reader does not prove actual
 resolution, loaded code, an atomic snapshot or a trusted launch environment.
 Its runtime/startup flags remain false. This is an offline implementation,
 not a new live gate or authorization to execute root-run Python on the VM.
+
+### C1 source-pin provenance (recorded 26–27 September 2026)
+
+The [retained C1 transcript](../../evidence/rbac/python-runtime-c1-owner-report-2026-09-26.txt)
+copies the owner's earlier attachment, removing only the leading empty sudo
+password prompt and normalizing CRLF to LF. It contains 107 public-metadata
+lines, including all 50 ORIGIN records, 49 CACHE_PRESENT records, the summary
+and diagnostic STOP. Its filename records the start of transcription, not a
+VM execution timestamp. Producer: the Gate C1 block at
+`d79875b2ef327095b49719315dc6fb0a6fc56fd3`. The LF-normalized transcript SHA-256 is
+`b67be416f452f7ca3159195a2632bada396c8c509439d22171d08a917ba3d187`.
+
+Tests re-derive the already accepted origin-record manifest
+`6625b3d3dd24b51ceb4f4396d3eb21eada5fa2a7f87e8951cc3b7ceaded61c1d`
+and ordered B2/sorted C2 path sets. The 49 source pins in
+`operator_python_policy.py` version 2 reproduce the source rows exactly;
+the extension row matches the existing C3 `_hashlib` pin. All source rows
+report libpython3.14-minimal:amd64; its version is from the accepted B1/C1
+package preflight, not a new observation or a version field invented in ORIGIN.
+
+The observer never loads this transcript, imports/executes these source files,
+or uses the `.pyc` hashes as approved bytecode. Matching source bytes cannot
+prove Python did not use a cache, frozen code or a shadowing module. Python's
+[cache-prefix documentation](https://docs.python.org/3.14/library/sys.html#sys.pycache_prefix)
+describes redirection of source cache lookups; this does not establish complete
+import resolution or make the existing launch-data check an actual launcher.
 
 ### Next work and VM availability
 
 The owner may shut down the VM normally after stopping the Windows tunnel.
 No more VM output is needed **for this offline slice**. Do not rerun A–C3.
-The bounded native adapter is implemented. Next offline work is the remaining
-stdlib/import/loader-input policy, with negative tests, before composing the
-guard. Neither the adapter nor later composition may use a stored C3 report
+The mapped/cache/source byte adapter is implemented. Next offline work is the
+remaining import-search/cache and loader-input controls, with negative tests,
+before composing the guard. Neither the adapter nor later composition may use a stored C3 report
 as a substitute for fresh reads or auto-refresh pins after package drift.
 A changed generated loader cache also needs review; it is not automatically
 evidence of compromise.

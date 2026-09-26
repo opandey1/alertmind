@@ -119,9 +119,16 @@ class PythonRuntimeAdapterTests(unittest.TestCase):
             self.blobs[tuple(pin.path.split('/')[1:])] = raw
             files.append(replace(pin, size=len(raw), sha256=hashlib.sha256(raw).hexdigest()))
         self.files, self.cache = tuple(files[:-1]), files[-1]
+        self.sources = []
+        for index, pin in enumerate(policy.SOURCE_FILES):
+            raw = f'source-fixture-{index}'.encode()
+            self.blobs[tuple(pin.path.split('/')[1:])] = raw
+            self.sources.append(replace(pin, sha256=hashlib.sha256(raw).hexdigest()))
         self.blobs[runtime.STATUS_PARTS] = database()
         self.start_patch(patch.object(policy, 'MAPPED_FILES', self.files))
         self.start_patch(patch.object(policy, 'LOADER_CACHE', self.cache))
+        self.start_patch(patch.object(policy, 'SOURCE_FILES', tuple(self.sources)))
+        self.start_patch(patch.object(policy, 'SOURCE_LIMIT', 64))
 
     def start_patch(self, context):
         value = context.start()
@@ -133,13 +140,16 @@ class PythonRuntimeAdapterTests(unittest.TestCase):
                 fs, '_read_root_owned', side_effect=lambda parts, limit: self.blobs[parts]) as read:
             result = runtime.observe_python_runtime()
         file_reads = [(tuple(pin.path.split('/')[1:]), pin.size) for pin in self.files + (self.cache,)]
+        file_reads += [(tuple(pin.path.split('/')[1:]), policy.SOURCE_LIMIT) for pin in self.sources]
         status_read = (runtime.STATUS_PARTS, runtime.MAX_STATUS)
         self.assertEqual([call.args for call in read.call_args_list],
                          [status_read] + file_reads + [status_read] + file_reads + [status_read])
-        self.assertEqual(platform.call_count, 23)
+        self.assertEqual(platform.call_count, 121)
         nss.assert_not_called()
         self.assertEqual((result.file_passes, result.package_reads), (2, 3))
         self.assertIs(result.on_disk_byte_pins_match, True)
+        self.assertIs(result.on_disk_source_pins_match, True)
+        self.assertEqual(result.source_file_count, 49)
 
     def test_no_public_overrides_and_platform_failure_prevents_io(self):
         self.assertEqual(len(inspect.signature(runtime.observe_python_runtime).parameters), 0)
@@ -184,6 +194,37 @@ class PythonRuntimeAdapterTests(unittest.TestCase):
                     fs, '_read_root_owned', side_effect=read), self.assertRaisesRegex(
                     core.OperatorError, '^PY_RUNTIME_SIZE$'):
                 runtime.observe_python_runtime()
+
+    def test_every_source_first_and_second_pass_digest_drift_fails(self):
+        for pin in self.sources:
+            target = tuple(pin.path.split('/')[1:])
+            for bad_pass in (1, 2):
+                seen = 0
+                def changed(parts, limit):
+                    nonlocal seen
+                    if parts == target:
+                        seen += 1
+                        if seen == bad_pass:
+                            return b'altered source, never executed'
+                    return self.blobs[parts]
+                with self.subTest(path=target, bad_pass=bad_pass), patch.object(fs, '_platform'), patch.object(
+                        fs, '_read_root_owned', side_effect=changed), self.assertRaisesRegex(
+                        policy.PythonPolicyError, '^PY_SOURCE_DIGEST$'):
+                    runtime.observe_python_runtime()
+                self.assertEqual(seen, bad_pass)
+
+    def test_source_type_and_bound_failure_stops_before_following_source(self):
+        target = tuple(self.sources[0].path.split('/')[1:])
+        for raw in (None, b'', 'source', bytearray(b'source'), b'x' * 65):
+            reads = []
+            def read(parts, limit):
+                reads.append(parts)
+                return raw if parts == target else self.blobs[parts]
+            with patch.object(fs, '_platform'), patch.object(fs, '_read_root_owned', side_effect=read), self.assertRaisesRegex(
+                    policy.PythonPolicyError, '^PY_SOURCE_SIZE$'):
+                runtime.observe_python_runtime()
+            self.assertEqual(reads[-1], target)
+            self.assertEqual(len(reads), 12)
 
     def test_middle_and_final_package_selection_drift_fails(self):
         for bad_read in (2, 3):

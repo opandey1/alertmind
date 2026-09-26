@@ -1,0 +1,107 @@
+PASS pinned interpreter and three local package records
+PASS B2 search roots: canonical root-owned directories; zip candidate absent
+ORIGIN f57bc22cc1b6f3b48c43778634af1a7e79c5ae0632350fa5144d050c7848112c  libpython3.14-minimal:amd64  /usr/lib/python3.14/lib-dynload/_hashlib.cpython-314-x86_64-linux-gnu.so
+ORIGIN d9badc5ab19a66415e230bf8f4299491b2207d584981a92b6e7c447cfa1aeac3  libpython3.14-minimal:amd64  /usr/lib/python3.14/_opcode_metadata.py
+CACHE_PRESENT e4bad4405bc9aa68213c6b91aecde897c3ae16a6981e82117dd20f05e66e9c99  /usr/lib/python3.14/__pycache__/_opcode_metadata.cpython-314.pyc
+ORIGIN 7728580177727fa3b295478cef4777a9d2a364c5cbd809efcea352db31144f85  libpython3.14-minimal:amd64  /usr/lib/python3.14/_py_warnings.py
+CACHE_PRESENT 1241d965825fe5c0dac3d5329cb4fbaae9285b987db540760f2fdd0abe63181f  /usr/lib/python3.14/__pycache__/_py_warnings.cpython-314.pyc
+ORIGIN 2dd7cb459d654fe78b00c5c47ee8e786c037ee77763304603f5e976dd62cbf81  libpython3.14-minimal:amd64  /usr/lib/python3.14/_weakrefset.py
+CACHE_PRESENT 946fe36b8a10d90b421956ab2ee18a46373c4f9f43ae7f4cdc15a3ef1c9f9385  /usr/lib/python3.14/__pycache__/_weakrefset.cpython-314.pyc
+ORIGIN e0726bf3334247b98070d1eed0a1257c1e27be1fc289aadabf2fd29f6b31b1ff  libpython3.14-minimal:amd64  /usr/lib/python3.14/annotationlib.py
+CACHE_PRESENT aa256084850b40f4710f401fdce2cd4b5605a946a5cb21caabd1a2c8c64170ec  /usr/lib/python3.14/__pycache__/annotationlib.cpython-314.pyc
+ORIGIN 5ea9a796353544bea0d706153516f04ef3d92be305d15a73238403837d77e34c  libpython3.14-minimal:amd64  /usr/lib/python3.14/ast.py
+CACHE_PRESENT 50dbc68167e6f1aa749994e57866af6ef01b367b5819fb9a1e34bc7b0160396d  /usr/lib/python3.14/__pycache__/ast.cpython-314.pyc
+ORIGIN 202d288f0b6d25ed1b206640f86e934381e6766fa0496f6f8d87d9c1bf92cdef  libpython3.14-minimal:amd64  /usr/lib/python3.14/base64.py
+CACHE_PRESENT 530cd285df25906afdd83a00c4473247d63b886d2be05716175274b44aa627e9  /usr/lib/python3.14/__pycache__/base64.cpython-314.pyc
+ORIGIN dbd563752a57c6633b7566b1e9c95bc8ea81df1a1d213b23f61c5335424e5af5  libpython3.14-minimal:amd64  /usr/lib/python3.14/collections/__init__.py
+CACHE_PRESENT 48f63bd69764593092bf5e9649a1dbe3c97724e57bf8fb27551fd59f424d1cb0  /usr/lib/python3.14/collections/__pycache__/__init__.cpython-314.pyc
+ORIGIN c1e0d67b2007de11ae93cd36cf6faf38d9ab32656a832d592a49325eec579f96  libpython3.14-minimal:amd64  /usr/lib/python3.14/contextlib.py
+CACHE_PRESENT 897874a830886580d58db2a4a783cf9be97bd0782c2a52c20e221b229971d99f  /usr/lib/python3.14/__pycache__/contextlib.cpython-314.pyc
+ORIGIN 15154fde290d6e65b5007905689a47a9a5a724822c5e06eec35d9ffbb2a3aa69  libpython3.14-minimal:amd64  /usr/lib/python3.14/copy.py
+CACHE_PRESENT 8b361339d39d44786c6711ce3fb60eedc8c10ddbccaaecfc79c947ed3b58bea1  /usr/lib/python3.14/__pycache__/copy.cpython-314.pyc
+ORIGIN 6376eb5722806396f5842997ac18add369ea9ac3ff4fcfe1460c41a088cac425  libpython3.14-minimal:amd64  /usr/lib/python3.14/copyreg.py
+CACHE_PRESENT b16c7f674f367c28feb00dcd0959d9e903e9646b9ca9d57b4c9b875eaa00061c  /usr/lib/python3.14/__pycache__/copyreg.cpython-314.pyc
+ORIGIN cd1435e8cd7b7fd8b0128e05c2583445ea3f76fb437b065d22cb7587206afca8  libpython3.14-minimal:amd64  /usr/lib/python3.14/dataclasses.py
+CACHE_PRESENT 67548bba82e6c1139df8f21f640e6acdbf7b4947e9a23ae285b80e2f597708e3  /usr/lib/python3.14/__pycache__/dataclasses.cpython-314.pyc
+ORIGIN 17d4d9a9195c9ee5aa27a96f3e0871f9363fd501e3a64ef20cb1cc876d7ad553  libpython3.14-minimal:amd64  /usr/lib/python3.14/dis.py
+CACHE_PRESENT 6f6f4653cbac045bb156add52112894202b04e177856cbdc64a83971453aa9ef  /usr/lib/python3.14/__pycache__/dis.cpython-314.pyc
+ORIGIN 2b708410495acf12a6fad9d2de928dd89e567537c253eaa2b51aaae578e96c59  libpython3.14-minimal:amd64  /usr/lib/python3.14/encodings/__init__.py
+CACHE_PRESENT deacaafec7d53909273eff8ce447e92c112161b185fb514467026ea8df048ed7  /usr/lib/python3.14/encodings/__pycache__/__init__.cpython-314.pyc
+ORIGIN e38fc524cc8b2355807921411c918c0d971419c4d6ba6147409785db42d257a3  libpython3.14-minimal:amd64  /usr/lib/python3.14/encodings/aliases.py
+CACHE_PRESENT 62e6d89d23275e7c8f1f52646f538e5e9bcdcaa2356bb911293a95ad376a3ba9  /usr/lib/python3.14/encodings/__pycache__/aliases.cpython-314.pyc
+ORIGIN ba0cac060269583523ca9506473a755203037c57d466a11aa89a30a5f6756f3d  libpython3.14-minimal:amd64  /usr/lib/python3.14/encodings/utf_8.py
+CACHE_PRESENT 8c0acaa713983fa85a08f2872bee1fc780baf3b2c68749435fb1bb9f8c0d77f8  /usr/lib/python3.14/encodings/__pycache__/utf_8.cpython-314.pyc
+ORIGIN 982843c2dd6dbec992bfed44abe9ef5464be81876a180d977ccd1a69e26ec16d  libpython3.14-minimal:amd64  /usr/lib/python3.14/enum.py
+CACHE_PRESENT a1034abad64882057064254928a6308eae4de78e4187200d858fa5d678126d63  /usr/lib/python3.14/__pycache__/enum.cpython-314.pyc
+ORIGIN ce582bc266922e4c682e2a85d72095124430a6bf58716c6f2537103480eae742  libpython3.14-minimal:amd64  /usr/lib/python3.14/fnmatch.py
+CACHE_PRESENT 9b9d84ab88f291ffc078983053c1e4a34b46f1c991830746ceaa08277c44046b  /usr/lib/python3.14/__pycache__/fnmatch.cpython-314.pyc
+ORIGIN 046ec9660146db48862c7b22c78e2ef3818eaed6920e5cbf35f551ef09fec6cd  libpython3.14-minimal:amd64  /usr/lib/python3.14/functools.py
+CACHE_PRESENT e18ac01de2a2133bbb15284f62cc76a8ce57c0ed05f5dda35ed693c5fe45ba7d  /usr/lib/python3.14/__pycache__/functools.cpython-314.pyc
+ORIGIN e3c82e6f0a1fe9442d4c5625e68cb206228408f0342326f6f5c8f59112091b59  libpython3.14-minimal:amd64  /usr/lib/python3.14/glob.py
+CACHE_PRESENT afcb0867a28543b9639d3e6fa6304f582f94efc3246561e0fbb5a2f27cf0bfc5  /usr/lib/python3.14/__pycache__/glob.cpython-314.pyc
+ORIGIN 88fa624821fbdee7eb2ef87c2437b207afe328cf117c7463367e2db5eb1af492  libpython3.14-minimal:amd64  /usr/lib/python3.14/hashlib.py
+CACHE_PRESENT 914bbb531d646996f9a38a6d55fae1016dd11b578c2a1dd351262d6747bcaf0e  /usr/lib/python3.14/__pycache__/hashlib.cpython-314.pyc
+ORIGIN 72b07de4133a7e39b2f6a7920465669aa04626f217e800779587bc0713fe002e  libpython3.14-minimal:amd64  /usr/lib/python3.14/importlib/__init__.py
+CACHE_PRESENT d0620eac1c6cda70f8b79d5b5b2d2ea001135a2f61a20668896718b8a20b51cc  /usr/lib/python3.14/importlib/__pycache__/__init__.cpython-314.pyc
+ORIGIN 1da17a5ed9395af63cd76abf28967722d70341488e61f86d82634a659920ed73  libpython3.14-minimal:amd64  /usr/lib/python3.14/inspect.py
+CACHE_PRESENT 1fd6b0c50abfe8a0403b8be6d6bdc1d3b8b6079e866593cb5aabd55b284b53e1  /usr/lib/python3.14/__pycache__/inspect.cpython-314.pyc
+ORIGIN 95022d150a27a2bfd54ac21bfce35812c96b53c420bb7b018dcb573f13e52da0  libpython3.14-minimal:amd64  /usr/lib/python3.14/json/__init__.py
+CACHE_PRESENT 7180d3bc67e7bf64c4f8293e0866e6b278812d5443b0acec68d437435232062a  /usr/lib/python3.14/json/__pycache__/__init__.cpython-314.pyc
+ORIGIN 302ce57cb6f411122d7ef2ad2997c1fc0f184849fab3f1f585752f18f2195c73  libpython3.14-minimal:amd64  /usr/lib/python3.14/json/decoder.py
+CACHE_PRESENT a32b59ed15a4701cc7ccfbddc514ed076001513d5b9a6f6f45bfab2a0a1c5b81  /usr/lib/python3.14/json/__pycache__/decoder.cpython-314.pyc
+ORIGIN d68a4d04d2cfd95897498307f29349058b42c3f48ea6aa6739714a09200a7d01  libpython3.14-minimal:amd64  /usr/lib/python3.14/json/encoder.py
+CACHE_PRESENT 41eb0c71a84294f4111ce96434504fc346443bcdfa61c553a98ef490a2838332  /usr/lib/python3.14/json/__pycache__/encoder.cpython-314.pyc
+ORIGIN 572958017eae8842eeddd0e3d18d3c56cc0a197348224915e1d87ce937841764  libpython3.14-minimal:amd64  /usr/lib/python3.14/json/scanner.py
+CACHE_PRESENT d95234c506f8fe0a06ed6a4eb1a4dec0e2d77d14e89210a1dd436c959fb04fae  /usr/lib/python3.14/json/__pycache__/scanner.cpython-314.pyc
+ORIGIN 18c2be738c04ad20ad375f6a71db34b3823c7f40b0340f5294d0e89f3c9b093b  libpython3.14-minimal:amd64  /usr/lib/python3.14/keyword.py
+CACHE_PRESENT 81c5feda700a88405253f7fe700bb756c3916670897c36558559afdbc2703cf2  /usr/lib/python3.14/__pycache__/keyword.cpython-314.pyc
+ORIGIN 692daec68e2a419adf46bafc0eb2f8a2fb36c482183fa1ac47e00fec440f7d7e  libpython3.14-minimal:amd64  /usr/lib/python3.14/linecache.py
+CACHE_PRESENT 34c1ebd1214dd2394cf977405cb72b55c29f1666116450205eeefc23f0c966fc  /usr/lib/python3.14/__pycache__/linecache.cpython-314.pyc
+ORIGIN 0e90907424b4bef150b00feb1bef4687bacb416e6e3f2b463e0758ee34979fe4  libpython3.14-minimal:amd64  /usr/lib/python3.14/locale.py
+CACHE_PRESENT 38d4197a09ee315331268223202ad04c25cbf1d77ef1a57a6a47341040ad13b8  /usr/lib/python3.14/__pycache__/locale.cpython-314.pyc
+ORIGIN 1036d90c917bb27c540ac3205d22896ee747214df1f2682458ab915758e4fdf2  libpython3.14-minimal:amd64  /usr/lib/python3.14/opcode.py
+CACHE_PRESENT 9c59263f234490c49752a60b83deebf3c4a9eab50b486ab26edeb3cb1048d98d  /usr/lib/python3.14/__pycache__/opcode.cpython-314.pyc
+ORIGIN a9f9910965c31f841caad0447ee47299ac539a371422aefe200c86c60f3b4697  libpython3.14-minimal:amd64  /usr/lib/python3.14/operator.py
+CACHE_PRESENT c3cf638b7fbbe12f044bb50fd1663918bbc103ced67fd5ab5a9dc8ee1948a219  /usr/lib/python3.14/__pycache__/operator.cpython-314.pyc
+ORIGIN e82f9063fa8081136d04d27a79ba6fa44085ccb7ac78077e1095afce77f2a071  libpython3.14-minimal:amd64  /usr/lib/python3.14/pathlib/__init__.py
+CACHE_PRESENT 9a73a6f0dc5bd818237d410264cd6c2b88710b976e8aab446dc673c66e0a55f6  /usr/lib/python3.14/pathlib/__pycache__/__init__.cpython-314.pyc
+ORIGIN 61e844988e54bdf47c0b11ad2b3fd961f058bb370793428f4c6868bd40cab6f2  libpython3.14-minimal:amd64  /usr/lib/python3.14/pathlib/_os.py
+CACHE_PRESENT 1d23f2de825af5d2e98d6975a441bcc5c075e83526f2c7dab1792036d1d9fa26  /usr/lib/python3.14/pathlib/__pycache__/_os.cpython-314.pyc
+ORIGIN 741a9de729ed8207bfa19db990f8826f1bf3661f33d0970a80c08cd1338ebc35  libpython3.14-minimal:amd64  /usr/lib/python3.14/re/__init__.py
+CACHE_PRESENT 79392864f0bc1849f4a90a787cbd923eb6c83aa0c5a8fb4080458c15fcf7bec6  /usr/lib/python3.14/re/__pycache__/__init__.cpython-314.pyc
+ORIGIN 1b12d9136f23db6c3f6f26053fefc15ca964b886838c7b9c1fabf8d2efc1e5c8  libpython3.14-minimal:amd64  /usr/lib/python3.14/re/_casefix.py
+CACHE_PRESENT a31d1018da814c31c5627584d05d9f47d5f3e95ce2f81d4aeecbb45ed1bf538d  /usr/lib/python3.14/re/__pycache__/_casefix.cpython-314.pyc
+ORIGIN d49f30cf9a1dbae33b200ed8befd9d0ce3ac612783a10ac35196536f98923e91  libpython3.14-minimal:amd64  /usr/lib/python3.14/re/_compiler.py
+CACHE_PRESENT 43d5974eb3799c8053b879d5dbdab0b4d4efcb063c39ab6b81841f9b575950e3  /usr/lib/python3.14/re/__pycache__/_compiler.cpython-314.pyc
+ORIGIN 42253b3181b81aad6c46392f44a0ab26dcfa31feea411296f43ba16616a1ab0b  libpython3.14-minimal:amd64  /usr/lib/python3.14/re/_constants.py
+CACHE_PRESENT ee675a106a412b51bd280958040621c2b7b87d05099338ee247a72d037bfbb39  /usr/lib/python3.14/re/__pycache__/_constants.cpython-314.pyc
+ORIGIN e57bd194a2d42398355ae7c1ccc2ddfb78421dd431eb81e3809dbe8ca9057dc4  libpython3.14-minimal:amd64  /usr/lib/python3.14/re/_parser.py
+CACHE_PRESENT 5a1121e45be8b6d0f93aab302f1f3a84bf6d5157ab573c094c05003009e68109  /usr/lib/python3.14/re/__pycache__/_parser.cpython-314.pyc
+ORIGIN b04872e10d76252e44eae50cc785eb0fe478491afc4d7f0825a93f82b2eaba5f  libpython3.14-minimal:amd64  /usr/lib/python3.14/reprlib.py
+CACHE_PRESENT d35fd127ff56c7c66fa1ffca978fa6d3f4c930b489f05aa002ce6f686c9f947c  /usr/lib/python3.14/__pycache__/reprlib.cpython-314.pyc
+ORIGIN 4b8a60cfbb619d080f87dffe1578372e56e8c0ac826f043224a154cf7b77606d  libpython3.14-minimal:amd64  /usr/lib/python3.14/selectors.py
+CACHE_PRESENT 53e77638e48ffe8ed17081b0c2f999b8e10a44f59b324d61590a1157be464d46  /usr/lib/python3.14/__pycache__/selectors.cpython-314.pyc
+ORIGIN 0363c964c90ac0b3e515de5749205e6e6454051a1211058375d84d91eab6071a  libpython3.14-minimal:amd64  /usr/lib/python3.14/signal.py
+CACHE_PRESENT 2496e339c6680bc7865b49b76404c1e375d1cdb525891709ac45be11de673c9b  /usr/lib/python3.14/__pycache__/signal.cpython-314.pyc
+ORIGIN 50c14e55f94957804c1e45e975fedbe8e86f7e1dbb745b150370ff681155370a  libpython3.14-minimal:amd64  /usr/lib/python3.14/struct.py
+CACHE_PRESENT 1489f75a88c4b804e9b5dd04f5abc154f6851d9e902b403e8395f52e7f5fda6a  /usr/lib/python3.14/__pycache__/struct.cpython-314.pyc
+ORIGIN 6628ffdd65c093a6c08cae01ffe82877d3ced515aac9e7be0cff16512c30a7d9  libpython3.14-minimal:amd64  /usr/lib/python3.14/subprocess.py
+CACHE_PRESENT 3160b36fd4ed1ba53ef7255cd6de136f120bde7e285bfa19a47ee73969ecc987  /usr/lib/python3.14/__pycache__/subprocess.cpython-314.pyc
+ORIGIN 5323909624ec2165e70b6d31333e4191b63d383d2dc5a7d7d516a3475ea2b7e3  libpython3.14-minimal:amd64  /usr/lib/python3.14/threading.py
+CACHE_PRESENT 83468710e986467d8dc4259c07dd61a6c71dbd26b77b3f9655ab449616419eeb  /usr/lib/python3.14/__pycache__/threading.cpython-314.pyc
+ORIGIN 61d4270311099c8a0c0b2e45fb363fd1c4e347a720bcc25f682b63dc28c34234  libpython3.14-minimal:amd64  /usr/lib/python3.14/token.py
+CACHE_PRESENT e377f0db60fc865bf2b19db8848f8605128999b304b648d66d1278fbdadc0da2  /usr/lib/python3.14/__pycache__/token.cpython-314.pyc
+ORIGIN 65ba1bacdc42e768382208ff27f3001ee77d9d61aafba686c67652d22b84b330  libpython3.14-minimal:amd64  /usr/lib/python3.14/tokenize.py
+CACHE_PRESENT 84113d29b6a7c69ee365c25b741b11638630c627564973d15eca0a2f7600d678  /usr/lib/python3.14/__pycache__/tokenize.cpython-314.pyc
+ORIGIN fcfdd1c5ae56a9c35f207743d774e236da0153bf78e6e4629193a8e0e9438a6b  libpython3.14-minimal:amd64  /usr/lib/python3.14/types.py
+CACHE_PRESENT 8de2ddfdeddc4e5e043cc448e526c3b016928b00fdccd83e79f2a99c24d94ea8  /usr/lib/python3.14/__pycache__/types.cpython-314.pyc
+ORIGIN 142225786de63c593f1c9abdacf5b4fc0b05dd847f6bed0ebb4b4aa2d4d93b02  libpython3.14-minimal:amd64  /usr/lib/python3.14/warnings.py
+CACHE_PRESENT 812004bab5d645f3d6982d3dec7313792ef35b32c5c8b200e2ca25f8d519ada5  /usr/lib/python3.14/__pycache__/warnings.cpython-314.pyc
+ORIGIN 5e5f727a19a858cb4c56dbaf3e0a138ded02fb954a9a58a840a0764216ae9522  libpython3.14-minimal:amd64  /usr/lib/python3.14/weakref.py
+CACHE_PRESENT a7b0b0df6ed3eec3e97b0cd834a7506b88cde439c04619e91825678fec661266  /usr/lib/python3.14/__pycache__/weakref.cpython-314.pyc
+ORIGIN_MANIFEST_SHA256 6625b3d3dd24b51ceb4f4396d3eb21eada5fa2a7f87e8951cc3b7ceaded61c1d
+PASS C1 metadata: origins=50 cache_present=49 cache_absent=0
+=== _hashlib direct ELF dynamic entries (not resolved libraries) ===
+ 0x0000000000000001 (NEEDED)             Shared library: [libcrypto.so.3]
+ 0x0000000000000001 (NEEDED)             Shared library: [libc.so.6]
+STOP: Gate C1 metadata only; no guard or root-run Python authorization.

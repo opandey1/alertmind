@@ -1,8 +1,9 @@
 """Dormant Linux on-disk Python runtime observer; NOT runtime attestation.
 
-Reads only the fixed dpkg status database, nine C3-pinned files and generated
-loader cache. No commands, NSS, network, report replay, writes or launch. The
-calling interpreter/import environment must already be trusted separately.
+Reads only the fixed dpkg status database, nine C3-pinned files, generated
+loader cache and 49 C1-pinned sources. No commands, NSS, network, report replay,
+writes or launch. The calling interpreter/import environment must already be
+trusted separately.
 This adapter is not installed, in the guard capsule, or called by the guard.
 """
 from dataclasses import dataclass, field
@@ -21,7 +22,8 @@ IDENTITY_FIELDS = frozenset(('package', 'status', 'version', 'architecture'))
 # dpkg's status Package field is unqualified; C3's search output may include
 # :amd64. Retain a single amd64 version for each of the seven base names.
 PACKAGE_PINS = tuple(dict.fromkeys(
-    (item.package.split(':')[0], 'amd64', item.version) for item in policy.MAPPED_FILES))
+    (item.package.split(':')[0], 'amd64', item.version)
+    for item in policy.MAPPED_FILES + policy.SOURCE_FILES))
 
 
 @dataclass(frozen=True)
@@ -101,9 +103,11 @@ class PythonRuntimeObservation:
     packages: tuple
     mapped_file_count: int = field(default=9, init=False)
     generated_cache_count: int = field(default=1, init=False)
+    source_file_count: int = field(default=49, init=False)
     file_passes: int = field(default=2, init=False)
     package_reads: int = field(default=3, init=False)
     on_disk_byte_pins_match: bool = field(default=True, init=False)
+    on_disk_source_pins_match: bool = field(default=True, init=False)
     source_origins_verified: bool = field(default=False, init=False)
     package_file_ownership_verified: bool = field(default=False, init=False)
     package_authenticity_proven: bool = field(default=False, init=False)
@@ -120,8 +124,9 @@ def observe_python_runtime():
 
     Each root-only no-follow read uses the existing descriptor-relative
     primitive, including before/open/after metadata and ancestor rechecks.
-    Pins are maximum AND exact sizes; no shell/ELF parser or C3 transcript is
-    consulted. Bytes are discarded after each digest check, not executed.
+    Mapped/cache pins use maximum AND exact sizes. C1 sources use a fixed
+    per-file ceiling and SHA-256 (C1 did not report sizes). No shell/ELF parser
+    or C1/C3 transcript is consulted. Bytes are discarded, never executed.
 
     Equal observations do not lock updates, attest loaded code or prove a
     coherent cross-file snapshot. This code cannot bootstrap its own trust.
@@ -133,5 +138,8 @@ def observe_python_runtime():
             raw = _read_fixed(tuple(pin.path.split('/')[1:]), pin.size)
             core.require(type(raw) is bytes and len(raw) == pin.size, 'PY_RUNTIME_SIZE')
             core.require(hashlib.sha256(raw).hexdigest() == pin.sha256, 'PY_RUNTIME_DIGEST')
+        for index, pin in enumerate(policy.SOURCE_FILES):
+            raw = _read_fixed(tuple(pin.path.split('/')[1:]), policy.SOURCE_LIMIT)
+            policy.check_source_bytes(index, raw)
         core.require(_package_records() == packages, 'PY_PACKAGE_CHANGED')
     return PythonRuntimeObservation(packages)

@@ -1,15 +1,16 @@
 """Offline Python runtime metadata/launch policy; NOT a startup guard.
 
-Pins come from owner-reported C3 metadata, not independent package provenance.
+Pins come from owner-reported C1/C3 metadata, not independent package provenance.
 Functions compare caller-supplied data only: no filesystem, subprocess, network,
 environment lookup or mutation. Matching an old report cannot verify a live host.
 This module is deliberately outside the dormant guard's pinned source capsule.
 """
 from dataclasses import dataclass, field
+import hashlib
 import re
 
 
-POLICY_VERSION = 1
+POLICY_VERSION = 2
 MAX_REPORT_BYTES = 16384
 PATH_LIST_SHA256 = '0b112d9d770034238714593a83cc70c81cf232c2c7601d917e736b28e452e9ba'
 
@@ -83,6 +84,136 @@ MAPPED_FILES = (
 LOADER_CACHE = LoaderCache('/etc/ld.so.cache',
                           'eab8c2e19e049bc84bbd2bd03d03adad92139ca7b1503f39b6b98e0a50456d4e',
                           70231)
+
+# Source bytes reported at C1; not an exhaustive import closure. C1 did not
+# record lengths, so this is a reviewable ceiling, NOT an observed exact size.
+SOURCE_LIMIT = 1024 * 1024
+SOURCE_PACKAGE = 'libpython3.14-minimal:amd64'
+SOURCE_VERSION = '3.14.4-1ubuntu0.2'
+C1_ORIGIN_MANIFEST_SHA256 = '6625b3d3dd24b51ceb4f4396d3eb21eada5fa2a7f87e8951cc3b7ceaded61c1d'
+
+
+@dataclass(frozen=True)
+class SourceFile:
+    path: str
+    sha256: str
+    package: str = SOURCE_PACKAGE
+    version: str = SOURCE_VERSION
+
+
+SOURCE_FILES = (
+    SourceFile('/usr/lib/python3.14/_opcode_metadata.py',
+               'd9badc5ab19a66415e230bf8f4299491b2207d584981a92b6e7c447cfa1aeac3'),
+    SourceFile('/usr/lib/python3.14/_py_warnings.py',
+               '7728580177727fa3b295478cef4777a9d2a364c5cbd809efcea352db31144f85'),
+    SourceFile('/usr/lib/python3.14/_weakrefset.py',
+               '2dd7cb459d654fe78b00c5c47ee8e786c037ee77763304603f5e976dd62cbf81'),
+    SourceFile('/usr/lib/python3.14/annotationlib.py',
+               'e0726bf3334247b98070d1eed0a1257c1e27be1fc289aadabf2fd29f6b31b1ff'),
+    SourceFile('/usr/lib/python3.14/ast.py',
+               '5ea9a796353544bea0d706153516f04ef3d92be305d15a73238403837d77e34c'),
+    SourceFile('/usr/lib/python3.14/base64.py',
+               '202d288f0b6d25ed1b206640f86e934381e6766fa0496f6f8d87d9c1bf92cdef'),
+    SourceFile('/usr/lib/python3.14/collections/__init__.py',
+               'dbd563752a57c6633b7566b1e9c95bc8ea81df1a1d213b23f61c5335424e5af5'),
+    SourceFile('/usr/lib/python3.14/contextlib.py',
+               'c1e0d67b2007de11ae93cd36cf6faf38d9ab32656a832d592a49325eec579f96'),
+    SourceFile('/usr/lib/python3.14/copy.py',
+               '15154fde290d6e65b5007905689a47a9a5a724822c5e06eec35d9ffbb2a3aa69'),
+    SourceFile('/usr/lib/python3.14/copyreg.py',
+               '6376eb5722806396f5842997ac18add369ea9ac3ff4fcfe1460c41a088cac425'),
+    SourceFile('/usr/lib/python3.14/dataclasses.py',
+               'cd1435e8cd7b7fd8b0128e05c2583445ea3f76fb437b065d22cb7587206afca8'),
+    SourceFile('/usr/lib/python3.14/dis.py',
+               '17d4d9a9195c9ee5aa27a96f3e0871f9363fd501e3a64ef20cb1cc876d7ad553'),
+    SourceFile('/usr/lib/python3.14/encodings/__init__.py',
+               '2b708410495acf12a6fad9d2de928dd89e567537c253eaa2b51aaae578e96c59'),
+    SourceFile('/usr/lib/python3.14/encodings/aliases.py',
+               'e38fc524cc8b2355807921411c918c0d971419c4d6ba6147409785db42d257a3'),
+    SourceFile('/usr/lib/python3.14/encodings/utf_8.py',
+               'ba0cac060269583523ca9506473a755203037c57d466a11aa89a30a5f6756f3d'),
+    SourceFile('/usr/lib/python3.14/enum.py',
+               '982843c2dd6dbec992bfed44abe9ef5464be81876a180d977ccd1a69e26ec16d'),
+    SourceFile('/usr/lib/python3.14/fnmatch.py',
+               'ce582bc266922e4c682e2a85d72095124430a6bf58716c6f2537103480eae742'),
+    SourceFile('/usr/lib/python3.14/functools.py',
+               '046ec9660146db48862c7b22c78e2ef3818eaed6920e5cbf35f551ef09fec6cd'),
+    SourceFile('/usr/lib/python3.14/glob.py',
+               'e3c82e6f0a1fe9442d4c5625e68cb206228408f0342326f6f5c8f59112091b59'),
+    SourceFile('/usr/lib/python3.14/hashlib.py',
+               '88fa624821fbdee7eb2ef87c2437b207afe328cf117c7463367e2db5eb1af492'),
+    SourceFile('/usr/lib/python3.14/importlib/__init__.py',
+               '72b07de4133a7e39b2f6a7920465669aa04626f217e800779587bc0713fe002e'),
+    SourceFile('/usr/lib/python3.14/inspect.py',
+               '1da17a5ed9395af63cd76abf28967722d70341488e61f86d82634a659920ed73'),
+    SourceFile('/usr/lib/python3.14/json/__init__.py',
+               '95022d150a27a2bfd54ac21bfce35812c96b53c420bb7b018dcb573f13e52da0'),
+    SourceFile('/usr/lib/python3.14/json/decoder.py',
+               '302ce57cb6f411122d7ef2ad2997c1fc0f184849fab3f1f585752f18f2195c73'),
+    SourceFile('/usr/lib/python3.14/json/encoder.py',
+               'd68a4d04d2cfd95897498307f29349058b42c3f48ea6aa6739714a09200a7d01'),
+    SourceFile('/usr/lib/python3.14/json/scanner.py',
+               '572958017eae8842eeddd0e3d18d3c56cc0a197348224915e1d87ce937841764'),
+    SourceFile('/usr/lib/python3.14/keyword.py',
+               '18c2be738c04ad20ad375f6a71db34b3823c7f40b0340f5294d0e89f3c9b093b'),
+    SourceFile('/usr/lib/python3.14/linecache.py',
+               '692daec68e2a419adf46bafc0eb2f8a2fb36c482183fa1ac47e00fec440f7d7e'),
+    SourceFile('/usr/lib/python3.14/locale.py',
+               '0e90907424b4bef150b00feb1bef4687bacb416e6e3f2b463e0758ee34979fe4'),
+    SourceFile('/usr/lib/python3.14/opcode.py',
+               '1036d90c917bb27c540ac3205d22896ee747214df1f2682458ab915758e4fdf2'),
+    SourceFile('/usr/lib/python3.14/operator.py',
+               'a9f9910965c31f841caad0447ee47299ac539a371422aefe200c86c60f3b4697'),
+    SourceFile('/usr/lib/python3.14/pathlib/__init__.py',
+               'e82f9063fa8081136d04d27a79ba6fa44085ccb7ac78077e1095afce77f2a071'),
+    SourceFile('/usr/lib/python3.14/pathlib/_os.py',
+               '61e844988e54bdf47c0b11ad2b3fd961f058bb370793428f4c6868bd40cab6f2'),
+    SourceFile('/usr/lib/python3.14/re/__init__.py',
+               '741a9de729ed8207bfa19db990f8826f1bf3661f33d0970a80c08cd1338ebc35'),
+    SourceFile('/usr/lib/python3.14/re/_casefix.py',
+               '1b12d9136f23db6c3f6f26053fefc15ca964b886838c7b9c1fabf8d2efc1e5c8'),
+    SourceFile('/usr/lib/python3.14/re/_compiler.py',
+               'd49f30cf9a1dbae33b200ed8befd9d0ce3ac612783a10ac35196536f98923e91'),
+    SourceFile('/usr/lib/python3.14/re/_constants.py',
+               '42253b3181b81aad6c46392f44a0ab26dcfa31feea411296f43ba16616a1ab0b'),
+    SourceFile('/usr/lib/python3.14/re/_parser.py',
+               'e57bd194a2d42398355ae7c1ccc2ddfb78421dd431eb81e3809dbe8ca9057dc4'),
+    SourceFile('/usr/lib/python3.14/reprlib.py',
+               'b04872e10d76252e44eae50cc785eb0fe478491afc4d7f0825a93f82b2eaba5f'),
+    SourceFile('/usr/lib/python3.14/selectors.py',
+               '4b8a60cfbb619d080f87dffe1578372e56e8c0ac826f043224a154cf7b77606d'),
+    SourceFile('/usr/lib/python3.14/signal.py',
+               '0363c964c90ac0b3e515de5749205e6e6454051a1211058375d84d91eab6071a'),
+    SourceFile('/usr/lib/python3.14/struct.py',
+               '50c14e55f94957804c1e45e975fedbe8e86f7e1dbb745b150370ff681155370a'),
+    SourceFile('/usr/lib/python3.14/subprocess.py',
+               '6628ffdd65c093a6c08cae01ffe82877d3ced515aac9e7be0cff16512c30a7d9'),
+    SourceFile('/usr/lib/python3.14/threading.py',
+               '5323909624ec2165e70b6d31333e4191b63d383d2dc5a7d7d516a3475ea2b7e3'),
+    SourceFile('/usr/lib/python3.14/token.py',
+               '61d4270311099c8a0c0b2e45fb363fd1c4e347a720bcc25f682b63dc28c34234'),
+    SourceFile('/usr/lib/python3.14/tokenize.py',
+               '65ba1bacdc42e768382208ff27f3001ee77d9d61aafba686c67652d22b84b330'),
+    SourceFile('/usr/lib/python3.14/types.py',
+               'fcfdd1c5ae56a9c35f207743d774e236da0153bf78e6e4629193a8e0e9438a6b'),
+    SourceFile('/usr/lib/python3.14/warnings.py',
+               '142225786de63c593f1c9abdacf5b4fc0b05dd847f6bed0ebb4b4aa2d4d93b02'),
+    SourceFile('/usr/lib/python3.14/weakref.py',
+               '5e5f727a19a858cb4c56dbaf3e0a138ded02fb954a9a58a840a0764216ae9522'),
+)
+
+
+def check_source_bytes(index, raw):
+    """Compare one fixed source pin; no import, execution or path fallback.
+
+    C1 is historical owner evidence. Matching bytes cannot establish that
+    Python selected this source instead of cached, frozen or shadowing code.
+    """
+    _require(type(index) is int and 0 <= index < len(SOURCE_FILES), 'PY_SOURCE_INDEX')
+    _require(type(raw) is bytes and 0 < len(raw) <= SOURCE_LIMIT, 'PY_SOURCE_SIZE')
+    _require(hashlib.sha256(raw).hexdigest() == SOURCE_FILES[index].sha256,
+             'PY_SOURCE_DIGEST')
+
 
 # Candidate argv/environment DATA ONLY. Retain C2's deliberately non-traversable
 # cache prefix rather than inventing another cache location. No exec API exists.

@@ -908,10 +908,13 @@ the guard entry. No VM output is requested for this offline policy slice.
 ### Python fixed-file reader — dormant, not a runtime trust decision
 
 `operator_python_runtime.py` adds a no-argument Linux/root-only reader for the
-existing C3 byte pins. It makes two passes over the nine mapped files and the
-generated `/etc/ld.so.cache`, bracketed by three reads of the fixed
-`/var/lib/dpkg/status` database: 23 bounded reads in total. Every byte-pin read
-must match both the exact size and SHA-256; nothing refreshes pins on drift.
+existing C3 byte pins and 49 C1 source pins. It makes two passes over the nine
+mapped files, generated `/etc/ld.so.cache` and 49 standard-library source files,
+bracketed by three reads of the fixed `/var/lib/dpkg/status` database: 121
+bounded reads in total. Mapped/cache reads match exact size and SHA-256;
+source reads match SHA-256 within a 1 MiB ceiling. C1 did not report source
+sizes: that ceiling is a policy bound, not an observed exact size. Nothing
+refreshes pins on drift; file bytes are not normalized before hashing.
 The adapter reuses the unchanged root-owned descriptor-relative reader in
 `operator_fs.py`, including no-follow opens and before/open/after metadata and
 ancestor checks. There is no service-owner exception, NSS lookup, command,
@@ -928,20 +931,33 @@ field values never enter the result or error codes. See the
 
 This reads current **on-disk bytes and package status identities**, not the
 package file-ownership registry, whole-package verification or signed package
-authenticity. It does not inspect the 49 source origins, resolve ELF imports,
+authenticity. It compares the 49 reported source paths' bytes, but does not
+establish that Python selected those origins, resolve ELF imports,
 prove loaded code or establish the caller's launch environment. Two equal
 passes are not an atomic snapshot or an update lock. Those proof flags and
 `runtime_trusted`/`startup_authorized` stay false. The calling interpreter and
 import environment must already be trusted by a separate mechanism; this
 Python reader cannot bootstrap that trust.
 
-Nineteen tests cover the package parser, exact read order/bounds, every byte
+Twenty-one tests cover the package parser, exact read order/bounds, every byte
 pin drifting on either pass, package drift, sanitized errors, shared-reader
 metadata failures and non-authorizing results. Two use Linux temporary-file
 fixtures and are skipped on Windows; the portable tests use synthetic bytes
 and fake descriptors, not a live VM or production-root trust proof. The module
 is outside the thirteen-source capsule, not installed and never called by
 the compile-only guard. No VM command is released by this implementation.
+
+Seven additional source-pin tests reproduce the accepted C1 manifest, B2/C2
+path sets and `_hashlib` overlap, and cover evidence integrity, every source
+digest, index/type/size bounds and immutable pins. The retained
+[C1 owner transcript](../../../evidence/rbac/python-runtime-c1-owner-report-2026-09-26.txt)
+is historical evidence, not a fresh or independently captured VM observation.
+Its 49 cache records are retained only as reported metadata; they are not
+accepted as bytecode equivalent to the sources or code actually loaded.
+The new source pins all name the already-covered libpython3.14-minimal amd64
+package/version, so the package count remains seven. Source-pin coverage is
+not complete import closure: unobserved function-local/dynamic imports, caches,
+shadowing, import machinery and loader-input controls remain separate work.
 
 ## Required next adapter package — not released here
 
