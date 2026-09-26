@@ -905,6 +905,44 @@ state. All returned runtime-trust/startup flags remain false. See the
 The new module is intentionally not added to the pinned capsule or called by
 the guard entry. No VM output is requested for this offline policy slice.
 
+### Python fixed-file reader — dormant, not a runtime trust decision
+
+`operator_python_runtime.py` adds a no-argument Linux/root-only reader for the
+existing C3 byte pins. It makes two passes over the nine mapped files and the
+generated `/etc/ld.so.cache`, bracketed by three reads of the fixed
+`/var/lib/dpkg/status` database: 23 bounded reads in total. Every byte-pin read
+must match both the exact size and SHA-256; nothing refreshes pins on drift.
+The adapter reuses the unchanged root-owned descriptor-relative reader in
+`operator_fs.py`, including no-follow opens and before/open/after metadata and
+ancestor checks. There is no service-owner exception, NSS lookup, command,
+network request, report replay, alternate root or caller-supplied pin.
+
+The bounded status parser selects seven exact amd64 package names/versions.
+It handles the unqualified `Package` field and separate `Architecture` field;
+foreign architectures cannot substitute for amd64. Duplicate selected records,
+malformed identity fields, changed versions and non-installed states fail.
+An `install` or `hold` selection is accepted only with `ok installed`; the
+selection is retained, so a change between snapshots fails too. Unrelated
+field values never enter the result or error codes. See the
+[dpkg-query field/status contract](https://manpages.debian.org/unstable/dpkg/dpkg-query.1.en.html).
+
+This reads current **on-disk bytes and package status identities**, not the
+package file-ownership registry, whole-package verification or signed package
+authenticity. It does not inspect the 49 source origins, resolve ELF imports,
+prove loaded code or establish the caller's launch environment. Two equal
+passes are not an atomic snapshot or an update lock. Those proof flags and
+`runtime_trusted`/`startup_authorized` stay false. The calling interpreter and
+import environment must already be trusted by a separate mechanism; this
+Python reader cannot bootstrap that trust.
+
+Nineteen tests cover the package parser, exact read order/bounds, every byte
+pin drifting on either pass, package drift, sanitized errors, shared-reader
+metadata failures and non-authorizing results. Two use Linux temporary-file
+fixtures and are skipped on Windows; the portable tests use synthetic bytes
+and fake descriptors, not a live VM or production-root trust proof. The module
+is outside the thirteen-source capsule, not installed and never called by
+the compile-only guard. No VM command is released by this implementation.
+
 ## Required next adapter package — not released here
 
 1. Establish selected packaged Linux runtime and real Server certificate

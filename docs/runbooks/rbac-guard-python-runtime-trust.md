@@ -901,15 +901,36 @@ trusted launcher must establish the environment before interpreter/ELF startup;
 checking or clearing it inside Python is too late. The launch helper and its
 own loader inputs must also be trusted. No implementation here does that.
 
+### Dormant native read/compare adapter (26 September 2026)
+
+`siem/rbac/broker_tls/operator_python_runtime.py` now implements the fixed-file
+read/compare slice separately from the pure policy and the guard. It reads the
+nine C3-pinned files plus generated loader cache twice and the fixed dpkg
+status database three times. The existing root-only no-follow reader bounds
+each read and rechecks metadata/ancestors; the adapter checks exact byte sizes,
+SHA-256 values and seven selected amd64 package versions/installed states.
+An unchanged fully installed `hold` selection is allowed; selection drift
+between reads is not. No commands, transcript replay, writes or pin refresh
+are used. The [operator contract](../../siem/rbac/broker_tls/OPERATOR.md#python-fixed-file-reader--dormant-not-a-runtime-trust-decision)
+describes the 19 tests, including two Linux-only temporary-file cases.
+
+The module is **not deployed or wired into the guard**. Package status is not
+package-file ownership or signed authenticity. The 49 source origins and
+remaining loader inputs are outside this reader; it does not prove actual
+resolution, loaded code, an atomic snapshot or a trusted launch environment.
+Its runtime/startup flags remain false. This is an offline implementation,
+not a new live gate or authorization to execute root-run Python on the VM.
+
 ### Next work and VM availability
 
 The owner may shut down the VM normally after stopping the Windows tunnel.
 No more VM output is needed **for this offline slice**. Do not rerun A–C3.
-Next offline work is the bounded native read/compare adapter and remaining
+The bounded native adapter is implemented. Next offline work is the remaining
 stdlib/import/loader-input policy, with negative tests, before composing the
-guard. It must not use a stored C3 report as a substitute for fresh reads or
-auto-refresh pins after package drift. A changed generated loader cache also
-needs review; it is not automatically evidence of compromise.
+guard. Neither the adapter nor later composition may use a stored C3 report
+as a substitute for fresh reads or auto-refresh pins after package drift.
+A changed generated loader cache also needs review; it is not automatically
+evidence of compromise.
 
 Independent review, native Linux/version tests, externally established launch
 trust, durable installation/recovery and actual broker acceptance still precede
