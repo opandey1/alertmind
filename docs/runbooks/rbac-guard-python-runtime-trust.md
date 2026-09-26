@@ -1004,15 +1004,33 @@ does not check path hooks itself; these remain separate observations, not a
 combined trust decision. The new observer is neither installed nor wired into
 the guard, and all runtime/startup authority remains false.
 
+### Dormant selected filesystem-candidate observer (27 September 2026)
+
+`siem/rbac/broker_tls/operator_python_candidates.py` adds fixed-name checks for
+the 50 selected module origins and 514 alternate import names. It holds eleven
+root-owned no-follow directory descriptors across two metadata passes, requires
+the selected regular files, rejects every alternate object and checks directory
+and origin drift. It never lists directories, opens candidate payloads, invokes
+import machinery, changes caches or writes. These are proposed constraints,
+not additional observations from B2/C1/C2/C3.
+
+The [operator contract](../../siem/rbac/broker_tls/OPERATOR.md#selected-python-filesystem-candidates--dormant-fixed-name-checks)
+describes twenty tests (two Linux-only) and its conservative rejection of both
+earlier and later alternate candidates. Existing `__pycache__` files and unrelated
+modules are outside this policy. Byte pins, effective import state, cache-prefix
+use and native loading remain separate controls. This is not complete import
+resolution, loaded-code attestation or an atomic combined observation. The
+module is dormant, outside the capsule, with trust/startup flags still false.
+
 ### Next work and VM availability
 
 The owner may shut down the VM normally after stopping the Windows tunnel.
 No more VM output is needed **for this offline slice**. Do not rerun A–C3.
 The mapped/cache/source byte adapter, fixed optional-path/null-anchor observer
-and selected in-process import-state and path-hook/importer-cache metadata
-observers are implemented. Remaining work includes filesystem import-candidate
-exclusion, remaining module/bootstrap coverage, native resolution and externally
-trusted launch/composition. Matching selected mutable metadata does
+and selected in-process import-state, path-hook/importer-cache metadata and
+selected filesystem-candidate observers are implemented. Remaining work includes
+module/bootstrap coverage beyond these selected names, native resolution and
+externally trusted launch/composition. Matching selected mutable metadata does
 not complete those controls. Neither an observer nor later composition may use a stored C3 report
 as a substitute for fresh reads or auto-refresh pins after package drift.
 A changed generated loader cache also needs review; it is not automatically
