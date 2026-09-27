@@ -1228,6 +1228,17 @@ fixed no-clobber `/dev/null` symlink, or freshly verifies an exact existing mask
 then synchronizes held directories. Failure does not remove the mask; failed
 sync leaves durability uncertain. Thirty-two tests include four Linux-only
 disposable-tree fixtures, not effective systemd inhibition or power-loss proof.
-The public entry remains unconditionally blocked before I/O. Next is authorized
-manager reload/stop/readback sequencing and trusted controller composition;
+The public entry remains unconditionally blocked before I/O. Private manager
+reload/stop/readback sequencing is now implemented; trusted controller composition remains open;
 no live command or repeated VM inventory is released. See [the disk contract](../../siem/rbac/broker_tls/UPGRADES.md#persistent-mask-disk-preparation--live-entry-blocked).
+
+**Manager-sequence follow-up:** a private, offline-tested sequence now reloads,
+checks effective masking, requests stop and rechecks manager/cgroup/candidate
+census observations. It enforces same-caller/boot/mask, call-window freshness
+and bounded client waits. Failures leave inhibition in place; killing a client
+does not cancel a submitted manager job. The live entry stays blocked. Before
+controller wiring, resolve child execution under held-lock contracts and review
+manager-wide generator and stop-hook/dependency effects. Forty-four mocked
+tests are not native systemd acceptance; no all-process or authority claim is
+promoted. See [the exact manager contract](../../siem/rbac/broker_tls/UPGRADES.md#manager-reloadstopreadback--live-entry-blocked).
+No additional VM output is requested; the VM may remain off. Do not repeat A-C3.
