@@ -9,8 +9,9 @@ production baseline is shipped and no new VM operation is released.
 The companion `operator_maintenance_state.py` now implements a dormant, read-only
 observer for the exact persistent mask and systemd-reported state. It does not
 supply the planner's complete observation or clear a maintenance gate. Durable
-inhibition, process-quiescence proof, backup/install/recovery and final service
-admission remain unimplemented; native compatibility is not yet accepted.
+inhibition as a complete transaction, process-quiescence proof,
+backup/install/recovery and final service admission remain unimplemented;
+native compatibility is not yet accepted.
 
 `operator_maintenance_cgroup.py` now adds a separate dormant observation of the
 fixed Dashboard cgroup-v2 tree, including boot identity and suspend-inclusive
@@ -32,6 +33,10 @@ four default APT/dpkg lock inodes. It is for observation/backup, not for running
 an upgrade. Installed package configuration, host launch and service-start
 controls remain unverified; no maintenance or startup permission is supplied.
 
+`operator_maintenance_inhibit.py` implements the private disk portion of
+persistent masking with disposable-tree tests. Its public entry always refuses
+before I/O. No live executor, manager reload/stop or complete inhibition is released.
+
 ## Separate the lifecycle contracts
 
 | Phase | Required boundary | Current implementation |
@@ -52,12 +57,76 @@ Disabling a unit is not equivalent to masking it; a runtime mask ends at reboot,
 and masking without stopping does not establish that the process has exited.
 ([systemctl source](https://raw.githubusercontent.com/systemd/systemd/main/man/systemctl.xml))
 
-An exact persistent-mask transaction is a candidate mechanism, not implemented
-here. The new observer understands the intended symlink and manager mask state
-without changing either. A masked/unloaded unit may not expose the properties
+The exact persistent-mask disk primitive is implemented privately below, but a
+complete authorized transaction is not. The read-only observer understands the
+intended symlink and manager mask state without changing either.
+A masked/unloaded unit may not expose the properties
 needed for a complete read; that fails closed, without loading or unmasking it.
 Final start admission needs its own reviewed lifecycle policy. The existing
 steady-state observers and capsule pins are unchanged.
+
+## Persistent-mask disk preparation — live entry blocked
+
+`prepare_maintenance_inhibition()` unconditionally raises `INHIBIT_NOT_RELEASED`
+before any I/O. There is no CLI, environment switch, force flag or receipt that
+enables it. The private `_prepare_at` seam is for disposable tests and future
+trusted controller wiring only; it is not an operator command or security sandbox.
+It requires a caller-held root descriptor and fresh checkpoint function. A
+callable returning `None` is a sequencing contract, **not proof of approval,
+lock ownership, host identity or exclusive control**.
+
+The only disk target is `/etc/systemd/system/wazuh-dashboard.service`, with
+literal symlink contents `/dev/null`. Existing trusted directories are opened
+no-follow and held; the null device is checked with the existing metadata-only
+anchor reader. No parent directory is created. An absent leaf is created using
+descriptor-relative `symlink`, whose no-overwrite behavior closes the absence/
+creation race. An `EEXIST` race is rejected even if the other writer installed
+the expected mask; it is not adopted mid-transaction.
+([Linux symlink creation](https://man7.org/linux/man-pages/man2/symlink.2.html))
+
+An already-present exact root:root, singly linked mode-0777 symlink may instead
+be freshly verified and synchronized without recreation. Regular units, empty
+files, other/relative symlinks, unsafe metadata or distinct-device leaves are
+refused, never renamed or overwritten. Existing local unit files require a
+separately reviewed backup/replacement design; this primitive does not cover
+that layout. It does not inspect unit payloads or copy package files.
+
+An `O_PATH|O_NOFOLLOW` descriptor holds the symlink itself, never its device
+target. Held/named identity, full leaf metadata, exact link text, close-on-exec,
+ancestor identities and null anchor are rechecked around writes and syncs.
+Caller PID/native-thread is checked around each checkpoint. Directories are
+`fsync`ed deepest-first through the held root; no temporary leaf, rename or
+global sync is used. Directory synchronization is required separately from
+file content synchronization. ([Linux fsync](https://man7.org/linux/man-pages/man2/fsync.2.html))
+Storage/kernel guarantees, filesystem compatibility and actual power-loss/reboot
+behavior remain external validation work; successful syscalls are not a tested
+reboot guarantee or defense against privileged later replacement.
+
+Failure after creation **never removes the mask**. A failed sync means durability
+is uncertain, not success. An independently authorized fresh attempt must read
+the current path and synchronize again; it must not resume from a saved progress
+counter. Existing masks are not treated as owned by this tool and there is no
+unmask/rollback operation. Cleanup closes descriptors even on interruption; a
+close error also prevents a successful result. Unexpected checkpoint exceptions
+are sanitized, not printed with arbitrary caller details.
+
+The immutable result reports only creation versus pre-existence, an observed
+exact disk entry and completed directory syncs. Manager reload/inhibition,
+process quiescence, exclusive control, tested reboot persistence and mutation/
+startup authorization remain false. The mask file alone is not the running
+manager's effective state, does not stop a process and cannot block manually
+executed broker code. The later authorized controller must refresh the manager,
+verify masked state, stop and prove quiescence under continuous controls before
+protected work. Systemd distinguishes masking from stopping; neither disabling
+a unit nor a runtime-only mask substitutes for persistent inhibition.
+([systemctl semantics](https://raw.githubusercontent.com/systemd/systemd/main/man/systemctl.xml))
+
+Thirty-two tests cover create/no-clobber, existing-mask retry, strict metadata,
+path/caller races, checkpoints, directory-sync ordering/failures and retention
+after interruption. Four Linux-only tests use disposable directories and real
+symlink/directory-sync syscalls with normalized owner metadata and a mocked null
+anchor; they do not touch `/etc`, query systemd, test power loss or prove VM
+compatibility. They are skipped on Windows. No live command is released.
 
 ## Read-only mask and manager observation — not admission
 
@@ -544,7 +613,10 @@ The next implementation work completes trusted maintenance collection/execution:
 
 - Complete the narrow mask/manager/fixed-tree/candidate-census observations and
   cooperative/package locks with externally established host launch trust and
-  service-start control. The default-path package barrier is implemented only
+  service-start control. Private persistent-mask disk preparation now exists;
+  next connect an authorized manager reload/stop and effective masked/quiescent
+  readback sequence, keeping public execution blocked until the complete
+  controller is reviewed. The default-path package barrier is implemented only
   for observation/backup; installed path/behavior validation and a bounded,
   inhibited handover to the intended package transaction remain open. Neither
   advisory lock excludes arbitrary privileged writes. The census checks namespace alignment,

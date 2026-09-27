@@ -183,6 +183,13 @@ creating/deleting locks, repairing metadata or waiting. Thirty-three tests
 Installed paths, bounded package handover, service-start inhibition and trusted
 host launch remain open; arbitrary writers and pre-lock package housekeeping
 are not excluded. No authority flag is promoted. See [the package barrier contract](UPGRADES.md#package-manager-lock-barrier--observation-and-backup-only).
+`operator_maintenance_inhibit.py` adds private persistent-mask disk preparation:
+no-clobber creation of the exact symlink or fresh verification of an existing
+one, held-path checks and deepest-first directory synchronization. Failure
+never deletes a mask. Thirty-two tests (four Linux-only) cover the disk portion.
+The public entry always refuses before I/O; owner/host/lock authorization and
+manager reload/stop/effective-state sequencing are not connected. A disk result
+is not manager inhibition, process quiescence or reboot acceptance. See [the disk contract](UPGRADES.md#persistent-mask-disk-preparation--live-entry-blocked).
 The following live collection/execution/acceptance requirements remain open:
 
 - Record a versioned compatibility baseline for the OS/architecture, interpreter,

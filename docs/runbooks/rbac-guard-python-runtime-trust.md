@@ -1222,3 +1222,12 @@ host launch trust and observer/planner composition remain open. Thirty-three
 tests include four Linux-only disposable-file/process checks; no real package
 lock or package command was used. See [the exact contract](../../siem/rbac/broker_tls/UPGRADES.md#package-manager-lock-barrier--observation-and-backup-only).
 No new VM output is required. Do not repeat A-C3; the VM may remain off.
+
+**Persistent-mask follow-up:** private disk preparation now creates only the
+fixed no-clobber `/dev/null` symlink, or freshly verifies an exact existing mask,
+then synchronizes held directories. Failure does not remove the mask; failed
+sync leaves durability uncertain. Thirty-two tests include four Linux-only
+disposable-tree fixtures, not effective systemd inhibition or power-loss proof.
+The public entry remains unconditionally blocked before I/O. Next is authorized
+manager reload/stop/readback sequencing and trusted controller composition;
+no live command or repeated VM inventory is released. See [the disk contract](../../siem/rbac/broker_tls/UPGRADES.md#persistent-mask-disk-preparation--live-entry-blocked).
