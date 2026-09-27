@@ -1162,3 +1162,13 @@ upgrades and unreviewed drift; even a matching target stays inhibited. It does
 not collect or authenticate inputs, install a service hook, execute an upgrade
 or authorize startup. Trusted collection, durable execution/recovery and native
 acceptance are the next work, not further repetition of accepted A–C3 gates.
+
+**Maintenance observation follow-up:** the separate dormant observer described
+in [UPGRADES.md](../../siem/rbac/broker_tls/UPGRADES.md#read-only-mask-and-manager-observation--not-admission)
+reads the fixed persistent mask and minimized systemd state twice, without
+unit mutation, loading or guard integration. It rejects visible drift and does
+not equate inactive/zero main and control PIDs with all processes stopped.
+Complete process/exclusive-control, baseline/backup and review binding still
+need implementation before a maintenance gate can pass. Native systemd response
+compatibility and the two Linux-only temporary-tree tests remain unverified
+locally. No new VM output or live invocation is requested; the VM may remain off.

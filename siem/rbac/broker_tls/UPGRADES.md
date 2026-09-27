@@ -6,15 +6,17 @@ position, emits no commands and never authorizes mutation or startup. Inputs
 are caller-supplied claims; setting them to true is not evidence. No populated
 production baseline is shipped and no new VM operation is released.
 
-This implements the baseline format and advisory decision portion of the
-owner-required upgrade workflow. Native evidence collection, durable inhibition,
-backup/install/recovery and final service admission remain unimplemented.
+The companion `operator_maintenance_state.py` now implements a dormant, read-only
+observer for the exact persistent mask and systemd-reported state. It does not
+supply the planner's complete observation or clear a maintenance gate. Durable
+inhibition, process-quiescence proof, backup/install/recovery and final service
+admission remain unimplemented; native compatibility is not yet accepted.
 
 ## Separate the lifecycle contracts
 
 | Phase | Required boundary | Current implementation |
 | --- | --- | --- |
-| Maintenance / recovery | Owner downtime approval, exclusive control, persistent inhibition, stopped Dashboard, fresh inventory and verified source backup | Planner rejects missing claims; no mechanism establishes them yet. |
+| Maintenance / recovery | Owner downtime approval, exclusive control, persistent inhibition, stopped Dashboard, fresh inventory and verified source backup | Planner rejects missing claims; separate mask/manager observer supplies narrow metadata only, not admission. |
 | Guarded service start | Exact reviewed unit/hook and activating-state contract; trustworthy fresh guard observations before broker execution | Not implemented. Existing empty-hook/no-drop-in baseline must not be widened implicitly. |
 | Live acceptance | Actual broker TLS, effective process context, human/admin reads and denials | Separate pending acceptance; not inferred from an offline PASS. |
 
@@ -30,13 +32,66 @@ Disabling a unit is not equivalent to masking it; a runtime mask ends at reboot,
 and masking without stopping does not establish that the process has exited.
 ([systemctl source](https://raw.githubusercontent.com/systemd/systemd/main/man/systemctl.xml))
 
-An exact persistent-mask transaction is a candidate mechanism, not chosen or
-implemented here. A masked unit may no longer expose the loaded-unit metadata
-expected by existing observers. The future maintenance collector must verify
-the inhibitor and intended unit artifacts in that state without temporarily
-unmasking to obtain a convenient PASS. Final start admission needs its own
-reviewed lifecycle policy. Do not change the present baseline observers or
-capsule pins merely to accommodate an installation script.
+An exact persistent-mask transaction is a candidate mechanism, not implemented
+here. The new observer understands the intended symlink and manager mask state
+without changing either. A masked/unloaded unit may not expose the properties
+needed for a complete read; that fails closed, without loading or unmasking it.
+Final start admission needs its own reviewed lifecycle policy. The existing
+steady-state observers and capsule pins are unchanged.
+
+## Read-only mask and manager observation — not admission
+
+`observe_maintenance_state()` takes no arguments and has no CLI. Production
+reads are fixed to `/etc/systemd/system/wazuh-dashboard.service`, the `/dev/null`
+metadata anchor, `/usr/bin/busctl` and the fixed systemd Dashboard object. The
+root/Linux caller, Python/import context, OS and busctl/libraries must already
+be trusted; this module does not establish its own launch or tool authenticity.
+It is outside the held guard capsule and has no planner/executor integration.
+
+The disk reader holds no-follow ancestor descriptors, requires root ownership
+and safe directory/file modes, reads only the symlink target and rechecks names
+and metadata. It never reads a unit payload or opens a device for payload I/O.
+Only the exact root-owned `/dev/null` symlink with a verified character-device
+anchor is a positive mask observation. An absent entry, another root-owned
+symlink or regular file (even empty) is negative. This is intentionally narrower
+than every mask representation systemd supports. Untrusted ownership, unsafe
+parents, unexpected types or visible replacement produce a fixed error.
+
+The fixed D-Bus queries read only unit identity/load/file/activity/substate,
+reload/job/trigger metadata and service main/control PIDs and control-group
+name. No environment, command line, credential or configuration payload is
+queried. `ControlGroup` is queried on the **Service** interface; `Job` is the
+Unit `(uo)` property, whose zero ID denotes no scheduled/executing job.
+([systemd D-Bus interface](https://raw.githubusercontent.com/systemd/systemd/main/man/org.freedesktop.systemd1.xml))
+
+Both disk and manager must report the persistent mask, with no pending reload,
+for `persistent_inhibition_observed=true`. `masked-runtime` does not qualify.
+Separately, `manager_reports_stopped=true` requires an exact inactive/dead or
+failed/failed state, loaded/masked unit, zero main/control PIDs, no job and no
+pending reload. **It is not stopped-process proof**: descendants, a populated
+cgroup or another manually launched instance have not been checked. The
+returned control-group presence and trigger count are metadata, not permission.
+Neither field may be promoted to the planner's `dashboard_stopped=true`.
+
+Two complete manager reads are bracketed by disk reads. All compared raw
+properties and mask/ancestor/device tokens must remain equal; a change that
+leaves the public summary identical is still rejected. Reads are not atomic,
+do not detect ABA and do not lock out later changes. Per-query replies are
+limited to 16 KiB with a five-second wait, and the whole observed interval has
+a candidate 30-second bound. Child environment/arguments are fixed, stdin and
+stderr discarded, and timeout/error paths kill/reap the child and close handles.
+No unit is loaded, reloaded, masked, unmasked, started or stopped.
+
+Only minimized Boolean/count/elapsed-time fields are returned; no raw paths,
+PIDs, job IDs or response bodies. Process-quiescence, exclusive-control and
+atomic-snapshot proof flags remain false, as do mutation/startup authorization.
+This result is not a persisted freshness receipt: boot binding, complete trusted
+collection, review and subsequent decision/execution remain separate work.
+Twenty-seven tests cover the parser, mask metadata/races, query bounds/cleanup,
+72 disk/manager/reload combinations and non-authorizing results. Two use native
+Linux descriptor operations on disposable trees with normalized owner metadata
+and a mocked null anchor; they do not query the real service bus or modify `/etc`.
+Those two are skipped on Windows. No live execution block is released.
 
 ## Versioned compatibility baseline
 
@@ -116,10 +171,10 @@ reboot or service failure, collect new facts. A journal is diagnostic history,
 not proof of the current installation. Do not reuse an old backup-verification
 claim, matching baseline digest or successful observation as authority.
 
-The next implementation work is the trusted maintenance collector/executor:
+The next implementation work completes trusted maintenance collection/execution:
 
-- Establish the actual inhibitor, exclusive-update control, stopped-process
-  status, private exact backup and root-controlled versioned baseline/evidence
+- Extend the narrow mask/manager observation with exclusive-update control,
+  stopped-process status, private exact backup and root-controlled versioned baseline/evidence
   binding. Verify rather than trusting hand-entered Booleans or a stored receipt.
 - Implement interruption-safe installation and recovery with exact metadata,
   parent-directory durability, independently inspected package transactions and
