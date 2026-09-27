@@ -1,8 +1,6 @@
-"""Dormant initializer fixture tests; NOT native preparation or guard execution."""
+"""Initializer fixture tests; NOT native preparation or deployed guard execution."""
 import ast
 import builtins
-from contextlib import redirect_stderr
-from io import StringIO
 from pathlib import Path
 import sys
 from types import FunctionType, ModuleType
@@ -128,12 +126,13 @@ class GuardPreparationTests(unittest.TestCase):
         f.main._check_entry.assert_not_called()
         f.os.open.assert_not_called()
 
-    def test_initializer_is_unused_by_entry_and_entry_always_fails_closed(self):
-        output = StringIO()
-        with patch.object(entry, '_check_entry') as check, patch.object(entry, '_prepare_stdlib') as prepare, redirect_stderr(output):
-            self.assertEqual(entry.main(), 1)
-        prepare.assert_not_called()
-        self.assertEqual(output.getvalue(), 'GUARD_NOT_READY\n')
+    def test_initializer_is_connected_only_through_launch_not_compile_helper(self):
+        tree = ast.parse(Path(entry.__file__).read_bytes())
+        callers = {function.name for function in tree.body if isinstance(function, ast.FunctionDef)
+                   and any(isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+                           and node.func.id == '_prepare_stdlib' for node in ast.walk(function))}
+        self.assertEqual(callers, {'_observe_launch'})
+        # Behavioral ordering/refusal tests are in test_broker_tls_guard_launch.
         with patch.object(entry, '_check_isolation'), patch.object(entry, 'os', FakeOS()), patch.object(
                 entry, '_check_entry_at'), patch.object(entry, '_verify_bundle_at'), patch.object(
                 entry, '_compile_verified_bundle'), patch.object(entry, '_prepare_stdlib') as prepare:

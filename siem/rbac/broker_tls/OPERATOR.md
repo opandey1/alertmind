@@ -15,6 +15,124 @@ running-process observation via fixed systemd queries and procfs reads; it is no
 a pre-start requirement. **No startup guard is installed
 or operational on the VM.**
 
+### Current launch/composition work (27 September 2026)
+
+The working candidate now connects the checks described below. Earlier sections
+that say a component is dormant/outside the capsule describe the prior individual
+slices; the new full path uses the original thirteen-source capsule plus eight
+separately pinned Python-observer sources. The owner explicitly approved the
+scoped test-contract transition on 27 September after reviewing its risks.
+This is an **offline connected candidate, not deployment or startup approval**.
+Independent review remains deferred; author verification is not that review.
+
+`build_guard_launch.render_launch_candidate()` produces a fixed POSIX-shell
+launcher for offline review, in memory only. It has no installation/execution CLI
+or caller-provided paths, pins or approval flags. The template checks root IDs,
+root-controlled non-symlink ancestors/files, sizes, link counts and SHA-256 for
+81 inputs: nine mapped objects, loader cache, 49 source files, entry and 21
+capsule sources. It checks 517 absent paths (514 selected Python alternatives,
+global preload, Python ZIP and the native hwcaps tree), `/dev/null` metadata and
+the ELF interpreter/SONAME aliases twice. No `ldd` or Python is run to learn pins.
+It sets cwd `/`, disables core dumps, uses null stdin and starts the fixed Python
+argv with exactly the three proposed environment values via `env -i`.
+
+The trust anchor is explicitly the administrator-controlled **OS/kernel,
+supervisor, shell, coreutils and their dependencies**, plus the reviewed installed
+launcher bytes. The parent must already supply a clean helper-launch environment
+and no extra inherited descriptors. Clearing the child's environment is too late
+to protect the helper programs themselves. Root/admin compromise, concurrent
+privileged changes, package authenticity, arbitrary OpenSSL/NSS configuration
+and every possible loader influence are not attested by this shell program.
+No concurrent update/configuration work is allowed. Pathname checks are not an
+atomic filesystem lock; these assumptions require deployment review, not a fake
+`trusted=true` input. The launcher itself is pinned by the future installation
+transaction, not by a self-referential checksum.
+
+The [dynamic loader's documented input order](https://man7.org/linux/man-pages/man8/ld.so.8.html)
+is why environment, preload, cache and hardware-directory inputs are addressed
+before Python. Post-start mapping checks are additional observations, not a way
+to undo earlier execution. [Python isolation](https://docs.python.org/3.14/using/cmdline.html#cmdoption-I)
+does not authenticate the interpreter or libraries.
+
+The entry's full sequence is now:
+
+1. Check launch settings and fixed entry/source metadata; retain verified bytes.
+2. Prepare the eighteen roots and require the exact 104-key prepared table.
+3. Load all 21 pinned children from held bytes under the private deny-finder;
+   require the exact 126-key full table and retain existing module identities.
+4. Run the seven Python observers, then fresh bootstrap/package checks, nine
+   broker observers and installed-byte verification; recheck bootstrap/package.
+5. Repeat the seven Python observers, unload the private namespace and require
+   the prepared table again. Every subject call is bracketed by full phase checks.
+
+The selected-import and built-in/frozen observers now accept only the exact
+entry-defined held finder in that phase; their default three-finder policy stays
+strict. No code temporarily removes the blocker to satisfy an old assertion.
+The pre-start path excludes running-process/post-start checks. Passing the pinned
+Node path to the byte comparator describes the on-disk target, not observed live
+Node selection. Private bootstrap contents and subject exception text are not
+printed. All paths, **including success**, still exit 1; there is no Dashboard
+startup permit, service drop-in, durable installer or live acceptance claim.
+
+New fixture tests cover ordering, each subject failure, identity drift, strict
+finder handling, full-capsule execution/cleanup, renderer pins and shell syntax.
+They do not prove Ubuntu 3.14/native compatibility, production timing or actual
+launcher installation. Twenty-eight launch tests and the updated existing
+contracts retain failure-at-every-phase checks, original capsule restrictions,
+full-capsule byte/metadata rejection, private import blocking and nonzero exits.
+No VM command is released; the VM may remain off.
+
+#### Scoped test-contract transition
+
+| Prior assertion | Connected replacement; retained protection |
+| --- | --- |
+| Main calls only the compile-only helper | Main calls the fixed observation path once; success, errors and interrupts all exit 1; the old helper still never executes code. |
+| Preparation is never called by entry | Only the launch path calls it, after entry/source checks and before private loading; failed prerequisites stop later phases. |
+| Python observer names never occur in entry source | Eight exact additional runtime pins, no eager project imports, unchanged original thirteen pins, fixed phase order and exclusion of post-start observers. |
+| Both import observers have zero parameters | Exactly one keyword-only `held_finder=None`; default remains strict, only the validated entry-defined finder is accepted, platform gates and refusal of arbitrary overrides remain. |
+
+These are not blanket exemptions for fifteen failing tests. Every old assertion
+was mapped to its new phase responsibility; no tests were skipped or xfailed to
+resolve the transition. Synthetic tests are not a native launch proof.
+
+Observation completion is deliberately **not** an authorization policy. The
+composition currently discards several returned observations, some of which
+report properties instead of refusing every unsuitable value. Before any
+future zero exit, define and test the final accept/deny predicate over required
+observations, including contradictory and missing results. Do not turn
+"all calls returned" into "safe to start". No such policy is implemented here.
+
+#### Upgrade and revalidation requirement — open before deployment
+
+The owner explicitly requires a maintainable upgrade path for Wazuh, the
+Python build and Ubuntu. This is a required follow-up, **not implemented by
+this test-only contract transition**, and not a reason to hold back security
+updates indefinitely. The following acceptance requirements remain open:
+
+- Record a versioned compatibility baseline for the OS/architecture, interpreter,
+  stdlib/native libraries, loader cache, Wazuh/Node/plugins and guard artifacts.
+  Retain the previous baseline and evidence; never rewrite A-C3 observations.
+- Assess the upgrade in a disposable clone/snapshot first. Re-derive candidate
+  pins from reviewed package/provenance and fresh observations, review changed
+  import/dependency behavior, and rerun regression plus native launch, TLS,
+  authorization and recovery checks affected by the change. A version-string
+  or hash replacement alone is not compatibility evidence.
+- Specify a maintenance transaction that inhibits broker startup across package
+  changes/reboots and atomically installs the matching reviewed guard baseline.
+  Keep an explicit owner downtime decision and tested interruption/recovery path.
+- Report a useful, sanitized incompatibility reason, including expected and
+  observed public version identifiers where safe. Unknown versions/hashes stay
+  refused; no auto-learning, broad version ranges, skip/force flag or silent
+  fallback to the original non-verifying broker client.
+- Treat loader-cache regeneration and other legitimate drift as requiring review,
+  not automatically as compromise. Measure validation/startup duration and set
+  bounded timeouts before service wiring. Test both planned upgrades and an
+  unexpected drift/reboot, including how an operator safely recovers.
+
+Until this workflow is implemented and accepted, a legitimate update may cause
+the candidate to refuse execution. Restoring an old snapshot/baseline is an
+operator recovery decision, not permission to restart vulnerable broker bytes.
+
 The September 14 trust-path revision changes the candidate and its contract.
 The core repeats the candidate pins deliberately; a CI test requires equality
 with `contract.json`. Claude approved those pins on September 14; PR #41

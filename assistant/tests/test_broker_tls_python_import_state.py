@@ -80,13 +80,19 @@ class PythonImportStateTests(unittest.TestCase):
         self.assertEqual(tuple(host.modules.items()), before)
         self.assertEqual((result.observed_module_count, result.selected_module_count, result.passes), (52, 50, 2))
 
-    def test_platform_prevents_snapshot_and_public_overrides_absent(self):
-        self.assertEqual(len(inspect.signature(state.observe_python_import_state).parameters), 0)
+    def test_platform_prevents_snapshot_and_only_held_finder_is_explicit(self):
+        parameters = inspect.signature(state.observe_python_import_state).parameters
+        self.assertEqual(tuple(parameters), ('held_finder',))
+        self.assertIs(parameters['held_finder'].kind, inspect.Parameter.KEYWORD_ONLY)
+        self.assertIsNone(parameters['held_finder'].default)
         with patch.object(fs, '_platform', side_effect=core.OperatorError('FS_ROOT_REQUIRED')), patch.object(state, '_capture') as capture:
-            with self.assertRaisesRegex(core.OperatorError, '^FS_ROOT_REQUIRED$'):
-                state.observe_python_import_state()
+            for kwargs in ({}, {'held_finder': object()}):
+                with self.assertRaisesRegex(core.OperatorError, '^FS_ROOT_REQUIRED$'):
+                    state.observe_python_import_state(**kwargs)
             with self.assertRaises(TypeError):
                 state.observe_python_import_state(fixture())
+            with self.assertRaises(TypeError):
+                state.observe_python_import_state(skip_checks=True)
         capture.assert_not_called()
 
     def test_runtime_version_and_implementation_fail_closed(self):
@@ -265,7 +271,7 @@ class PythonImportStateTests(unittest.TestCase):
         with self.assertRaises(FrozenInstanceError):
             result.startup_authorized = True
         self.assertNotIn('operator_python_import_state.py', {pin[0] for pin in guard.PINNED_MODULES})
-        self.assertNotIn('operator_python_import_state', Path(guard.__file__).read_text(encoding='utf-8'))
+        self.assertIn('operator_python_import_state.py', {pin[0] for pin in guard.RUNTIME_MODULES})
         tree = ast.parse(Path(state.__file__).read_text(encoding='utf-8'))
         names = {n.func.id for n in ast.walk(tree) if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)}
         self.assertTrue(names.isdisjoint({'open', 'exec', 'eval', '__import__'}))

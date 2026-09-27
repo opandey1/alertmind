@@ -28,7 +28,7 @@ def metadata(directory=True, **changes):
 class FakeOS:
     O_RDONLY, O_NOFOLLOW, O_CLOEXEC, O_DIRECTORY, O_NONBLOCK = 0, 1, 2, 4, 8
 
-    def __init__(self):
+    def __init__(self, *, runtime=False):
         self.nodes = {10: metadata()}
         self.names = {}
         parent = 10
@@ -41,8 +41,8 @@ class FakeOS:
         self.contents = {}
         self.offsets = {}
         self.scan_aliases = {}
-        self.next_scan_fd = 40
-        for index, (name, _, _) in enumerate(entry.PINNED_MODULES):
+        self.next_scan_fd = 50 if runtime else 40
+        for index, (name, _, _) in enumerate(entry._bundle_pins(runtime)):
             child = 20 + index
             raw = (Path(entry.__file__).parent / name).read_bytes()
             self.names[14, name] = child
@@ -105,20 +105,23 @@ class GuardEntryTests(unittest.TestCase):
         self.assertEqual([node.module if isinstance(node, ast.ImportFrom) else node.names[0].name
                           for node in imports], ['contextlib', 'hashlib', 'os', 'stat', 'sys'])
 
-    def test_no_success_path_even_when_entry_checks_pass(self):
+    def test_no_success_path_even_when_connected_observations_finish(self):
         output = StringIO()
-        with patch.object(entry, '_check_entry') as checked, redirect_stderr(output):
+        with patch.object(entry, '_observe_launch') as checked, redirect_stderr(output):
             self.assertEqual(entry.main(), 1)
         checked.assert_called_once_with()
         self.assertEqual(output.getvalue(), 'GUARD_NOT_READY\n')
 
     def test_failures_emit_only_static_codes_and_nonzero(self):
-        for error, expected in ((entry.GuardLaunchError('GUARD_PATH'), 'GUARD_PATH'),
-                                (OSError('PRIVATE'), 'GUARD_UNEXPECTED')):
+        for error, expected in ((entry.GuardLaunchError('PRIVATE'), 'GUARD_OBSERVATION_FAILED'),
+                                (OSError('PRIVATE'), 'GUARD_UNEXPECTED'),
+                                (SystemExit(0), 'GUARD_UNEXPECTED'),
+                                (KeyboardInterrupt(), 'GUARD_UNEXPECTED')):
             output = StringIO()
-            with self.subTest(code=expected), patch.object(entry, '_check_entry',
-                    side_effect=error), redirect_stderr(output):
+            with self.subTest(code=expected), patch.object(entry, '_observe_launch',
+                    side_effect=error) as observe, redirect_stderr(output):
                 self.assertEqual(entry.main(), 1)
+            observe.assert_called_once_with()
             self.assertEqual(output.getvalue(), expected + '\n')
             self.assertNotIn('PRIVATE', output.getvalue())
 
@@ -399,14 +402,14 @@ class GuardEntryTests(unittest.TestCase):
                                      for name in sys.modules))
                 self.assertEqual(tuple(sys.meta_path), before_finders)
 
-    def test_public_entry_does_not_execute_loader_and_remains_nonzero(self):
+    def test_compile_only_helper_still_does_not_execute_loader(self):
         fs = FakeOS()
         fake_sys = isolated_sys()
         with patch.object(entry, 'os', fs), patch.object(entry, 'sys', fake_sys), patch.object(
                 entry, '_loaded_verified_bundle', side_effect=AssertionError('LOAD_CALLED')) as loader:
-            self.assertEqual(entry.main(), 1)
+            self.assertIsNone(entry._check_entry())
         loader.assert_not_called()
-        self.assertEqual(fake_sys.stderr.getvalue(), 'GUARD_NOT_READY\n')
+        self.assertEqual(fake_sys.stderr.getvalue(), '')
         self.assertEqual(fs.close.call_count, 25)
         self.assertFalse(any(name == entry.HELD_PACKAGE or
                              name.startswith(entry.HELD_PACKAGE + '.') for name in sys.modules))

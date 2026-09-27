@@ -61,7 +61,31 @@ def _settings():
                  sys._xoptions['pycache_prefix'] == CACHE_PREFIX, 'PY_IMPORT_CACHE_PREFIX')
 
 
-def _capture():
+def _check_finders(finders, held_finder, code):
+    """Allow only defaults, or the exact entry-defined held deny-finder first.
+
+    Full registry/table checks belong to the entry before and after this call.
+    No finder is removed, invoked or accepted by its display name alone.
+    """
+    meta = sys.meta_path
+    core.require(type(meta) is list, code)
+    if held_finder is None:
+        core.require(len(meta) == 3 and all(a is b for a, b in zip(meta, finders)), code)
+        return
+    main = _module_dict(sys.modules.get('__main__'))
+    cls = main.get('_DenyHeldFallback')
+    core.require(type(cls) is type and type(held_finder) is cls and
+                 main.get('__file__') == policy.CANDIDATE_ARGV[-1] and
+                 len(meta) == 4 and meta[0] is held_finder and
+                 all(a is b for a, b in zip(meta[1:], finders)), code)
+    fields = object.__getattribute__(held_finder, '__dict__')
+    function = vars(cls).get('find_spec')
+    core.require(type(fields) is dict and not fields and
+                 type(function) is type(lambda: None) and function.__globals__ is main and
+                 function.__code__.co_filename == policy.CANDIDATE_ARGV[-1], code)
+
+
+def _capture(held_finder=None):
     _settings()
     modules = sys.modules
     core.require(type(modules) is dict and len(SELECTED_MODULES) <= len(modules) <= MAX_MODULES,
@@ -73,9 +97,7 @@ def _capture():
     finders = (builtin.get('BuiltinImporter'), builtin.get('FrozenImporter'), external.get('PathFinder'))
     core.require(all(type(item) is type for item in helpers + finders), 'PY_IMPORT_MACHINERY')
     # Compare objects, not attacker-supplied finder class-name strings.
-    core.require(type(sys.meta_path) is list and len(sys.meta_path) == 3 and
-                 all(actual is expected for actual, expected in zip(sys.meta_path, finders)),
-                 'PY_IMPORT_META_PATH')
+    _check_finders(finders, held_finder, 'PY_IMPORT_META_PATH')
     records = []
     for name, origin, package in SELECTED_MODULES:
         module = modules.get(name)
@@ -134,7 +156,7 @@ class PythonImportObservation:
     startup_authorized: bool = field(default=False, init=False)
 
 
-def observe_python_import_state():
+def observe_python_import_state(*, held_finder=None):
     """Check current candidate state twice; never repair or preload a module.
 
     All 50 selected file-backed modules must already exist in sys.modules.
@@ -145,8 +167,8 @@ def observe_python_import_state():
     """
     fs._platform()
     try:
-        first = _capture()
-        second = _capture()
+        first = _capture() if held_finder is None else _capture(held_finder)
+        second = _capture() if held_finder is None else _capture(held_finder)
     except (AttributeError, TypeError, ValueError, RuntimeError):
         raise core.OperatorError('PY_IMPORT_STATE') from None
     same = first[0] is second[0] and first[1] == second[1]

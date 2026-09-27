@@ -257,7 +257,7 @@ class PythonPathTests(unittest.TestCase):
         with self.assertRaises(FrozenInstanceError):
             result.startup_authorized = True
         self.assertNotIn('operator_python_paths.py', {pin[0] for pin in guard.PINNED_MODULES})
-        self.assertNotIn('operator_python_paths', Path(guard.__file__).read_text(encoding='utf-8'))
+        self.assertIn('operator_python_paths.py', {pin[0] for pin in guard.RUNTIME_MODULES})
 
 
 @unittest.skipUnless(sys.platform == 'linux', 'requires Linux descriptor-relative metadata syscalls')

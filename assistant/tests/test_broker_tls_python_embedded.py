@@ -108,11 +108,19 @@ class PythonEmbeddedTests(unittest.TestCase):
             self.run_fixture(host)
         self.assertEqual(before, {k: dict(vars(m)) for k, m in host.modules.items()})
 
-    def test_public_root_platform_gate_precedes_capture_and_has_no_overrides(self):
-        self.assertFalse(inspect.signature(embedded.observe_python_embedded_modules).parameters)
+    def test_root_platform_gate_precedes_capture_and_only_held_finder_is_explicit(self):
+        parameters = inspect.signature(embedded.observe_python_embedded_modules).parameters
+        self.assertEqual(tuple(parameters), ('held_finder',))
+        self.assertIs(parameters['held_finder'].kind, inspect.Parameter.KEYWORD_ONLY)
+        self.assertIsNone(parameters['held_finder'].default)
         with patch.object(fs, '_platform', side_effect=core.OperatorError('FS_ROOT_REQUIRED')), patch.object(embedded, '_capture') as capture:
-            with self.assertRaisesRegex(core.OperatorError, '^FS_ROOT_REQUIRED$'):
-                embedded.observe_python_embedded_modules()
+            for kwargs in ({}, {'held_finder': object()}):
+                with self.assertRaisesRegex(core.OperatorError, '^FS_ROOT_REQUIRED$'):
+                    embedded.observe_python_embedded_modules(**kwargs)
+            with self.assertRaises(TypeError):
+                embedded.observe_python_embedded_modules(object())
+            with self.assertRaises(TypeError):
+                embedded.observe_python_embedded_modules(skip_checks=True)
         capture.assert_not_called()
 
     def test_runtime_checks_reused_in_each_pass(self):
@@ -296,7 +304,7 @@ class PythonEmbeddedTests(unittest.TestCase):
         with self.assertRaises(FrozenInstanceError):
             result.startup_authorized = True
         self.assertNotIn('operator_python_embedded.py', {p[0] for p in guard.PINNED_MODULES})
-        self.assertNotIn('operator_python_embedded', Path(guard.__file__).read_text(encoding='utf-8'))
+        self.assertIn('operator_python_embedded.py', {p[0] for p in guard.RUNTIME_MODULES})
         tree = ast.parse(Path(embedded.__file__).read_text(encoding='utf-8'))
         calls = {n.func.id for n in ast.walk(tree) if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)}
         self.assertTrue(calls.isdisjoint({'open', 'exec', 'eval', '__import__'}))

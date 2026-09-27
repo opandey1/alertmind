@@ -306,7 +306,7 @@ class PythonCandidateTests(unittest.TestCase):
         self.assertFalse(result.complete_import_coverage_proven)
         self.assertFalse(result.effective_cache_redirection_proven)
 
-    def test_result_is_immutable_dormant_and_not_a_byte_or_resolution_proof(self):
+    def test_result_is_immutable_non_authorizing_and_not_a_byte_or_resolution_proof(self):
         fake = CandidateFS()
         with fake_host(fake):
             result = candidates.observe_python_import_candidates()
@@ -316,7 +316,7 @@ class PythonCandidateTests(unittest.TestCase):
         with self.assertRaises(FrozenInstanceError):
             result.startup_authorized = True
         self.assertNotIn('operator_python_candidates.py', {pin[0] for pin in guard.PINNED_MODULES})
-        self.assertNotIn('operator_python_candidates', Path(guard.__file__).read_text(encoding='utf-8'))
+        self.assertIn('operator_python_candidates.py', {pin[0] for pin in guard.RUNTIME_MODULES})
 
 
 @unittest.skipUnless(sys.platform == 'linux', 'descriptor-relative Linux fixture')

@@ -53,7 +53,7 @@ def _text(value, expected, code):
     core.require(type(value) is str and value == expected, code)
 
 
-def _capture():
+def _capture(held_finder=None):
     imports._settings()
     host = imports.sys
     modules = host.modules
@@ -66,8 +66,7 @@ def _capture():
         external.get(name) for name in MACHINERY_NAMES[3:])
     core.require(all(type(item) is type for item in helpers), 'PY_EMBED_MACHINERY')
     finders = (helpers[1], helpers[2], helpers[3])
-    core.require(type(host.meta_path) is list and len(host.meta_path) == 3 and
-                 all(a is b for a, b in zip(host.meta_path, finders)), 'PY_EMBED_MACHINERY')
+    imports._check_finders(finders, held_finder, 'PY_EMBED_MACHINERY')
     names = host.builtin_module_names
     core.require(type(names) is tuple and 36 <= len(names) <= imports.MAX_MODULES and
                  all(type(name) is str and 0 < len(name) <= 128 for name in names) and
@@ -128,7 +127,7 @@ class PythonEmbeddedObservation:
     startup_authorized: bool = field(default=False, init=False)
 
 
-def observe_python_embedded_modules():
+def observe_python_embedded_modules(*, held_finder=None):
     """Observe 36 built-in and 17 frozen keys twice; never preload subjects.
 
     This is selected metadata/alias coverage, NOT a whole-table allowlist or
@@ -137,7 +136,8 @@ def observe_python_embedded_modules():
     """
     fs._platform()
     try:
-        first, second = _capture(), _capture()
+        first = _capture() if held_finder is None else _capture(held_finder)
+        second = _capture() if held_finder is None else _capture(held_finder)
     except (AttributeError, KeyError, TypeError, ValueError, RuntimeError):
         raise core.OperatorError('PY_EMBED_STATE') from None
     same = first[0] is second[0] and first[1:3] == second[1:3]
