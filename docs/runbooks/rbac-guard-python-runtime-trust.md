@@ -1090,6 +1090,23 @@ The interpreter, kernel and procfs must already be trusted; this observer cannot
 bootstrap that trust. It is outside the capsule and not invoked by the entry.
 No A-C3 evidence/pin, dependency, service or VM setting changed.
 
+### Fixed standard-library preparation (27 September 2026)
+
+The entry now defines a dormant `_prepare_stdlib()` routine for the original
+eighteen B2 roots, with no root-list/callback/authorization input. It checks the
+proposed launch settings and existing entry/module/finder identities before
+imports, brackets each root with state checks and finishes at the exact 104-key
+prepared-table policy. Failure stops without retries or attempted import rollback.
+See the [operator contract](../../siem/rbac/broker_tls/OPERATOR.md#fixed-stdlib-preparation--dormant-entry-routine)
+for its twenty-five tests and explicit trust prerequisites.
+
+This is import-time execution, not another metadata-only observer. The routine
+must not be invoked until a separate trusted launch boundary has established
+interpreter, source and native-loader inputs. It is not called by the entry or
+held loader today. Synthetic local fixtures establish neither an actual Ubuntu
+preparation run nor bootstrap trust. No new VM diagnostic or execution block is
+released. The guard continues to compile only and exit nonzero.
+
 ### Next work and VM availability
 
 The owner may shut down the VM normally after stopping the Windows tunnel.
@@ -1099,9 +1116,10 @@ and selected in-process import-state, path-hook/importer-cache metadata,
 selected filesystem-candidate and built-in/frozen metadata observers are
 implemented. The entry/private-module and declared complete-table policy is
 also implemented as dormant pure checks. The current-process mapped-backing
-observer is implemented separately. Remaining work includes bootstrap
-provenance, pre-execution native-loader constraints and externally trusted initialization/launch
-and phase-aware composition of the policies. Matching selected mutable metadata does
+observer is implemented separately. Fixed stdlib preparation now exists as a
+dormant routine, not an approved execution path. Remaining work includes bootstrap
+provenance, pre-execution native-loader constraints and externally trusted launch
+and phase-aware composition of preparation and the policies. Matching selected mutable metadata does
 not complete those controls. Neither an observer nor later composition may use a stored C3 report
 as a substitute for fresh reads or auto-refresh pins after package drift.
 A changed generated loader cache also needs review; it is not automatically
