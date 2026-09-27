@@ -1190,3 +1190,12 @@ package-manager/start-path exclusion, outside-unit process coverage, host launch
 trust and durable transaction composition remain open. The three Linux fixture
 tests are distinct from native VM acceptance. No additional VM output is needed;
 see [the lock contract](../../siem/rbac/broker_tls/UPGRADES.md#held-cooperative-lock--not-host-wide-exclusive-control).
+
+**Process-census follow-up:** the dormant read-only leader scan now detects
+service-credential and packaged-Node-path candidates both inside and outside
+the fixed unit. It does not inspect argv/environment or execute/read binaries.
+Bounded stable PID/credential/exec/cgroup/boot observations yield only counts;
+errors and disappearing entries are not skipped. This is not all-copy absence,
+host namespace proof or planner admission. Trusted launch, process coverage
+policy and transaction composition remain required. The two Linux fixture
+tests do not establish real procfs/VM compatibility; no VM output is requested.

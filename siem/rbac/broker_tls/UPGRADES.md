@@ -21,11 +21,15 @@ requirements, supply the planner's complete input or authorize a live step.
 It coordinates callers using the same fixed inode; it is not host-wide exclusive
 maintenance control. It is not wired to the observers or planner yet.
 
+`operator_maintenance_processes.py` adds a bounded read-only process-leader
+census for service-credential and packaged-Node-path matches outside the unit.
+It detects known candidates, not every possible Dashboard copy or full shutdown.
+
 ## Separate the lifecycle contracts
 
 | Phase | Required boundary | Current implementation |
 | --- | --- | --- |
-| Maintenance / recovery | Owner downtime approval, exclusive control, persistent inhibition, stopped Dashboard, fresh inventory and verified source backup | Planner rejects missing claims; separate mask/manager, fixed-cgroup and cooperative-lock primitives do not constitute admission. |
+| Maintenance / recovery | Owner downtime approval, exclusive control, persistent inhibition, stopped Dashboard, fresh inventory and verified source backup | Planner rejects missing claims; mask/manager, fixed-cgroup, process-leader census and cooperative-lock primitives do not constitute admission. |
 | Guarded service start | Exact reviewed unit/hook and activating-state contract; trustworthy fresh guard observations before broker execution | Not implemented. Existing empty-hook/no-drop-in baseline must not be widened implicitly. |
 | Live acceptance | Actual broker TLS, effective process context, human/admin reads and denials | Separate pending acceptance; not inferred from an offline PASS. |
 
@@ -216,6 +220,79 @@ unprivileged CI) for actual lock contention, release, symlink/hardlink/replaceme
 rejection and an independent child contender. They are skipped on Windows and
 are not real `/run`, provisioning or VM acceptance.
 
+## Process-leader census — outside-unit candidate detection
+
+`observe_maintenance_processes()` has no arguments or CLI. It requires the
+existing persistent mask and exact masked/stopped manager precondition. It then
+scans numeric process-leader entries under fixed `/proc`, without using a caller
+PID, command or path. Root/Python/busctl, the kernel/procfs and the host PID,
+mount, user and cgroup namespaces remain trusted launch prerequisites. Neither
+UID 0 nor seeing PID 1 proves the host namespace; this code does not assert it.
+
+The bounded mount reader requires one full-root procfs mount at `/proc`, matching
+its held device, without nonzero `hidepid` or `subset` filtering. It rejects
+mounts over numeric PID trees or the boot-ID path/ancestors. Unrelated non-PID
+mounts, such as `/proc/sys/fs/binfmt_misc`, are allowed and never traversed.
+The PID set must include PID 1 and the observer itself. These are consistency
+checks, not authenticity or namespace proof.
+
+Only `stat`, selected `status` fields, `cgroup` and the `exe` symlink text are
+used for each leader. No command line, environment, process memory, descriptor
+table, executable payload or script is read. The symlink is **not followed**.
+Kernel process names and other incidental fields in the small files are not
+returned or logged. Native procfs per-process owners need not be root, but held
+directories/files must be on the procfs device, of the expected type and
+non-writable; payloads are bounded and descriptor-relative/no-follow.
+
+A candidate matches either any real/effective/saved/filesystem UID or GID slot
+equal to the Dashboard service identity, or the exact packaged Node executable
+path (also accepting its kernel ` (deleted)` suffix) under any UID. Supplementary
+groups are not scanned. The matches are conservative: a service-UID helper or
+another script using this Node also counts. Exact unit/descendant membership is
+reported separately from outside-unit matches, with overlap counted once.
+No classification terminates or signals a process.
+
+Each leader is sampled twice; start time, selected credentials, thread count,
+kernel/zombie classification, executable-path hash and cgroup membership/hash
+must agree. PID sets are checked before/after each full scan, and two full scans
+must match on private records, boot and mount/metadata tokens. Service identity,
+mask and complete manager metadata are rechecked afterward. Changes, access
+errors and disappearing processes abort collection, never skip a row or produce
+a partial success. Normal process churn may therefore require a fresh attempt;
+the collector does not automatically retry or suppress it.
+
+Missing `exe` link targets are accepted only for a kernel-thread flag or a
+single-thread zombie. A live userspace process, or an exited main thread with
+other threads remaining, is not silently ignored. Permission errors and a
+missing proc entry remain errors. Service-credential matches remain conservative
+candidates even in the zombie case. The Linux flag policy needs native version
+validation; metadata flags do not authorize skipping service matches.
+([process stat](https://man7.org/linux/man-pages/man5/proc_pid_stat.5.html),
+[credential fields](https://man7.org/linux/man-pages/man5/proc_pid_status.5.html),
+[executable-link behavior](https://man7.org/linux/man-pages/man5/proc_pid_exe.5.html),
+[kernel flag definitions](https://raw.githubusercontent.com/torvalds/linux/master/include/linux/sched.h))
+
+Limits are 8,192 leaders, 16,384 root entries, 8 KiB stat/cgroup and 64 KiB
+status payloads, and a candidate 30-second suspend-inclusive `CLOCK_BOOTTIME`
+interval. Checks occur during enumeration/reads and at completion; they are
+not preemptive cancellation of every kernel syscall. Timing is not the planner's
+monotonic timestamp and is not a replayable freshness receipt.
+
+Output is limited to boot/time, aggregate counts and scope flags. Zero matches
+does **not** exclude renamed/copied executables under different identities,
+nonleader-only credential changes, undetected ABA or subsequent launches.
+It is not host-wide quiescence or proof of all Dashboard code absence. All
+quiescence/exclusive/atomic/mutation/startup proof flags remain false. The
+cooperative lock is not acquired here, and no planner Boolean is populated.
+Trusted launch scope, appropriate handling of these coverage limits, other
+writer/start-path control and held transaction composition remain required.
+
+Thirty-five tests cover candidate matching, privacy, parsers, bounds, partial
+reads/disappearance, PID/credential/exec/cgroup/mount/boot drift and non-authorizing
+results. Two Linux-only tests use disposable regular-file proc fixtures with
+normalized ownership, not real host processes. Those tests are skipped on
+Windows; no new VM command or native compatibility acceptance is supplied.
+
 ## Versioned compatibility baseline
 
 `parse_baseline(bytes)` accepts schema version 1 with exactly `schema`,
@@ -296,9 +373,9 @@ claim, matching baseline digest or successful observation as authority.
 
 The next implementation work completes trusted maintenance collection/execution:
 
-- Complete the narrow mask/manager/fixed-tree observations and cooperative lock
-  with host launch-namespace trust, outside-unit process coverage and control of
-  noncooperating update/start paths. Implement trusted held-lock composition,
+- Complete the narrow mask/manager/fixed-tree/candidate-census observations and
+  cooperative lock with host launch-namespace trust, an accepted process-coverage
+  policy and control of noncooperating update/start paths. Implement trusted held-lock composition,
   private exact backup and
   root-controlled versioned baseline/evidence
   binding. Verify rather than trusting hand-entered Booleans or a stored receipt.
