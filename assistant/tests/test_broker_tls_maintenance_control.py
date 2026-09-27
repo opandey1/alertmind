@@ -78,6 +78,7 @@ class MaintenanceControlTests(unittest.TestCase):
                 (c, '_clock', f['clock']), (c.fs, '_platform', Mock()),
                 (c.disk, '_prepare_at', Mock(side_effect=disk)),
                 (c.manager, '_sequence', Mock(side_effect=manager)),
+                (c.effects, '_check', Mock(return_value=None)),
                 (c.os, 'open', Mock(return_value=91)),
                 (c.os, 'close', Mock(side_effect=lambda fd: events.append('close:root'))),
             ):

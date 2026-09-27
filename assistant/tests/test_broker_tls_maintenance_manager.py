@@ -40,6 +40,7 @@ class MaintenanceManagerTests(unittest.TestCase):
             'boot': Mock(return_value=BOOT), 'clock': Mock(return_value=1_000_000_000),
             'action': Mock(side_effect=lambda action, **_: events.append(action)),
             'checkpoint': Mock(return_value=None), 'events': events,
+            'effects': Mock(return_value=None),
         }
         with ExitStack() as stack:
             for target, name, mock in (
@@ -48,6 +49,7 @@ class MaintenanceManagerTests(unittest.TestCase):
                 (m.state, '_read_manager', readers['manager']),
                 (m.cg, 'observe_maintenance_cgroup', readers['tree']),
                 (m.census, 'observe_maintenance_processes', readers['census']),
+                (m.effects, '_check', readers['effects']),
             ):
                 stack.enter_context(patch.object(target, name, mock))
             stack.enter_context(patch.object(m.state.service, '_check_tool'))

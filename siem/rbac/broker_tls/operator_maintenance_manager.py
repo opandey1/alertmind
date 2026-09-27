@@ -16,6 +16,7 @@ from . import operator_fs as fs
 from . import operator_maintenance_cgroup as cg
 from . import operator_maintenance_processes as census
 from . import operator_maintenance_state as state
+from . import operator_maintenance_effects as effects
 
 SYSTEMCTL = '/usr/bin/systemctl'
 MAX_SEQUENCE_NS = 180_000_000_000
@@ -190,8 +191,12 @@ def _sequence(*, checkpoint):
             return item
 
         manager()
+        effects._check('before_reload', checkpoint=check)
+        check()
         _run_action('reload', checkpoint=check)
         manager(masked=True)
+        effects._check('before_stop', checkpoint=check)
+        check()
         _run_action('stop', checkpoint=check)
         terminal = manager(masked=True, stopped=True)
 
