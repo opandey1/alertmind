@@ -72,6 +72,19 @@ MODULE_ALIASES = (('_collections_abc', 'collections.abc'),
 PREPARED_MODULE_KEYS = frozenset(STDLIB_MODULE_KEYS + ('__main__',))
 HELD_MODULE_KEYS = frozenset((HELD_PACKAGE,) + tuple(
     HELD_PACKAGE + '.' + name[:-3] for name, _, _ in PINNED_MODULES))
+# Same ordered direct roots as B2, including its first `import sys`. Importing
+# these can execute stdlib/native code: external launch/runtime trust is a
+# prerequisite, not something this dormant preparation step establishes.
+PREPARATION_ROOTS = (
+    'sys', 'base64', 'binascii', 'contextlib', 'dataclasses', 'errno', 'grp',
+    'hashlib', 'json', 'os', 'pathlib', 'pwd', 're', 'selectors', 'stat',
+    'subprocess', 'time', 'types',
+)
+PREPARATION_SEARCH_PATH = ('/usr/lib/python314.zip', '/usr/lib/python3.14',
+                           '/usr/lib/python3.14/lib-dynload')
+PREPARATION_ARGV = ('/usr/bin/python3.14', '-I', '-S', '-B', '-X',
+                    'pycache_prefix=/dev/null/alertmind-c2', ENTRY_PATH)
+PREPARATION_ENV = (('HOME', '/nonexistent'), ('LC_ALL', 'C'), ('PATH', '/usr/bin:/bin'))
 
 
 class GuardLaunchError(Exception):
@@ -450,6 +463,138 @@ def _check_module_table(modules, *, held=False, loaded=None):
         raise GuardLaunchError('GUARD_TABLE_STATE') from None
     _require(len(first) == len(second) and all(a is b for a, b in zip(first, second)),
              'GUARD_TABLE_CHANGED')
+
+
+def _preparation_strings(value, expected, code):
+    _require(type(value) is list and len(value) == len(expected) and
+             all(type(item) is str for item in value) and tuple(value) == expected, code)
+
+
+def _preparation_settings():
+    _check_isolation()
+    version = sys.version_info
+    _require(isinstance(version, tuple) and len(version) == 5 and
+             all(type(version[i]) is int for i in (0, 1, 2, 4)) and
+             type(version[3]) is str and tuple(version) == (3, 14, 4, 'final', 0),
+             'GUARD_PREP_RUNTIME')
+    _table_text(sys.executable, '/usr/bin/python3.14', 'GUARD_PREP_RUNTIME')
+    _table_text(sys.implementation.name, 'cpython', 'GUARD_PREP_RUNTIME')
+    _table_text(sys.implementation.cache_tag, 'cpython-314', 'GUARD_PREP_RUNTIME')
+    for name, expected in (('isolated', 1), ('ignore_environment', 1), ('no_site', 1),
+                           ('no_user_site', 1), ('dont_write_bytecode', 1), ('optimize', 0)):
+        value = getattr(sys.flags, name, None)
+        _require(type(value) is int and value == expected, 'GUARD_PREP_FLAGS')
+    _require(sys.flags.safe_path is True and sys.dont_write_bytecode is True, 'GUARD_PREP_FLAGS')
+    _preparation_strings(sys.orig_argv, PREPARATION_ARGV, 'GUARD_PREP_ARGV')
+    _preparation_strings(sys.argv, (ENTRY_PATH,), 'GUARD_PREP_ARGV')
+    _preparation_strings(sys.path, PREPARATION_SEARCH_PATH, 'GUARD_PREP_PATH')
+    _table_text(sys.pycache_prefix, '/dev/null/alertmind-c2', 'GUARD_PREP_CACHE')
+    _table_keys(sys._xoptions, frozenset(('pycache_prefix',)))
+    _table_text(sys._xoptions['pycache_prefix'], '/dev/null/alertmind-c2', 'GUARD_PREP_CACHE')
+    # Observe, never clear/repair the environment after the ELF loader ran.
+    _require(len(os.environ) == len(PREPARATION_ENV), 'GUARD_PREP_ENV')
+    environment = dict(os.environ)
+    _require(all(type(k) is str and type(v) is str for k, v in environment.items())
+             and environment == dict(PREPARATION_ENV), 'GUARD_PREP_ENV')
+    _table_text(os.getcwd(), '/', 'GUARD_PREP_CWD')
+
+
+def _preparation_capture():
+    _preparation_settings()
+    modules = sys.modules
+    _require(type(modules) is dict and 0 < len(modules) <= len(PREPARED_MODULE_KEYS),
+             'GUARD_PREP_SET')
+    _require(all(type(key) is str and 0 < len(key) <= 128 and key in PREPARED_MODULE_KEYS for key in modules),
+             'GUARD_PREP_SET')
+    records = tuple((key, modules[key]) for key in sorted(modules))
+    for _, module in records:
+        _table_module(module)
+    # Existing bindings cannot be displaced by preparation. No held/private
+    # namespace is permitted at this phase and nothing is deleted to make it fit.
+    main = _table_module(modules['__main__'])
+    _require(main is globals() and modules['sys'] is sys and
+             modules['os'] is os and modules['stat'] is stat and modules['hashlib'] is hashlib,
+             'GUARD_PREP_BINDING')
+    _table_text(main.get('__name__'), '__main__', 'GUARD_PREP_ENTRY')
+    _table_text(main.get('__file__'), ENTRY_PATH, 'GUARD_PREP_ENTRY')
+    _require(all(main.get(key) is None for key in ('__spec__', '__package__', '__cached__', '__path__')),
+             'GUARD_PREP_ENTRY')
+    context = _table_module(modules['contextlib'])
+    _require(context.get('ExitStack') is ExitStack and context.get('contextmanager') is contextmanager,
+             'GUARD_PREP_BINDING')
+    _require(main.get('__builtins__') is modules['builtins'] or
+             main.get('__builtins__') is _table_module(modules['builtins']), 'GUARD_PREP_BINDING')
+    builtin = _table_module(modules['_frozen_importlib'])
+    external = _table_module(modules['_frozen_importlib_external'])
+    source_class, loader = external.get('SourceFileLoader'), main.get('__loader__')
+    _require(type(source_class) is type and type(loader) is source_class, 'GUARD_PREP_ENTRY')
+    _table_keys(vars(loader), frozenset(('name', 'path')))
+    _table_text(vars(loader)['name'], '__main__', 'GUARD_PREP_ENTRY')
+    _table_text(vars(loader)['path'], ENTRY_PATH, 'GUARD_PREP_ENTRY')
+    finders = (builtin.get('BuiltinImporter'), builtin.get('FrozenImporter'), external.get('PathFinder'))
+    meta = sys.meta_path
+    _require(all(type(f) is type for f in finders) and type(meta) is list and len(meta) == 3 and
+             all(a is b for a, b in zip(meta, finders)), 'GUARD_PREP_FINDER')
+    imports = _table_module(modules['builtins']).get('__import__')
+    _require(type(imports) is type(len) and imports is __import__, 'GUARD_PREP_IMPORT')
+    hooks = sys.path_hooks
+    _require(type(hooks) is list and len(hooks) == 2 and
+             hooks[0] is _table_module(modules['zipimport']).get('zipimporter') and
+             type(hooks[0]) is type and type(hooks[1]) is type(lambda: None), 'GUARD_PREP_HOOK')
+    # These are current identities, NOT authenticated loader/hook function code.
+    return modules, records, (meta, *finders, imports, hooks, *hooks, source_class, loader)
+
+
+def _preparation_transition(before, after):
+    _require(before[0] is after[0] and len(before[2]) == len(after[2]) and
+             all(a is b for a, b in zip(before[2], after[2])) and
+             all(after[0].get(key) is module for key, module in before[1]), 'GUARD_PREP_CHANGED')
+
+
+def _import_preparation_root(name):
+    # Private seam for fixture tests, not a callback in the initializer API.
+    _require(type(name) is str and name in PREPARATION_ROOTS, 'GUARD_PREP_ROOT')
+    return __import__(name, globals(), globals(), (), 0)
+
+
+def _prepare_stdlib():
+    """Dormant fixed preparation, NOT an external trust anchor or a permit.
+
+    A trusted launcher must establish the reviewed interpreter, sources, native
+    inputs and clean environment BEFORE running this entry. These imports can
+    execute source/native code through the current machinery. In-process checks
+    cannot make an untrusted interpreter safe or undo earlier loader execution.
+
+    Check launch/state before and after each of the eighteen B2 root imports;
+    retain prior module identities and permit only the fixed prepared set to
+    grow. Finish with the existing exact 104-key table policy. Do not import a
+    private capsule, invoke its observers, adjust paths/hooks/cache/environment,
+    or issue startup authority. On failure, abandon the process; no retry or
+    partial-import cleanup is attempted. No current entrypoint calls this.
+    """
+    try:
+        state = _preparation_capture()
+        for name in PREPARATION_ROOTS:
+            try:
+                module = _import_preparation_root(name)
+            except BaseException:
+                # Even a subject-raised GuardLaunchError is untrusted text.
+                raise GuardLaunchError('GUARD_PREP_FAILED') from None
+            following = _preparation_capture()
+            _preparation_transition(state, following)
+            _require(type(module) is type(sys) and following[0].get(name) is module,
+                     'GUARD_PREP_RESULT')
+            state = following
+        _check_module_table(sys.modules)
+        final = _preparation_capture()
+        _preparation_transition(state, final)
+        _require(len(final[1]) == len(PREPARED_MODULE_KEYS), 'GUARD_PREP_SET')
+    except GuardLaunchError:
+        raise
+    except BaseException:
+        # Imports may throw SystemExit or contain private filesystem diagnostics.
+        # Do not expose the original exception, trigger recovery, or continue.
+        raise GuardLaunchError('GUARD_PREP_FAILED') from None
 
 
 def _check_entry():

@@ -1224,7 +1224,9 @@ uses the actual existing held loader's thirteen pinned sources in the trusted
 local test interpreter, inserting only its private objects into synthetic
 candidate state. It is not a native Ubuntu guard/process acceptance test.
 
-The proposed initializer and trusted call point are still absent. The function
+The closed-table checker alone does not initialize the interpreter. A dormant
+fixed preparation routine is now described below; the trusted call point is
+still absent. The pure table-checking function
 does not acquire live `sys.modules`, establish that a supplied registry came
 from verified bytes, or attest stdlib globals, function code, bootstrap or
 earlier/later imports. The selected-origin, hook and byte observers are **not
@@ -1288,6 +1290,53 @@ All runtime/startup/provenance flags remain false. No memory inspection, library
 loading, `ldd`, shell, network, credential, write or activation is performed.
 No new imports were added to the entry and its thirteen capsule pins are intact.
 The entry remains compile-only and exits 1. This adapter is not wired into it.
+
+### Fixed stdlib preparation — dormant entry routine
+
+`operator_guard_entry.py` now contains `_prepare_stdlib()`. It imports precisely
+the eighteen direct roots in the original B2 order, including `sys` first and
+the deferred `pwd`/`grp` roots. Merely importing those built-ins does not perform
+NSS user/group lookups. The function is **not called** by `main()`, `_check_entry()`
+or the held loader. Its API accepts no root list, callback or approval flag and
+success returns `None`, not startup permission.
+
+Before the first import and after each root, it requires the proposed direct
+entry, isolated root CPython 3.14.4, exact candidate argv/search/cache settings,
+working directory `/` and the three-value environment already documented in
+the launch-data policy. It observes those settings; it never repairs them.
+The initial table may be a subset of the fixed prepared keys, but never contain
+site/project/private/unknown entries or non-module values. Entry bindings and
+metadata, default meta-finder identities, the current builtin import function
+and stable path-hook identities are checked. Existing module objects may not
+be removed or replaced; imports may only grow the declared table.
+
+The returned root must be its identical `sys.modules` object. After all eighteen
+imports, the existing exact 104-key prepared-table policy must succeed, followed
+by a final settings/identity check. A failure stops immediately, with no retry,
+automatic deletion of partial imports, rollback claim or capsule execution.
+Subject exceptions (including SystemExit and a subject-raised GuardLaunchError)
+become fixed diagnostics. The eventual caller must abandon the failed process.
+
+Unlike the earlier metadata-only observers, this routine **can execute stdlib
+and native import-time code** if explicitly called in a matching runtime.
+Python's [import function](https://docs.python.org/3.14/library/functions.html#import__)
+uses the current import machinery; [isolation flags](https://docs.python.org/3.14/using/cmdline.html#cmdoption-I)
+do not authenticate it. Interpreter/source/native-loader/bootstrap trust must
+therefore be established by a separately trusted launcher **before entry code
+runs**. Checking the current environment cannot undo earlier loader inputs.
+Current finder/hook identity is not hook-code or source-byte authentication.
+One regression explicitly demonstrates that preparation does not replace the
+separate origin/hook/byte observers.
+
+Twenty-five synthetic tests cover the recorded import sequence, launch settings,
+progressive table growth, identity drift, per-root failures, exception privacy,
+final exact-table enforcement and dormant entry behavior. They rebind the actual
+entry functions into fixture globals and stub the private import operation;
+they do not run initialization on the VM or validate its exact native import
+closure. No additional top-level import, capsule source/pin or launch command
+was added. Externally trusted launch and phase-aware observer/capsule composition
+remain to implement. Do not drop the held deny-finder to satisfy prepared-phase
+checks. The entry remains compile-only, always exits 1 and is not deployable.
 
 ## Required next adapter package — not released here
 
