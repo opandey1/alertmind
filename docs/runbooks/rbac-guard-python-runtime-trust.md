@@ -1152,5 +1152,13 @@ package snapshots stop later observations. No result is treated as a startup
 permit. Service state/login-variable visibility remains distinct from stopped
 service/complete-environment proof. Future service-hook wiring must explicitly
 reconcile the current no-auxiliary-command/no-drop-in and non-transitioning
-service baseline. The upgrade/maintenance workflow remains unimplemented and
-required before deployment; no new VM output is needed for this offline slice.
+service baseline. The operational upgrade/maintenance workflow remains required
+before deployment; no new VM output is needed for this offline slice.
+
+**Maintenance planning follow-up:** [UPGRADES.md](../../siem/rbac/broker_tls/UPGRADES.md)
+defines the three lifecycle boundaries and the pure versioned-baseline/one-step
+planner. It refuses missing prerequisites, stale/rebooted observations, partial
+upgrades and unreviewed drift; even a matching target stays inhibited. It does
+not collect or authenticate inputs, install a service hook, execute an upgrade
+or authorize startup. Trusted collection, durable execution/recovery and native
+acceptance are the next work, not further repetition of accepted A–C3 gates.
