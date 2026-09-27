@@ -162,7 +162,13 @@ observer clears the planner's stopped-process gate. The separate
 cooperative lock at one pre-provisioned private `/run` anchor. Twenty-nine tests
 (three Linux-only) cover contention, metadata drift and cleanup. It does not
 exclude package managers, other administrators or service-owned writes; no
-planner permission, provisioning command or live transaction is supplied. The
+planner permission, provisioning command or live transaction is supplied.
+`operator_maintenance_processes.py` adds a bounded read-only process-leader scan
+for service UID/GID and packaged-Node-path candidates, including outside the unit.
+Thirty-five tests (two Linux-only) cover matching, privacy and fail-closed drift.
+No argv/environment or executable payload is read. Zero matches does not exclude
+all copied/renamed instances or nonleader-only credential changes and cannot
+grant stopped-process or exclusive-control permission. The
 following live collection/execution/acceptance requirements remain open:
 
 - Record a versioned compatibility baseline for the OS/architecture, interpreter,
