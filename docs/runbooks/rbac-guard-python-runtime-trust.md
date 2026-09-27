@@ -1144,3 +1144,13 @@ Independent review, native Linux/version tests, externally established launch
 trust, durable installation/recovery and actual broker acceptance still precede
 deployment. Later live checks will need the VM again and must be separately
 released. The connected guard candidate always exits 1 and is not installed.
+
+**27 September result-policy follow-up:** the connected entry now checks every
+returned result against the [explicit non-authorizing contract](../../siem/rbac/broker_tls/OPERATOR.md#connected-observation-result-policy-27-september-2026).
+Missing/unknown/unsuitable results, coerced types, incorrect coverage or changed
+package snapshots stop later observations. No result is treated as a startup
+permit. Service state/login-variable visibility remains distinct from stopped
+service/complete-environment proof. Future service-hook wiring must explicitly
+reconcile the current no-auxiliary-command/no-drop-in and non-transitioning
+service baseline. The upgrade/maintenance workflow remains unimplemented and
+required before deployment; no new VM output is needed for this offline slice.

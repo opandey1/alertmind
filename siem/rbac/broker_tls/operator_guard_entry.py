@@ -654,6 +654,202 @@ def _same_phase(before, after):
              'GUARD_PHASE_CHANGED')
 
 
+def _fields(true='', false='', **values):
+    """Explicit result contracts, never inferred from an observer's defaults."""
+    return {**{name: True for name in true.split()},
+            **{name: False for name in false.split()}, **values}
+
+
+# A non-authorizing result policy, NOT a service-start decision. These are
+# exact pinned observer contracts; unknown fields/classes/versions need review.
+# Tuples denote a strict typed range/choice, not Python's bool==int equality.
+_RESULT_CONTRACTS = {
+    'operator_python_paths': ('PythonPathObservation', _fields(
+        'fixed_optional_inputs_absent null_anchor_matches',
+        'complete_search_path_proven effective_cache_redirection_proven '
+        'loader_environment_proven native_resolution_proven loaded_code_proven '
+        'atomic_snapshot_proven runtime_trusted startup_authorized',
+        file_passes=2, absent_input_count=2)),
+    'operator_python_runtime': ('PythonRuntimeObservation', _fields(
+        'on_disk_byte_pins_match on_disk_source_pins_match',
+        'source_origins_verified package_file_ownership_verified package_authenticity_proven '
+        'native_resolution_proven atomic_snapshot_proven loaded_code_proven '
+        'effective_environment_proven runtime_trusted startup_authorized',
+        packages=tuple, mapped_file_count=9, generated_cache_count=1,
+        source_file_count=49, file_passes=2, package_reads=3)),
+    'operator_python_candidates': ('PythonCandidateObservation', _fields(
+        'selected_origins_regular selected_alternate_names_absent',
+        'on_disk_bytes_proven complete_import_coverage_proven effective_cache_redirection_proven '
+        'actual_resolution_proven loaded_code_proven atomic_snapshot_proven '
+        'runtime_trusted startup_authorized',
+        selected_module_count=50, alternate_name_count=514, passes=2)),
+    'operator_python_native': ('PythonNativeObservation', _fields(
+        'mapped_backing_pins_match',
+        'native_resolution_proven loaded_memory_proven symbol_bindings_proven '
+        'package_authenticity_proven atomic_snapshot_proven runtime_trusted startup_authorized',
+        file_count=9, byte_passes=2, maps_reads=4)),
+    'operator_python_path_importers': ('PythonPathImporterObservation', _fields(
+        'candidate_hook_metadata_matches cached_finder_metadata_matches',
+        'hook_code_authenticated directory_contents_proven bytecode_exclusion_proven '
+        'complete_module_inventory_proven actual_resolution_proven atomic_snapshot_proven '
+        'runtime_trusted startup_authorized',
+        cached_path_count=('range', 0, 9), passes=2)),
+    'operator_python_import_state': ('PythonImportObservation', _fields(
+        'reported_settings_match selected_origin_metadata_matches',
+        'complete_module_inventory_proven import_hooks_and_cache_proven selected_code_bytes_proven '
+        'loader_environment_proven native_resolution_proven atomic_snapshot_proven '
+        'runtime_trusted startup_authorized',
+        observed_module_count=126, selected_module_count=50, passes=2)),
+    'operator_python_embedded': ('PythonEmbeddedObservation', _fields(
+        'selected_metadata_matches',
+        'complete_module_inventory_proven embedded_code_proven bootstrap_code_proven '
+        'native_resolution_proven atomic_snapshot_proven runtime_trusted startup_authorized',
+        observed_module_count=126, selected_module_keys=53, alias_pairs=4, passes=2)),
+    'operator_bootstrap': ('Bootstrap', _fields(false='startup_authorized',
+        manifest=('bytes', 1, 524288), certificate_pem=('bytes', 1, 65536),
+        checked_files=2, passes=2)),
+    'operator_runtime': ('RuntimeObservation', _fields(
+        false='selected_runtime_proven startup_authorized',
+        package='package', packaged_node_version='18.19.0', runtime_passes=2, package_reads=3)),
+    'operator_service': ('ServiceObservation', _fields(
+        'service_user_matches service_group_matches working_directory_matches fragment_present',
+        'exec_flags_present runtime_override_named alternate_root_present '
+        'selected_runtime_proven effective_environment_proven startup_authorized',
+        # Visibility only: neither active/inactive/failed proves startup inhibition.
+        active_state=('choice', 'active', 'inactive', 'failed'), exec_start_count=1,
+        configured_executable='dashboard_wrapper', environment_entries=0,
+        environment_files=0, pass_environment_entries=0, unset_environment_entries=0,
+        dropin_count=0, passes=2)),
+    'operator_launch': ('LaunchObservation', _fields(
+        'configured_wrapper_path configured_wrapper_argv_only launch_bytes_match_pins',
+        'explicit_execution_flags inline_wrapper_environment_override_named '
+        'selected_runtime_proven effective_environment_proven dependency_resolution_proven '
+        'startup_authorized', checked_files=3, passes=2, service_reads=3, package_reads=3)),
+    'operator_unit_sources': ('UnitSourcesObservation', _fields(
+        'exact_wrapper_argv auxiliary_commands_empty explicit_unit_environment_empty '
+        'pam_session_disabled exec_search_path_empty dynamic_user_disabled '
+        'directory_environment_sources_empty queried_descriptor_inputs_empty '
+        'queried_trigger_edges_empty queried_credential_metadata_empty',
+        'manager_inheritance_proven embedded_credential_sources_proven '
+        'selected_config_source_proven effective_environment_proven startup_authorized',
+        # Reported systemd HOME/LOGNAME/SHELL behavior, not complete environment proof.
+        login_variables_enabled=bool, passes=2, service_reads=2)),
+    'operator_manager_environment': ('ManagerEnvironmentObservation', _fields(
+        'global_manager_environment_empty',
+        'unit_environment_proven wrapper_environment_proven effective_environment_proven '
+        'startup_authorized', passes=2)),
+    'operator_node_options': ('NodeOptionsObservation', _fields(
+        'content_policy_passed queried_unit_sources_constrained manager_global_export_empty '
+        'wrapper_bytes_match_pin wrapper_literal_config_assignment wrapper_literal_prefix_assignment '
+        'launcher_bytes_match_pin source_contract_passed',
+        'selected_source_proven effective_prefix_proven effective_environment_proven startup_authorized',
+        option_count=('range', 1, 2), checked_files=3, passes=2, service_reads=3,
+        package_reads=3, manager_export_reads=2)),
+    'operator_dependency': ('DependencyObservation', _fields(
+        'direct_shadow_candidates_absent',
+        'root_axios_selected_proven transitive_resolution_proven effective_environment_proven '
+        'startup_authorized', shadow_candidate_count=19, pinned_files_checked=2,
+        passes=2, package_reads=3)),
+    'operator_dependency_graph': ('GraphObservation', _fields(
+        'declared_graph_and_shadows_observed package_root_search_only',
+        'import_sites_proven actual_node_resolution_proven loaded_code_proven '
+        'effective_environment_proven startup_authorized',
+        declared_packages_checked=26, declared_edges_checked=35,
+        shadow_candidates_checked=238, passes=2)),
+    'operator_import_sites': ('SiteObservation', _fields(
+        'pinned_code_sites_observed',
+        'executed_imports_proven unlisted_code_absent_proven actual_node_resolution_proven '
+        'loaded_code_proven effective_environment_proven startup_authorized',
+        declared_packages_checked=26, declared_edges_checked=35, pinned_code_files_checked=153,
+        distinct_code_directories_checked=46, site_dependency_pairs_checked=89,
+        shadow_candidates_checked=478, passes=2)),
+    'operator_file_set': ('FileSetObservation', _fields(
+        'package_root_file_set_observed',
+        'file_bytes_verified unlisted_files_outside_package_roots_excluded '
+        'actual_node_resolution_proven loaded_code_proven startup_authorized',
+        package_roots_checked=26, outer_roots_scanned=('range', 1, 26), manifest_files_seen=267,
+        directory_entries_seen=('range', 267, 8192), directories_seen=('range', 26, 8192), passes=2)),
+    'operator_core': (None, _fields('byte_integrity_passed',
+        'startup_authorized live_acceptance', checked_files=270, passes=2)),
+}
+
+_PYTHON_PACKAGE_RESULTS = (
+    ('python3.14-minimal', '3.14.4-1ubuntu0.2'),
+    ('libpython3.14-minimal', '3.14.4-1ubuntu0.2'),
+    ('libc6', '2.43-2ubuntu2.4'), ('libssl3t64', '3.5.5-1ubuntu3.5'),
+    ('libexpat1', '2.7.4-1ubuntu0.2'),
+    ('zlib1g', '1:1.3.dfsg+really1.3.1-1ubuntu3.1'), ('libzstd1', '1.5.7+dfsg-3'),
+)
+
+
+def _result_shape(module, name, result, fields):
+    """Exact pinned class/dict, never duck-typed or truthiness-based evidence."""
+    if name is None:
+        _require(type(result) is dict and result.keys() == fields.keys(), 'GUARD_RESULT_SHAPE')
+        return dict(result)
+    cls = getattr(module, name)
+    _require(type(result) is cls and cls.__dataclass_fields__.keys() == fields.keys(),
+             'GUARD_RESULT_SHAPE')
+    _require(vars(result).keys() <= fields.keys(), 'GUARD_RESULT_SHAPE')
+    return {key: getattr(result, key) for key in fields}
+
+
+def _result_values(values, fields):
+    for key, rule in fields.items():
+        value = values[key]
+        if rule is bool or rule is tuple:
+            valid = type(value) is rule
+        elif type(rule) is tuple and rule[0] == 'range':
+            valid = type(value) is int and rule[1] <= value <= rule[2]
+        elif type(rule) is tuple and rule[0] == 'bytes':
+            valid = type(value) is bytes and rule[1] <= len(value) <= rule[2]
+        elif type(rule) is tuple and rule[0] == 'choice':
+            valid = type(value) is str and value in rule[1:]
+        elif rule == 'package':
+            continue  # Validated with the exact held PackageIdentity below.
+        else:
+            valid = type(value) is type(rule) and value == rule
+        _require(valid, 'GUARD_RESULT_VALUE')
+
+
+def _check_observation(loaded, stem, result):
+    """Return a private immutable comparison snapshot, never a permit/receipt.
+
+    No I/O, report replay, auto-learning, source imports or diagnostics carrying
+    observation data. Exact bytes still come from the independently pinned
+    observers; a well-shaped forged record is not live evidence.
+    """
+    _require(type(stem) is str and stem in _RESULT_CONTRACTS, 'GUARD_RESULT_KIND')
+    module = loaded[HELD_PACKAGE + '.' + stem]
+    name, fields = _RESULT_CONTRACTS[stem]
+    values = _result_shape(module, name, result, fields)
+    _result_values(values, fields)
+    if stem == 'operator_runtime':
+        expected = dict(version='4.14.7-1', architecture='amd64',
+                        selection=('choice', 'install', 'hold'))
+        package = _result_shape(module, 'PackageIdentity', values['package'], expected)
+        _result_values(package, expected)
+        values['package'] = tuple(package.items())
+    elif stem == 'operator_python_runtime':
+        packages = values['packages']
+        _require(len(packages) == len(_PYTHON_PACKAGE_RESULTS), 'GUARD_RESULT_VALUE')
+        snapshots = []
+        for record, (package_name, version) in zip(packages, _PYTHON_PACKAGE_RESULTS):
+            expected = dict(name=package_name, version=version, architecture='amd64',
+                            selection=('choice', 'install', 'hold'))
+            package = _result_shape(module, 'PackageRecord', record, expected)
+            _result_values(package, expected)
+            snapshots.append(tuple(package.items()))
+        values['packages'] = tuple(snapshots)
+    elif stem == 'operator_file_set':
+        # Every visited directory except the outer roots is also an entry.
+        # Extra empty directories remain allowed by the existing bounded walk.
+        _require(values['directory_entries_seen'] == values['manifest_files_seen']
+                 + values['directories_seen'] - values['outer_roots_scanned'],
+                 'GUARD_RESULT_COUNTS')
+    return tuple(values.items())
+
+
 def _observe_held(loaded):
     """One fixed observation sequence. Results never become startup authority.
 
@@ -664,9 +860,18 @@ def _observe_held(loaded):
     baseline = _phase_state(loaded)
     def module(stem):
         return loaded[HELD_PACKAGE + '.' + stem]
-    def checked(call, *args, **kwargs):
+    snapshots = {}
+    def checked(stem, method, *args, **kwargs):
         _same_phase(baseline, _phase_state(loaded))
-        result = call(*args, **kwargs)
+        result = getattr(module(stem), method)(*args, **kwargs)
+        snapshot = _check_observation(loaded, stem, result)
+        # Cache invalidation may legitimately change the count; both snapshots
+        # still undergo their own full observer/policy checks. No auto-repair.
+        if stem != 'operator_python_path_importers':
+            code = {'operator_bootstrap': 'GUARD_PHASE_BOOTSTRAP',
+                    'operator_runtime': 'GUARD_PHASE_PACKAGE'}.get(stem, 'GUARD_RESULT_CHANGED')
+            _require(stem not in snapshots or snapshots[stem] == snapshot, code)
+            snapshots[stem] = snapshot
         _same_phase(baseline, _phase_state(loaded))
         return result
     def python_checks():
@@ -677,19 +882,17 @@ def _observe_held(loaded):
             ('operator_python_native', 'observe_python_native'),
             ('operator_python_path_importers', 'observe_python_path_importers'),
         ):
-            checked(getattr(module(stem), method))
+            checked(stem, method)
         finder = sys.meta_path[0]  # Exact entry-defined object checked above.
-        checked(module('operator_python_import_state').observe_python_import_state,
+        checked('operator_python_import_state', 'observe_python_import_state',
                 held_finder=finder)
-        checked(module('operator_python_embedded').observe_python_embedded_modules,
+        checked('operator_python_embedded', 'observe_python_embedded_modules',
                 held_finder=finder)
 
     python_checks()
-    bootstrap = module('operator_bootstrap')
-    runtime = module('operator_runtime')
     core = module('operator_core')
-    first = checked(bootstrap.load_bootstrap)
-    package = checked(runtime.observe_package_runtime, first.manifest)
+    first = checked('operator_bootstrap', 'load_bootstrap')
+    package = checked('operator_runtime', 'observe_package_runtime', first.manifest)
     for stem, method in (
         ('operator_service', 'observe_service_configuration'),
         ('operator_launch', 'observe_launch_files'),
@@ -701,15 +904,14 @@ def _observe_held(loaded):
         ('operator_import_sites', 'observe_pinned_import_sites'),
         ('operator_file_set', 'observe_package_file_set'),
     ):
-        checked(getattr(module(stem), method))
+        checked(stem, method)
     # Compare installed bytes against the selected on-disk contract; passing
     # NODE is NOT a claim that a live broker selected it (no PID in pre-start).
-    checked(core.verify_installed_bytes, first.manifest,
+    checked('operator_core', 'verify_installed_bytes', first.manifest,
             module('operator_fs').InstalledReader(first.manifest),
             package_version=package.package.version, selected_node=core.NODE)
-    _require(checked(bootstrap.load_bootstrap) == first, 'GUARD_PHASE_BOOTSTRAP')
-    _require(checked(runtime.observe_package_runtime, first.manifest) == package,
-             'GUARD_PHASE_PACKAGE')
+    checked('operator_bootstrap', 'load_bootstrap')
+    checked('operator_runtime', 'observe_package_runtime', first.manifest)
     python_checks()
     _same_phase(baseline, _phase_state(loaded))
 
