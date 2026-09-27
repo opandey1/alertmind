@@ -1051,6 +1051,29 @@ Windows Python 3.12 fixtures do not validate the selected Ubuntu build. Even
 matching live metadata would not authenticate embedded or bootstrap code. This
 observer is dormant and outside the capsule, with runtime/startup flags false.
 
+### Entry/private-module and closed-table policy (27 September 2026)
+
+The existing `operator_guard_entry.py` now includes dormant pure validation
+for explicitly supplied prepared (104-key) and fully held (118-key) tables.
+The base stdlib keys match the prior 50 file-backed and 53 built-in/frozen
+selections. Only direct-script `__main__`, the fixed private package and the
+thirteen pinned child modules are added. No wildcard private-prefix exception,
+partial bundle, automatic imports, auto-learning or phase inference is allowed.
+
+The [operator contract](../../siem/rbac/broker_tls/OPERATOR.md#entryprivate-modules-and-closed-table--dormant-pure-policy)
+documents entry/loader/import bindings, explicit phase-dependent meta finders,
+private registry identity, alias rules and twenty-three tests. Entry code adds
+no imports; the thirteen capsule sources and their pins are unchanged. The
+checker is not called by startup or the held loader and returns no permit.
+Its direct-script metadata is candidate policy, not the B2 `<stdin>` report.
+
+This completes the offline declared-table/entry/private-metadata policy slice,
+not trusted initialization, complete executable-code coverage or a fresh
+process observation. The exact sets still need a reviewed real call point and
+selected-runtime acceptance. Before-load observers and the four-finder held
+state cannot be naively composed. No check may temporarily remove the deny
+finder or silently expand the allowlist to pass. No new VM output is requested.
+
 ### Next work and VM availability
 
 The owner may shut down the VM normally after stopping the Windows tunnel.
@@ -1058,9 +1081,10 @@ No more VM output is needed **for this offline slice**. Do not rerun A–C3.
 The mapped/cache/source byte adapter, fixed optional-path/null-anchor observer
 and selected in-process import-state, path-hook/importer-cache metadata,
 selected filesystem-candidate and built-in/frozen metadata observers are
-implemented. Remaining work includes entry/private-module and complete-table
-policy, bootstrap provenance, native resolution and externally trusted
-launch/composition. Matching selected mutable metadata does
+implemented. The entry/private-module and declared complete-table policy is
+also implemented as dormant pure checks. Remaining work includes bootstrap
+provenance, native resolution, and externally trusted initialization/launch
+and phase-aware composition of the policies. Matching selected mutable metadata does
 not complete those controls. Neither an observer nor later composition may use a stored C3 report
 as a substitute for fresh reads or auto-refresh pins after package drift.
 A changed generated loader cache also needs review; it is not automatically
