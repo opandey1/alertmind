@@ -175,8 +175,15 @@ Thirty-two additional tests (two Linux-only) cover this connection. Alignment is
 not intended-host attestation, and the explicit candidate-coverage policy is not
 full shutdown proof. Root-controlled host launch and noncooperating update/start
 controls still precede maintenance admission. See [the exact contract](UPGRADES.md#namespace-boundary-and-candidate-coverage--connected-to-the-census).
-The
-following live collection/execution/acceptance requirements remain open:
+`operator_maintenance_packages.py` now adds a dormant default-path APT/dpkg
+record-lock barrier for observation/backup, not for invoking an upgrade. All
+four locks must be held and rechecked; partial acquisition unwinds without
+creating/deleting locks, repairing metadata or waiting. Thirty-three tests
+(four Linux-only) cover requests, contention, lifetime, drift and cleanup.
+Installed paths, bounded package handover, service-start inhibition and trusted
+host launch remain open; arbitrary writers and pre-lock package housekeeping
+are not excluded. No authority flag is promoted. See [the package barrier contract](UPGRADES.md#package-manager-lock-barrier--observation-and-backup-only).
+The following live collection/execution/acceptance requirements remain open:
 
 - Record a versioned compatibility baseline for the OS/architecture, interpreter,
   stdlib/native libraries, loader cache, Wazuh/Node/plugins and guard artifacts.
