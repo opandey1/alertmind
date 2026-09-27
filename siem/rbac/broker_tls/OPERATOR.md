@@ -146,7 +146,12 @@ Python build and Ubuntu. The [offline maintenance lifecycle planner](UPGRADES.md
 now implements a strict versioned baseline format and one-step advisory
 upgrade/recovery decisions. It is outside the guard capsule, performs no I/O
 and never permits mutation or startup. This is **not an operational upgrade
-workflow**, nor a reason to hold back security updates indefinitely. The
+workflow**, nor a reason to hold back security updates indefinitely. The separate
+`operator_maintenance_state.py` observer now reads fixed persistent-mask metadata
+and systemd-reported activity without changing the existing guard contract.
+Its inactive/zero-PID result is not complete stopped-process proof; its output
+cannot clear a maintenance gate. Twenty-seven tests (two Linux-only) cover this
+read-only, non-authorizing slice; no native service-bus acceptance is claimed. The
 following live collection/execution/acceptance requirements remain open:
 
 - Record a versioned compatibility baseline for the OS/architecture, interpreter,
