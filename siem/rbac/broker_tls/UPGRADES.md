@@ -20,7 +20,7 @@ requirements, supply the planner's complete input or authorize a live step.
 
 `operator_maintenance_lock.py` adds a held, nonblocking **cooperative** lock.
 It coordinates callers using the same fixed inode; it is not host-wide exclusive
-maintenance control. It is not wired to the observers or planner yet.
+maintenance control. It is privately composed with inhibition, not the final planner/executor.
 
 `operator_maintenance_processes.py` adds a bounded read-only process-leader
 census for service-credential and packaged-Node-path matches outside the unit.
@@ -43,12 +43,81 @@ sequence with mocked systemd tests. Its public entry also refuses before I/O.
 lifetimes around disk preparation and that sequence. This is not the external
 authorization/host launch boundary, an installer or a released VM operation.
 
+`operator_maintenance_effects.py` now checks selected loaded-unit stop effects
+before private mask preparation, again before reload, and after reload before
+stop. It does not establish the complete installed-effect or authorization boundary.
+
+## Selected stop-effect checks — not complete manager-effect proof
+
+The separate fixed-property reader queries 33 properties on the existing
+Dashboard Unit and Service interfaces, without loading a unit or opening paths
+returned by it. Its strict parser rejects missing/unknown record fields, wrong
+types, duplicates, invalid text, unsupported properties and oversized replies.
+Two complete snapshots must match; neither is returned or persisted. Commands,
+arguments and related-unit names remain private; errors use fixed codes.
+
+The conservative candidate requires no `ExecStopEx` or `ExecStopPostEx` hooks;
+empty `RequiredBy`, `RequisiteOf`, `BoundBy`, `ConsistsOf`, `PropagatesStopTo`,
+`OnFailure`, `OnSuccess`, `TriggeredBy`, `Triggers` and `UpheldBy`; and `none`
+for `FailureAction`, `SuccessAction`, `StartLimitAction` and `JobTimeoutAction`.
+It rejects aliases/following/transient units, unknown/transitional states,
+pending jobs, a control PID or refusal of manual stop. The field signatures
+come from upstream [Unit properties](https://raw.githubusercontent.com/systemd/systemd/main/src/core/dbus-unit.c)
+and [Service properties](https://raw.githubusercontent.com/systemd/systemd/main/src/core/dbus-service.c).
+OnSuccess/OnFailure can activate other units; the selected inverse and explicit
+edges matter to stop propagation and reactivation. See [unit semantics](https://raw.githubusercontent.com/systemd/systemd/main/man/systemd.unit.xml).
+
+The selected kill policy is deliberately narrow: `control-group`, initial
+SIGTERM (15), final SIGKILL (9), SendSIGKILL true, SendSIGHUP false and
+TimeoutStopFailureMode `terminate`. Other configurations stop for review; this
+does not change any installed setting or prove that the VM satisfies this
+candidate. These controls govern configured signal behavior, not proof that
+all processes actually exit. See [kill properties](https://raw.githubusercontent.com/systemd/systemd/main/src/core/dbus-kill.c)
+and [kill semantics](https://raw.githubusercontent.com/systemd/systemd/main/man/systemd.kill.xml).
+Existing cgroup/census postchecks remain mandatory and keep their limitations.
+
+Checks are connected in the private composition at three phases:
+
+1. With all namespace/lock controls held, before opening the root for mask work.
+2. Immediately before manager reload, after the persistent disk mask exists.
+3. After masked-manager readback and before the stop request.
+
+Only phase 2 permits NeedDaemonReload=true, because mask preparation may cause
+it. Phase 3 additionally requires LoadState=masked. A fresh read is made at
+each phase; cached observations cannot substitute. A check failure before mask
+preparation prevents that write. Failure after masking retains the mask; failure
+after reload prevents stop but does not undo/cancel the reload or other jobs.
+Masked/unloaded property unavailability fails closed, without unmask/load fallback.
+
+The new queries use only fixed `busctl get-property` argv, close unrelated FDs,
+discard stderr, bound each reply to 64 KiB and each query to five seconds, and
+poll with checkpoint checks at most 250ms apart while waiting for pipe readiness.
+Exit/cleanup and same-caller BOOTTIME checks must pass before accepting results.
+This is not a watchdog, and pipe/wait checkpoints do not make every syscall
+interruptible. The whole composed window remains 30 seconds; the extra reads
+do not extend it. Native timing and JSON/property availability remain unverified.
+
+**Still open:** global daemon-reload generators and their interpreter/tool
+dependencies, indirect dependency effects (including other units' unneeded-stop
+behavior), unit-file/package authenticity and continuous external writer/start
+exclusion. Empty selected edges are not a complete dependency graph, a review
+of signal handlers in existing processes, package-lock compatibility or target-only
+side-effect proof. Loaded metadata does not replace reviewed on-disk sources.
+No host/downtime authorization or planner Boolean is inferred. Public mutation
+entries remain blocked, and existing guard/capsule sources and pins are unchanged.
+
+Thirty-five mocked tests cover parser/policy/transport failures, changed readback,
+cleanup, all three private integration points and the actual collector composed
+with private sequencing. They never access a real service bus or execute a
+manager action; they are not installed-version or VM acceptance. The public
+read-only observer has no CLI/target overrides; no live command is released here.
+
 ## Held-control composition — private and non-authorizing
 
 `run_maintenance_inhibition()` always raises `CONTROL_NOT_RELEASED` before I/O.
 The private `_inhibit(boundary_checkpoint=...)` seam acquires, in fixed order,
 namespace alignment, the cooperative lease and all four package record locks.
-It then opens the fixed root, prepares/synchronizes the mask and runs the existing
+It checks selected stop effects, then opens the fixed root, prepares/synchronizes the mask and runs the existing
 reload/stop/readback sequence. One lifetime-bound checkpoint is passed to both
 operations. There is no caller-selected command, path, resource list, saved
 receipt, package invocation or planner dispatch.
@@ -132,10 +201,10 @@ then requires two equal manager snapshots with no pending unit job, no triggerin
 units, a known stable active/inactive/failed state and the fixed cgroup path.
 It performs, in order:
 
-1. Fixed, synchronous system-manager daemon reload.
+1. Fresh selected stop-effect check, then fixed synchronous system-manager daemon reload.
 2. Fresh equal manager reads reporting both persistent mask states and no reload
    pending. A successful client exit alone is insufficient.
-3. Fixed Dashboard stop request with `--job-mode=fail`, not replacement/force or
+3. Fresh selected stop-effect check, then fixed Dashboard stop request with `--job-mode=fail`, not replacement/force or
    dependency suppression. A nonzero client result is a failure even if the
    service happens to look inactive afterward.
 4. Fresh equal masked/stopped manager reads, zero main/control PIDs and no job;
@@ -766,10 +835,11 @@ The next implementation work completes trusted maintenance collection/execution:
   service-start control. Private persistent-mask disk preparation now exists;
   private manager reload/stop and fresh scoped readback sequencing also exists.
   Private held-control composition and the fixed-child exception now exist.
-  Next bind the external authorization/host/start/writer boundary and exact
-  installed generator/unit/dependency prerequisites, keeping public execution
+  Selected loaded-unit stop hooks/edges/actions/kill policy now have fresh checks
+  before mask, reload and stop. Next bind the external authorization/host/start/writer
+  boundary and remaining installed generator/unit/dependency prerequisites, keeping public execution
   blocked until the complete controller is reviewed. The default-path package barrier is implemented only
-  for observation/backup; installed path/behavior validation and a bounded,
+  for observation/backup/private inhibition; installed path/behavior validation and a bounded,
   inhibited handover to the intended package transaction remain open. Neither
   advisory lock excludes arbitrary privileged writes. The census checks namespace alignment,
   but its explicit coverage policy still needs acceptance in that controlled

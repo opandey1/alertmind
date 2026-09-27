@@ -13,6 +13,7 @@ import time
 from . import operator_core as core
 from . import operator_fs as fs
 from . import operator_maintenance_inhibit as disk
+from . import operator_maintenance_effects as effects
 from . import operator_maintenance_lock as cooperative
 from . import operator_maintenance_manager as manager
 from . import operator_maintenance_namespaces as namespaces
@@ -153,6 +154,8 @@ def _inhibit(*, boundary_checkpoint):
     """
     try:
         with _hold_controls(boundary_checkpoint=boundary_checkpoint) as window:
+            window.checkpoint()
+            effects._check('before_mask', checkpoint=window.checkpoint)
             window.checkpoint()
             with ExitStack() as stack:
                 root = os.open('/', os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)

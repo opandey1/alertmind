@@ -1253,4 +1253,11 @@ systemctl children are excepted from the raw-fork prohibition; no package tool,
 handle delegation or general command hook is added. Thirty-two tests include
 two Linux-only disposable child/lock fixtures, not VM acceptance. Public execution
 remains blocked pending external owner/host/start/writer controls and installed
-tool/hook/dependency review. No new VM output is required. See [the contract](../../siem/rbac/broker_tls/UPGRADES.md#held-control-composition--private-and-non-authorizing).
+tool/hook/dependency review. Selected loaded-unit stop hooks, inverse/explicit
+edges, emergency actions and kill settings now have fresh checks connected
+before private mask work, reload and stop (35 mocked tests). Remaining global
+generator effects, indirect dependency behavior and external owner/host/runtime/
+writer/start controls are not proven. Missing masked-unit properties fail
+closed; no load/unmask workaround is added. The 30-second composition budget
+and public mutation refusal remain. No new VM output is required; do not repeat
+A-C3. See [the contract](../../siem/rbac/broker_tls/UPGRADES.md#selected-stop-effect-checks--not-complete-manager-effect-proof).

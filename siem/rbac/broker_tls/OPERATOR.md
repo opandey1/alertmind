@@ -204,6 +204,14 @@ and package-lock lifetimes around disk preparation and manager sequencing.
 Thirty-two tests (two Linux-only) check acquisition/unwind order, fresh held
 checkpoints, boot/caller/deadline continuity and fail-closed cleanup. The exact
 busctl/systemctl child exception is explicit, not arbitrary fork permission.
+Selected loaded-unit stop-effect checks now run under those controls before
+mask preparation, before reload and after reload before stop: empty stop hooks,
+selected propagation/trigger edges and emergency actions, stable unit identity/
+state and a conservative signal policy. Thirty-five mocked regressions cover
+these checks and all three integration points. This is not complete generator/
+dependency review, installed-version acceptance or external authorization.
+The composed 30-second bound and public mutation refusal are unchanged; no
+live query is released. See [the scoped contract](UPGRADES.md#selected-stop-effect-checks--not-complete-manager-effect-proof).
 The existing namespace contract caps the entire window at 30 seconds; this was
 not widened to the manager's longer budget. No live authorization, installed
 hook/dependency safety or complete process-absence claim follows. Its public
