@@ -1172,3 +1172,12 @@ Complete process/exclusive-control, baseline/backup and review binding still
 need implementation before a maintenance gate can pass. Native systemd response
 compatibility and the two Linux-only temporary-tree tests remain unverified
 locally. No new VM output or live invocation is requested; the VM may remain off.
+
+**Service-tree follow-up:** the dormant fixed cgroup-v2 observer now checks
+descendant-aware population, fixed mount/device/path metadata and same-boot
+snapshots, with a suspend-inclusive collection bound and unchanged mask/manager
+state. An empty unit tree is not host-wide Dashboard shutdown: outside-unit
+instances, launch namespaces and exclusive maintenance control remain open.
+It provides no planner admission, writes, CLI or guard integration. The native
+regular-file fixtures and real VM/kernel compatibility are distinct; no new
+VM command or repeat of accepted evidence gates is requested for this slice.
