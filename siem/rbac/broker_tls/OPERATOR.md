@@ -142,9 +142,12 @@ of `None` results; observer I/O remains mocked. No VM acceptance is claimed.
 #### Upgrade and revalidation requirement — open before deployment
 
 The owner explicitly requires a maintainable upgrade path for Wazuh, the
-Python build and Ubuntu. This is a required follow-up, **not implemented by
-the contract/result-policy slices**, and not a reason to hold back security
-updates indefinitely. The following acceptance requirements remain open:
+Python build and Ubuntu. The [offline maintenance lifecycle planner](UPGRADES.md)
+now implements a strict versioned baseline format and one-step advisory
+upgrade/recovery decisions. It is outside the guard capsule, performs no I/O
+and never permits mutation or startup. This is **not an operational upgrade
+workflow**, nor a reason to hold back security updates indefinitely. The
+following live collection/execution/acceptance requirements remain open:
 
 - Record a versioned compatibility baseline for the OS/architecture, interpreter,
   stdlib/native libraries, loader cache, Wazuh/Node/plugins and guard artifacts.
