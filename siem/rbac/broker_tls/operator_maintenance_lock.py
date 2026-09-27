@@ -72,8 +72,12 @@ class MaintenanceLockObservation:
 class _HeldLease:
     """Lifetime-bound handle for trusted code, not a serializable authority.
 
-    Do not fork, duplicate/pass descriptors, exec or delegate this handle while
-    holding it. A child cannot checkpoint it. Closing (never LOCK_UN) avoids a
+    No raw fork, duplicate/pass descriptors, controller exec or handle delegation.
+    The private control composition permits ONLY the existing fixed busctl
+    observations and manager reload/stop systemctl children: close_fds=True,
+    no pass_fds/preexec_fn, no handle use in children, bounded wait/cleanup and
+    parent checkpoints. This narrow exception is not arbitrary child authority.
+    A child cannot checkpoint this handle. Closing (never LOCK_UN) avoids a
     child releasing its parent's shared open-file-description lock. An illicit
     inherited descriptor can delay release until that child exits: fail closed,
     not permission to unlink the file. Python internals are not an adversary API.

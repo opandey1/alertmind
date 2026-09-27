@@ -38,8 +38,84 @@ persistent masking with disposable-tree tests. Its public entry always refuses
 before I/O. No live executor, manager reload/stop or complete inhibition is released.
 
 `operator_maintenance_manager.py` adds the private ordered reload/stop/readback
-sequence with mocked systemd tests. Its public entry also refuses before I/O;
-neither private primitive is wired to the held controller or released for the VM.
+sequence with mocked systemd tests. Its public entry also refuses before I/O.
+`operator_maintenance_control.py` now privately composes the namespace and lock
+lifetimes around disk preparation and that sequence. This is not the external
+authorization/host launch boundary, an installer or a released VM operation.
+
+## Held-control composition — private and non-authorizing
+
+`run_maintenance_inhibition()` always raises `CONTROL_NOT_RELEASED` before I/O.
+The private `_inhibit(boundary_checkpoint=...)` seam acquires, in fixed order,
+namespace alignment, the cooperative lease and all four package record locks.
+It then opens the fixed root, prepares/synchronizes the mask and runs the existing
+reload/stop/readback sequence. One lifetime-bound checkpoint is passed to both
+operations. There is no caller-selected command, path, resource list, saved
+receipt, package invocation or planner dispatch.
+
+Every acquired resource is freshly checkpointed after acquisition and before/
+after protected phases; the manager wait loop invokes the same checkpoint.
+The dedicated caller PID/native thread, boot/capture identity, nondecreasing
+namespace elapsed time and whole-window BOOTTIME are checked. A changed lease,
+revoked boundary, unexpected observation type, namespace drift or reentrant/
+escaped checkpoint fails closed. Partial acquisition unwinds in reverse order.
+Root close, each resource's own successful-exit checks and final lifetime checks
+must all complete before returning any result. Failure does not retry, reacquire,
+remove a mask/lock file or start a service. Cleanup releases advisory resources;
+the result describes a **completed window**, never currently held controls.
+
+The outer budget is **30 seconds**, preserving the existing namespace limit,
+including acquisition, disk work, manager operations, observations and cleanup.
+It is stricter than the standalone manager's 180-second budget. No rolling renewal,
+fresh-window reset or implicit timeout increase is allowed. Slow/stalled operations
+fail rather than stretching this contract. This is a candidate check-based limit,
+not a kernel watchdog or deadline-interruptible filesystem I/O; installed latency
+needs measurement before release. BOOTTIME is not converted into planner time.
+
+### Explicit fixed-child exception
+
+The cooperative/package/namespace handle contracts now explicitly permit only
+the existing fixed busctl property readers and the fixed systemctl reload/stop
+clients inside this private composition. All use `close_fds=True`, no `pass_fds`
+or `preexec_fn`, fixed command/cwd/environment, bounded wait/cleanup, and never
+receive or operate a Python handle. No raw fork, descriptor duplication/passing,
+controller exec, arbitrary child program, APT/dpkg transaction or handle delegation
+is permitted. This is a scoped change from the earlier blanket cooperative-lock
+no-fork wording, not a general process-launch API.
+
+Python may internally fork/exec or spawn; `close_fds` closes nonstandard FDs
+**before exec**, not necessarily at the instant of process creation. Existing
+held descriptors remain close-on-exec and the parent retains ownership throughout.
+No Python pre-exec callback may manipulate shared open-file descriptions. See
+[Python subprocess](https://docs.python.org/3/library/subprocess.html) and
+[Linux flock lifetime](https://man7.org/linux/man-pages/man2/flock.2.html).
+
+Thirty-two tests cover composition, partial failure, cleanup, deadlines and
+revocation; two are Linux-only disposable-file/child fixtures. Those substitute
+an isolated Python probe for the asserted fixed systemctl request: they check
+that even an intentionally inheritable sentinel FD is closed in the executed
+child, that parent flock/OFD locks still block independent acquisitions, and
+that timeout cleanup reaps the child without unlocking the parent. They never
+run systemctl or real package locks and do not establish VM compatibility.
+
+### Controls this does not establish
+
+The private boundary callback returns `None` by contract, **not approval**. A
+future trusted launcher must independently establish owner downtime, intended
+host/runtime, continuous noncooperating writer/start-path control, installed
+tool/generator/unit/hook/dependency effects and package-lock path compatibility.
+The public refusal cannot be bypassed with a callback or environment setting.
+Private Python methods are not a sandbox against arbitrary trusted-code misuse.
+
+In particular, manager reload may run generators and stop may propagate jobs or
+execute hooks; their installed dependencies must not deadlock against the package
+barrier. Killing a client does not cancel its manager job. If cleanup/reaping or
+any phase fails, no success escapes, but running jobs may outlive this window;
+keep inhibition and require fresh reconciliation under renewed external controls.
+The two advisory locks still do not exclude arbitrary privileged/service-owned
+writes, and visible-PID1 alignment is not intended-host attestation. No full
+process-quiescence, exclusivity, package/mutation/startup permission is promoted.
+Disk/manager public entries, guard pins and final startup refusal are unchanged.
 
 ## Manager reload/stop/readback — live entry blocked
 
@@ -102,8 +178,9 @@ The immutable result reports scoped observations only. Candidate-count zero
 still misses the census's documented copied/renamed/nonleader cases, and reads
 are not atomic. Full quiescence, exclusive control, host attestation, reboot
 persistence, mutation and startup authority remain false. The existing guard,
-planner and no-fork lock contracts are unchanged: child execution under held
-locks needs explicit reviewed composition, not a silent contract relaxation.
+planner contracts are unchanged. The private held-control composition above
+documents the exact fixed-child exception to the original no-fork wording;
+it is not a general permission to fork or pass lock handles.
 Forty-four offline tests and eight in-memory negative mutations cover this
 slice; no real systemd command, VM action or new native acceptance is claimed.
 
@@ -352,8 +429,9 @@ on exit drift. It now reports `visible_pid1_alignment_observed=true`, while
 busctl queries already use `close_fds=True`, no passed descriptors or pre-exec
 callback, and bounded child cleanup; they never receive the namespace handle.
 Raw fork/delegation, descriptor passing, credential or namespace changes inside
-the context are unsupported. This does not alter the separate cooperative-lock
-no-fork contract: combining that lock with child queries still needs review.
+the context are unsupported. The private held-control composition above now
+uses an explicit fixed busctl/systemctl child exception for all held handles;
+independent/native review and external host/start/writer controls remain pending.
 
 **External launch requirement:** a container can match its own visible PID 1.
 These checks cannot prove initial namespaces, the intended host identity or the
@@ -433,9 +511,10 @@ Use only a dedicated trusted root-controlled host process, with trusted runtime,
 local filesystems and **no pre-existing traditional locks on these inodes**.
 It must not run inside APT/libapt: closing any descriptor can release that
 process's traditional locks. The private handle rejects cross-PID/thread and
-after-exit use. Do not fork/delegate, duplicate/pass its descriptors or exec
-inside the context. Any future fixed observation child must close unrelated
-FDs, receive no passed descriptors/pre-exec callback and be bounded/reaped.
+after-exit use. Do not raw-fork/delegate, duplicate/pass its descriptors or exec
+the controller inside the context. Only the fixed busctl queries and systemctl
+reload/stop children in the private composition are excepted: close unrelated
+FDs, receive no passed descriptors/pre-exec callback and use bounded wait/cleanup.
 Cleanup closes descriptors without `F_UNLCK`, so a copied child cannot explicitly
 unlock the parent's OFD through cleanup. An illicit surviving duplicate can
 still prolong the lock; this is not a sandbox against trusted-code violations.
@@ -504,12 +583,13 @@ documents that this is advisory, not a block on other writers.
 The returned handle is for trusted code only. Check it immediately before each
 future protected operation, not merely once at transaction entry. It rejects
 use after context exit or by a different PID; the observation is immutable,
-minimized and not a replayable authority. Do not fork, duplicate/pass its private
-descriptor, exec or delegate the handle inside the critical section. Descriptors
+minimized and not a replayable authority. Do not raw-fork, duplicate/pass its private
+descriptor, exec the controller or delegate the handle inside the critical section.
+Only the fixed busctl/systemctl child exception documented above is permitted. Descriptors
 are close-on-exec; cleanup only closes them, never explicitly unlocks a shared
 open-file description. If a caller violates the no-fork/no-dup contract, an
 inherited descriptor can prolong the lock until its holder exits. Do not steal
-it. Actual process-launch composition remains to be implemented and reviewed.
+it. Private composition is implemented, but independent/native review remains open.
 
 The lock alone does **not** stop Dashboard processes or exclude apt/dpkg,
 unattended upgrades, systemd activation, service-owned code changes or other
@@ -685,14 +765,15 @@ The next implementation work completes trusted maintenance collection/execution:
   cooperative/package locks with externally established host launch trust and
   service-start control. Private persistent-mask disk preparation now exists;
   private manager reload/stop and fresh scoped readback sequencing also exists.
-  Next compose the trusted controller (including child execution under held
-  locks) and installed generator/unit/dependency prerequisites, keeping public
-  execution blocked until the complete controller is reviewed. The default-path package barrier is implemented only
+  Private held-control composition and the fixed-child exception now exist.
+  Next bind the external authorization/host/start/writer boundary and exact
+  installed generator/unit/dependency prerequisites, keeping public execution
+  blocked until the complete controller is reviewed. The default-path package barrier is implemented only
   for observation/backup; installed path/behavior validation and a bounded,
   inhibited handover to the intended package transaction remain open. Neither
   advisory lock excludes arbitrary privileged writes. The census checks namespace alignment,
   but its explicit coverage policy still needs acceptance in that controlled
-  context. Implement trusted held-lock composition,
+  context. Complete trusted launch/boundary integration,
   private exact backup and
   root-controlled versioned baseline/evidence
   binding. Verify rather than trusting hand-entered Booleans or a stored receipt.

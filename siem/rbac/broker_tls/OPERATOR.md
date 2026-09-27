@@ -187,7 +187,7 @@ are not excluded. No authority flag is promoted. See [the package barrier contra
 no-clobber creation of the exact symlink or fresh verification of an existing
 one, held-path checks and deepest-first directory synchronization. Failure
 never deletes a mask. Thirty-two tests (four Linux-only) cover the disk portion.
-The public entry always refuses before I/O; owner/host/lock authorization is
+The public entry always refuses before I/O; external owner/host authorization is
 not connected. A disk result
 is not manager inhibition, process quiescence or reboot acceptance. See [the disk contract](UPGRADES.md#persistent-mask-disk-preparation--live-entry-blocked).
 `operator_maintenance_manager.py` adds private reload, effective-mask readback,
@@ -195,10 +195,19 @@ stop and fresh manager/cgroup/census sequencing. Forty-four mocked tests cover
 ordering, bounded client waits, drift, revocation, failure cleanup and refusal
 of successful-exit-only evidence. A timed-out client does not cancel its manager
 job; failures never unmask, retry or restart. Reload is manager-wide and stop
-can run hooks/dependency jobs. Intended-host trust, installed effects, held-lock
-child execution and native compatibility need review before controller wiring.
+can run hooks/dependency jobs. Intended-host trust, installed effects and native
+compatibility still need review before release.
 Its public entry is unconditionally blocked; counts do not become full process
 quiescence or planner admission. See [the manager contract](UPGRADES.md#manager-reloadstopreadback--live-entry-blocked).
+`operator_maintenance_control.py` now privately composes namespace, cooperative
+and package-lock lifetimes around disk preparation and manager sequencing.
+Thirty-two tests (two Linux-only) check acquisition/unwind order, fresh held
+checkpoints, boot/caller/deadline continuity and fail-closed cleanup. The exact
+busctl/systemctl child exception is explicit, not arbitrary fork permission.
+The existing namespace contract caps the entire window at 30 seconds; this was
+not widened to the manager's longer budget. No live authorization, installed
+hook/dependency safety or complete process-absence claim follows. Its public
+entry still refuses before I/O. See [the held-control contract](UPGRADES.md#held-control-composition--private-and-non-authorizing).
 The following live collection/execution/acceptance requirements remain open:
 
 - Record a versioned compatibility baseline for the OS/architecture, interpreter,

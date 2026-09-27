@@ -58,7 +58,7 @@ class MaintenanceManagerTests(unittest.TestCase):
     def sequence(self, f):
         return m._sequence(checkpoint=f['checkpoint'])
 
-    def fail(self, code, callback):
+    def assert_error(self, code, callback):
         with self.assertRaises(core.OperatorError) as caught:
             callback()
         self.assertEqual(str(caught.exception), code)
@@ -67,7 +67,7 @@ class MaintenanceManagerTests(unittest.TestCase):
         with (patch.dict(os.environ, {'ALERTMIND_MAINTENANCE_APPROVED': 'true'}),
               patch.object(m, '_sequence') as sequence, patch.object(m.os, 'open') as opened,
               patch.object(m.subprocess, 'Popen') as spawned):
-            self.fail('MANAGER_NOT_RELEASED', m.establish_maintenance_inhibition)
+            self.assert_error('MANAGER_NOT_RELEASED', m.establish_maintenance_inhibition)
         sequence.assert_not_called()
         opened.assert_not_called()
         spawned.assert_not_called()
@@ -75,27 +75,27 @@ class MaintenanceManagerTests(unittest.TestCase):
     def test_noncallable_checkpoint_refused_before_readers(self):
         with self.fixture() as f:
             for invalid in (None, True, 'approved'):
-                self.fail('MANAGER_CHECKPOINT', lambda: m._sequence(checkpoint=invalid))
+                self.assert_error('MANAGER_CHECKPOINT', lambda: m._sequence(checkpoint=invalid))
             f['boot'].assert_not_called()
             f['action'].assert_not_called()
 
     def test_checkpoint_true_is_not_authorization(self):
         with self.fixture() as f:
             f['checkpoint'].return_value = True
-            self.fail('MANAGER_CHECKPOINT', lambda: self.sequence(f))
+            self.assert_error('MANAGER_CHECKPOINT', lambda: self.sequence(f))
             f['action'].assert_not_called()
 
     def test_checkpoint_exception_is_sanitized(self):
         with self.fixture() as f:
             f['checkpoint'].side_effect = RuntimeError('PRIVATE checkpoint data')
-            self.fail('MANAGER_CHECKPOINT', lambda: self.sequence(f))
+            self.assert_error('MANAGER_CHECKPOINT', lambda: self.sequence(f))
             f['mask'].assert_not_called()
 
     def test_owner_pid_or_thread_change_refused(self):
         for target, attribute in ((m.os, 'getpid'), (m.threading, 'get_native_id')):
             with self.subTest(attribute=attribute), self.fixture() as f:
                 with patch.object(target, attribute, side_effect=[100, 100, 101]):
-                    self.fail('MANAGER_OWNER', lambda: self.sequence(f))
+                    self.assert_error('MANAGER_OWNER', lambda: self.sequence(f))
                 f['action'].assert_not_called()
 
     def test_order_is_reload_mask_readback_stop_tree_census_tree(self):
@@ -136,7 +136,7 @@ class MaintenanceManagerTests(unittest.TestCase):
     def test_missing_mask_never_reloads(self):
         with self.fixture() as f:
             f['mask'].return_value = (False, ())
-            self.fail('MANAGER_MASK', lambda: self.sequence(f))
+            self.assert_error('MANAGER_MASK', lambda: self.sequence(f))
             f['action'].assert_not_called()
 
     def test_replaced_mask_after_reload_never_stops(self):
@@ -144,20 +144,20 @@ class MaintenanceManagerTests(unittest.TestCase):
             def action(*_, **__):
                 f['mask'].return_value = (True, ('replaced',))
             f['action'].side_effect = action
-            self.fail('MANAGER_MASK_CHANGED', lambda: self.sequence(f))
+            self.assert_error('MANAGER_MASK_CHANGED', lambda: self.sequence(f))
             self.assertEqual(f['action'].call_count, 1)
 
     def test_boot_change_refused_without_second_action(self):
         with self.fixture() as f:
             f['action'].side_effect = lambda *a, **k: setattr(f['boot'], 'return_value', 'new-boot')
-            self.fail('MANAGER_BOOT', lambda: self.sequence(f))
+            self.assert_error('MANAGER_BOOT', lambda: self.sequence(f))
             self.assertEqual(f['action'].call_count, 1)
 
     def test_suspend_budget_and_backwards_clock_fail_closed(self):
         for now in (0, 1_000_000_000 + m.MAX_SEQUENCE_NS):
             with self.subTest(now=now), self.fixture() as f:
                 f['clock'].side_effect = [1_000_000_000, now]
-                self.fail('MANAGER_SEQUENCE_TIMEOUT', lambda: self.sequence(f))
+                self.assert_error('MANAGER_SEQUENCE_TIMEOUT', lambda: self.sequence(f))
                 f['action'].assert_not_called()
 
     def test_manager_jobs_triggers_transitions_or_wrong_group_stop_before_reload(self):
@@ -167,13 +167,13 @@ class MaintenanceManagerTests(unittest.TestCase):
         for changes in bad:
             with self.subTest(changes=changes), self.fixture() as f:
                 f['manager'].return_value = dict(values(), **changes)
-                self.fail('MANAGER_STATE', lambda: self.sequence(f))
+                self.assert_error('MANAGER_STATE', lambda: self.sequence(f))
                 f['action'].assert_not_called()
 
     def test_manager_snapshot_race_refused(self):
         with self.fixture() as f:
             f['manager'].side_effect = [values(), dict(values(), MainPID=99)]
-            self.fail('MANAGER_STATE_CHANGED', lambda: self.sequence(f))
+            self.assert_error('MANAGER_STATE_CHANGED', lambda: self.sequence(f))
             f['action'].assert_not_called()
 
     def test_successful_reload_exit_does_not_substitute_for_effective_mask(self):
@@ -181,20 +181,20 @@ class MaintenanceManagerTests(unittest.TestCase):
                         dict(NeedDaemonReload=True)):
             with self.subTest(changes=changes), self.fixture() as f:
                 f['manager'].side_effect = [values()] * 2 + [dict(values(), **changes)] * 2 + [values()] * 4
-                self.fail('MANAGER_MASK_STATE', lambda: self.sequence(f))
+                self.assert_error('MANAGER_MASK_STATE', lambda: self.sequence(f))
                 self.assertEqual(f['action'].call_count, 1)
 
     def test_reload_failure_never_stops_or_observes_census(self):
         with self.fixture() as f:
             f['action'].side_effect = core.OperatorError('MANAGER_ACTION_FAILED')
-            self.fail('MANAGER_ACTION_FAILED', lambda: self.sequence(f))
+            self.assert_error('MANAGER_ACTION_FAILED', lambda: self.sequence(f))
             self.assertEqual(f['action'].call_count, 1)
             f['census'].assert_not_called()
 
     def test_stop_failure_never_accepts_even_an_inactive_manager(self):
         with self.fixture() as f:
             f['action'].side_effect = [None, core.OperatorError('MANAGER_ACTION_TIMEOUT')]
-            self.fail('MANAGER_ACTION_TIMEOUT', lambda: self.sequence(f))
+            self.assert_error('MANAGER_ACTION_TIMEOUT', lambda: self.sequence(f))
             self.assertEqual(f['action'].call_count, 2)
             f['tree'].assert_not_called()
 
@@ -203,13 +203,13 @@ class MaintenanceManagerTests(unittest.TestCase):
                         dict(ActiveState='active', SubState='running')):
             with self.subTest(changes=changes), self.fixture() as f:
                 f['manager'].side_effect = [values()] * 4 + [dict(values(), **changes)]
-                self.fail('CGROUP_MANAGER_STATE', lambda: self.sequence(f))
+                self.assert_error('CGROUP_MANAGER_STATE', lambda: self.sequence(f))
                 f['tree'].assert_not_called()
 
     def test_unavailable_masked_service_properties_fail_without_load_or_unmask(self):
         with self.fixture() as f:
             f['manager'].side_effect = [values()] * 2 + [core.OperatorError('MAINTENANCE_QUERY')]
-            self.fail('MAINTENANCE_QUERY', lambda: self.sequence(f))
+            self.assert_error('MAINTENANCE_QUERY', lambda: self.sequence(f))
             self.assertEqual([c.args[0] for c in f['action'].call_args_list], ['reload'])
 
     def test_absent_or_failed_stopped_unit_is_accepted_only_with_empty_observers(self):
@@ -226,18 +226,18 @@ class MaintenanceManagerTests(unittest.TestCase):
             with self.subTest(changes=changes), self.fixture() as f:
                 f['tree'].side_effect = None
                 f['tree'].return_value = tree(**changes)
-                self.fail('MANAGER_CGROUP_BUSY', lambda: self.sequence(f))
+                self.assert_error('MANAGER_CGROUP_BUSY', lambda: self.sequence(f))
                 f['census'].assert_not_called()
 
     def test_tree_repopulated_after_census_rejected(self):
         with self.fixture() as f:
             f['tree'].side_effect = [tree(), tree(unit_tree_populated=True)]
-            self.fail('MANAGER_CGROUP_BUSY', lambda: self.sequence(f))
+            self.assert_error('MANAGER_CGROUP_BUSY', lambda: self.sequence(f))
 
     def test_tree_presence_change_refused(self):
         with self.fixture() as f:
             f['tree'].side_effect = [tree(), tree(unit_cgroup_present=False, cgroup_frozen=None)]
-            self.fail('MANAGER_CGROUP_CHANGED', lambda: self.sequence(f))
+            self.assert_error('MANAGER_CGROUP_CHANGED', lambda: self.sequence(f))
 
     def test_all_census_match_classes_and_missing_alignment_fail_closed(self):
         bad = [dict(service_identity_matches=1), dict(packaged_node_path_matches=1),
@@ -248,7 +248,7 @@ class MaintenanceManagerTests(unittest.TestCase):
             with self.subTest(changes=changes), self.fixture() as f:
                 f['census'].side_effect = None
                 f['census'].return_value = processes(**changes)
-                self.fail('MANAGER_CENSUS_BUSY', lambda: self.sequence(f))
+                self.assert_error('MANAGER_CENSUS_BUSY', lambda: self.sequence(f))
                 self.assertEqual(f['tree'].call_count, 1)
 
     def test_wrong_observation_type_or_boot_rejected(self):
@@ -256,7 +256,7 @@ class MaintenanceManagerTests(unittest.TestCase):
             with self.subTest(item=item), self.fixture() as f:
                 f['tree'].side_effect = None
                 f['tree'].return_value = item
-                self.fail('MANAGER_OBSERVATION', lambda: self.sequence(f))
+                self.assert_error('MANAGER_OBSERVATION', lambda: self.sequence(f))
 
     def test_stale_future_overlong_and_malformed_observation_timing_rejected(self):
         changes = [dict(captured_boottime_ms=999), dict(captured_boottime_ms=1001),
@@ -266,18 +266,18 @@ class MaintenanceManagerTests(unittest.TestCase):
             with self.subTest(change=change), self.fixture() as f:
                 f['tree'].side_effect = None
                 f['tree'].return_value = tree(**change)
-                self.fail('MANAGER_OBSERVATION_TIME', lambda: self.sequence(f))
+                self.assert_error('MANAGER_OBSERVATION_TIME', lambda: self.sequence(f))
 
     def test_census_result_is_freshly_checked_too(self):
         with self.fixture() as f:
             f['census'].side_effect = None
             f['census'].return_value = processes(captured_boottime_ms=0)
-            self.fail('MANAGER_OBSERVATION_TIME', lambda: self.sequence(f))
+            self.assert_error('MANAGER_OBSERVATION_TIME', lambda: self.sequence(f))
 
     def test_final_manager_change_refused(self):
         with self.fixture() as f:
             f['manager'].side_effect = [values()] * 6 + [dict(values(), ControlGroup=m.cg.CGROUP_NAME)] * 2
-            self.fail('MANAGER_STATE_CHANGED', lambda: self.sequence(f))
+            self.assert_error('MANAGER_STATE_CHANGED', lambda: self.sequence(f))
 
     def test_final_checkpoint_revocation_refused(self):
         with self.fixture() as f:
@@ -285,12 +285,12 @@ class MaintenanceManagerTests(unittest.TestCase):
                 if f['manager'].call_count == 8:
                     raise ValueError('PRIVATE revocation')
             f['checkpoint'].side_effect = check
-            self.fail('MANAGER_CHECKPOINT', lambda: self.sequence(f))
+            self.assert_error('MANAGER_CHECKPOINT', lambda: self.sequence(f))
 
     def test_census_error_aborts_without_retry_or_recovery_action(self):
         with self.fixture() as f:
             f['census'].side_effect = core.OperatorError('CENSUS_CHANGED')
-            self.fail('CENSUS_CHANGED', lambda: self.sequence(f))
+            self.assert_error('CENSUS_CHANGED', lambda: self.sequence(f))
             self.assertEqual([c.args[0] for c in f['action'].call_args_list], ['reload', 'stop'])
             self.assertEqual(f['census'].call_count, 1)
 
@@ -330,32 +330,32 @@ class MaintenanceManagerTests(unittest.TestCase):
     def test_unknown_actions_never_spawn(self):
         with self.child() as (_, spawn, _, _):
             for action in ('start', 'restart', 'unmask', 'cancel', 'kill', 'stop other.service', None, True):
-                self.fail('MANAGER_ACTION', lambda: m._run_action(action, checkpoint=lambda: None))
+                self.assert_error('MANAGER_ACTION', lambda: m._run_action(action, checkpoint=lambda: None))
             spawn.assert_not_called()
 
     def test_tool_check_failure_prevents_spawn(self):
         with self.child() as (_, spawn, _, tool):
             tool.side_effect = PermissionError('PRIVATE tool path')
-            self.fail('MANAGER_ACTION_FAILED', lambda: m._run_action('reload', checkpoint=lambda: None))
+            self.assert_error('MANAGER_ACTION_FAILED', lambda: m._run_action('reload', checkpoint=lambda: None))
             spawn.assert_not_called()
 
     def test_client_nonzero_exit_is_not_accepted(self):
         with self.child() as (proc, spawn, _, _):
             proc.wait.return_value = 1
-            self.fail('MANAGER_ACTION_FAILED', lambda: m._run_action('stop', checkpoint=lambda: None))
+            self.assert_error('MANAGER_ACTION_FAILED', lambda: m._run_action('stop', checkpoint=lambda: None))
             self.assertEqual(spawn.call_count, 1)
 
     def test_spawn_failure_is_sanitized_without_cleanup_of_an_unknown_child(self):
         with self.child() as (proc, spawn, _, _):
             spawn.side_effect = OSError('PRIVATE executable detail')
-            self.fail('MANAGER_ACTION_FAILED', lambda: m._run_action('stop', checkpoint=lambda: None))
+            self.assert_error('MANAGER_ACTION_FAILED', lambda: m._run_action('stop', checkpoint=lambda: None))
             proc.kill.assert_not_called()
             proc.wait.assert_not_called()
 
     def test_checkpoint_revocation_after_child_success_still_fails(self):
         with self.child() as (proc, spawn, _, _):
             check = Mock(side_effect=[None, None, None, core.OperatorError('MANAGER_CHECKPOINT')])
-            self.fail('MANAGER_CHECKPOINT', lambda: m._run_action('stop', checkpoint=check))
+            self.assert_error('MANAGER_CHECKPOINT', lambda: m._run_action('stop', checkpoint=check))
             self.assertEqual(spawn.call_count, 1)
             self.assertEqual(proc.wait.call_count, 2)  # wait and cleanup, no second action
 
@@ -374,7 +374,7 @@ class MaintenanceManagerTests(unittest.TestCase):
                 proc.wait.side_effect = [subprocess.TimeoutExpired('PRIVATE', .25), 0]
                 proc.poll.return_value = None
                 clock.side_effect = [0, 0, seconds * 1_000_000_000]
-                self.fail('MANAGER_ACTION_TIMEOUT', lambda: m._run_action(action, checkpoint=lambda: None))
+                self.assert_error('MANAGER_ACTION_TIMEOUT', lambda: m._run_action(action, checkpoint=lambda: None))
                 proc.kill.assert_called_once_with()
                 self.assertEqual(spawn.call_count, 1)
                 self.assertEqual(proc.wait.call_args.kwargs, {'timeout': 1})
@@ -382,7 +382,7 @@ class MaintenanceManagerTests(unittest.TestCase):
     def test_late_success_is_timeout_not_success(self):
         with self.child() as (_, _, clock, _):
             clock.side_effect = [0, 0, 60_000_000_000]
-            self.fail('MANAGER_ACTION_TIMEOUT', lambda: m._run_action('stop', checkpoint=lambda: None))
+            self.assert_error('MANAGER_ACTION_TIMEOUT', lambda: m._run_action('stop', checkpoint=lambda: None))
 
     def test_keyboard_interrupt_kills_client_but_is_not_swallowed(self):
         with self.child() as (proc, spawn, _, _):
@@ -396,7 +396,7 @@ class MaintenanceManagerTests(unittest.TestCase):
     def test_cleanup_failure_blocks_success(self):
         with self.child() as (proc, _, _, _):
             proc.wait.side_effect = [0, subprocess.TimeoutExpired('PRIVATE', 1)]
-            self.fail('MANAGER_ACTION_CLEANUP', lambda: m._run_action('reload', checkpoint=lambda: None))
+            self.assert_error('MANAGER_ACTION_CLEANUP', lambda: m._run_action('reload', checkpoint=lambda: None))
 
     def test_boot_reader_fixed_path_equal_passes_and_close(self):
         mock_tree = Mock()
@@ -422,7 +422,7 @@ class MaintenanceManagerTests(unittest.TestCase):
               patch.object(m.os, 'O_NOFOLLOW', 2, create=True),
               patch.object(m.os, 'O_CLOEXEC', 4, create=True),
               patch.object(m.cg, '_Tree', return_value=mock_tree)):
-            self.fail('MANAGER_BOOT', m._boot_id)
+            self.assert_error('MANAGER_BOOT', m._boot_id)
         closed.assert_called_once_with(10)
 
 
