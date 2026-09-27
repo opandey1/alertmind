@@ -150,8 +150,11 @@ has twenty-three portable tests for an isolated root Python launch, a no-follow
 entry-path recheck, an exact thirteen-module source capsule and temporary
 held-code loading. Tests execute the verified bytes in a temporary private
 package without reopening project source paths, then remove that package.
-The entrypoint itself does **not** call this loader; it only compiles and
-always exits nonzero. This is not a trusted interpreter/importer proof or a startup permit.
+The connected entrypoint now prepares the fixed stdlib set and invokes the
+extended 21-source held loader and ordered observers, while still always exiting
+nonzero. Twenty-eight additional [launch/phase tests](OPERATOR.md#current-launchcomposition-work-27-september-2026)
+cover this transition; the original compile-only helper remains separate.
+This is not a trusted interpreter/importer proof or a startup permit.
 No source bundle is installed and there is no systemd drop-in; do not deploy
 it alone.
 Four offline import-contract checks separately pin its direct Python import

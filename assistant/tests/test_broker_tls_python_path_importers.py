@@ -293,7 +293,7 @@ class PythonPathImporterTests(unittest.TestCase):
         with self.assertRaisesRegex(core.OperatorError, '^PY_PATH_STATE$'):
             self.run_fixture(host)
 
-    def test_results_remain_dormant_non_authorizing_and_not_source_only_proof(self):
+    def test_results_remain_non_authorizing_and_not_source_only_proof(self):
         result = self.run_fixture()
         for field in ('hook_code_authenticated', 'directory_contents_proven', 'bytecode_exclusion_proven',
                       'complete_module_inventory_proven', 'actual_resolution_proven', 'atomic_snapshot_proven',
@@ -306,7 +306,7 @@ class PythonPathImporterTests(unittest.TestCase):
         names = {node.func.id for node in ast.walk(tree) if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)}
         self.assertTrue(names.isdisjoint({'open', 'exec', 'eval', '__import__'}))
         self.assertNotIn('operator_python_path_importers.py', {pin[0] for pin in guard.PINNED_MODULES})
-        self.assertNotIn('operator_python_path_importers', Path(guard.__file__).read_text(encoding='utf-8'))
+        self.assertIn('operator_python_path_importers.py', {pin[0] for pin in guard.RUNTIME_MODULES})
 
 
 if __name__ == '__main__':

@@ -1,0 +1,86 @@
+#!/usr/bin/dash
+# GENERATED OFFLINE CANDIDATE. Not installed and not startup permission.
+# Trust anchor: administrator-controlled OS/kernel, supervisor and distro tools.
+# Parent must launch this in a clean environment with no inherited extra FDs.
+# No concurrent privileged changes/updates are allowed during validation/use.
+set -eu
+set -f
+umask 077
+PATH=/usr/bin:/bin
+HOME=/nonexistent
+LC_ALL=C
+IFS='
+	 '
+export PATH HOME LC_ALL
+fail() { printf '%s\n' GUARD_LAUNCH_REFUSED >&2; exit 1; }
+[ "$#" -eq 0 ] || fail
+[ "$(/usr/bin/id -u)" = 0 ] || fail
+[ "$(/usr/bin/id -ru)" = 0 ] || fail
+cd /
+ulimit -c 0
+exec </dev/null
+
+# Helper binaries and their initial loader inputs are part of the trusted OS,
+# not bootstrapped by this script. The clean exec at the end is before PYTHON.
+check_chain() (
+    p=$1
+    while :; do
+        [ -d "$p" ] && [ ! -L "$p" ] || fail
+        row=$(/usr/bin/stat --format='%u %g %a' -- "$p") || fail
+        set -- $row
+        [ "$#" -eq 3 ] && [ "$1" = 0 ] && [ "$2" = 0 ] || fail
+        case $3 in ''|*[!0-7]*) fail ;; esac
+        [ $((0$3 & 06022)) -eq 0 ] || fail
+        [ "$p" != / ] || break
+        p=${p%/*}
+        [ -n "$p" ] || p=/
+    done
+)
+check_file() (
+    path=$1 limit=$2 exact=$3 digest=$4
+    check_chain "${path%/*}"
+    [ -f "$path" ] && [ ! -L "$path" ] || fail
+    row=$(/usr/bin/stat --format='%u %g %a %h %s' -- "$path") || fail
+    set -- $row
+    [ "$#" -eq 5 ] && [ "$1" = 0 ] && [ "$2" = 0 ] && [ "$4" = 1 ] || fail
+    case $3 in ''|*[!0-7]*) fail ;; esac
+    case $5 in ''|*[!0-9]*) fail ;; esac
+    [ $((0$3 & 06022)) -eq 0 ] && [ "$5" -gt 0 ] && [ "$5" -le "$limit" ] || fail
+    [ "$exact" = 0 ] || [ "$5" = "$exact" ] || fail
+    printf '%s  %s\n' "$digest" "$path" | /usr/bin/sha256sum --check --status || fail
+    [ "$(/usr/bin/stat --format='%u %g %a %h %s' -- "$path")" = "$row" ] || fail
+)
+check_absent() (
+    check_chain "${1%/*}"
+    [ ! -e "$1" ] && [ ! -L "$1" ] || fail
+)
+
+# Literal paths/digests from the reviewed source and retained C1/C3 pins.
+# Two passes detect persistent drift, not an atomic snapshot or root compromise.
+for pass in 1 2; do
+    while read -r path limit exact digest; do
+        check_file "$path" "$limit" "$exact" "$digest"
+    done <<'ALERTMIND_FIXED_FILES'
+@FILES@
+ALERTMIND_FIXED_FILES
+    while read -r path; do
+        check_absent "$path"
+    done <<'ALERTMIND_ABSENT_PATHS'
+@ABSENT@
+ALERTMIND_ABSENT_PATHS
+    # Device metadata only: never hash/read /dev/null.
+    check_chain /dev
+    [ ! -L /dev/null ] && [ -c /dev/null ] || fail
+    [ "$(/usr/bin/stat --format='%u %g %t:%T %a' -- /dev/null)" = '0 0 1:3 666' ] || fail
+    while read -r link target; do
+        [ "$(/usr/bin/readlink -e -- "$link")" = "$target" ] || fail
+    done <<'ALERTMIND_LOADER_LINKS'
+@LINKS@
+ALERTMIND_LOADER_LINKS
+done
+
+# Fixed direct interpreter launch; no shell expansion of caller argv or config.
+# Entry always exits nonzero even if the observation sequence succeeds.
+exec /usr/bin/env -i HOME=/nonexistent LC_ALL=C PATH=/usr/bin:/bin \
+    /usr/bin/python3.14 -I -S -B -X pycache_prefix=/dev/null/alertmind-c2 \
+    /usr/local/libexec/alertmind-broker-tls/guard_entry.py

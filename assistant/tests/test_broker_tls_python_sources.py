@@ -98,11 +98,12 @@ class PythonSourcePinTests(unittest.TestCase):
                 policy.check_source_bytes(0, bad)
             digest.assert_not_called()
 
-    def test_pins_are_immutable_and_guard_remains_excluded(self):
+    def test_pins_are_immutable_and_runtime_capsule_is_separate(self):
         with self.assertRaises(FrozenInstanceError):
             policy.SOURCE_FILES[0].path = '/tmp/other'
         self.assertNotIn('operator_python_policy.py', {p[0] for p in guard.PINNED_MODULES})
-        self.assertNotIn('operator_python_runtime', Path(guard.__file__).read_text(encoding='utf-8'))
+        self.assertIn('operator_python_policy.py', {p[0] for p in guard.RUNTIME_MODULES})
+        self.assertIn('operator_python_runtime.py', {p[0] for p in guard.RUNTIME_MODULES})
         tree = ast.parse(Path(policy.__file__).read_text(encoding='utf-8'))
         imports = set()
         for node in ast.walk(tree):

@@ -197,7 +197,7 @@ class PythonRuntimePolicyTests(unittest.TestCase):
         imports |= {alias.name for node in tree.body if isinstance(node, ast.Import) for alias in node.names}
         self.assertEqual(imports, {'dataclasses', 'hashlib', 're'})
         self.assertNotIn('operator_python_policy.py', {pin[0] for pin in entry.PINNED_MODULES})
-        self.assertNotIn('operator_python_policy', Path(entry.__file__).read_text(encoding='utf-8'))
+        self.assertIn('operator_python_policy.py', {pin[0] for pin in entry.RUNTIME_MODULES})
         with patch('builtins.open', side_effect=AssertionError('IO_CALLED')):
             policy.check_c3_report(self.raw)
             policy.check_candidate_launch(policy.CANDIDATE_ARGV, dict(policy.CANDIDATE_ENVIRONMENT))

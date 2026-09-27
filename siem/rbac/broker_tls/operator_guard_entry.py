@@ -38,6 +38,30 @@ PINNED_MODULES = (
     ('operator_import_sites.py', 6425, '716a3a2b12ac26d99241b1e16716d5315e8dda5897482e3e76715ff7415534a8'),
     ('operator_file_set.py', 8964, 'f6819927f88de7030b47d5e2fdee690f514fda82e42b0a16326431a2e334f180'),
 )
+# Additional runtime-observer closure, loaded only by the explicit full phase.
+# The original thirteen-source capsule remains available to offline tests.
+RUNTIME_MODULES = (
+    ('operator_python_policy.py', 18363, 'e33d3d01e9a37d02b0089d8c3f8b48f99fc1c3d1ca3ae7aea2ee7a54011dafd8'),
+    ('operator_python_runtime.py', 6794, '00a7605556455d8f64d8cbc207f830b59dda4945e15cb11f821d1f915509541c'),
+    ('operator_python_paths.py', 5434, 'afc604fdf5f2974c137a35bf8a9ae6fd927736387ad2e107a12af0718a2bd6a9'),
+    ('operator_python_import_state.py', 9624, 'd2e10b725d5044a7c817e38c46f98cde22b0c5980f9d69ce1188051717d40a2a'),
+    ('operator_python_path_importers.py', 8077, '745a134ba8fe89fb020659dfdf3d5e193c17e3a9b8dd2ba4f4f79fd94c2a9e68'),
+    ('operator_python_candidates.py', 6857, '40cbadcfaa259808e32053d3702aad2e2e95c3f71ab4822514023c4f1cfef699'),
+    ('operator_python_embedded.py', 8113, 'ad118dc2f7c33f5589db897781ca1d04e5d4baca3014b2e2c04a70eb9c826f40'),
+    ('operator_python_native.py', 11575, '55cb17c982adfc18e9dc63e8c47945116aed9ed668112f88b0427a3d13b2ed46'),
+)
+
+
+def _bundle_pins(runtime):
+    _require(type(runtime) is bool, 'GUARD_TABLE_PHASE')
+    return PINNED_MODULES + RUNTIME_MODULES if runtime else PINNED_MODULES
+
+
+def _held_keys(runtime):
+    return frozenset((HELD_PACKAGE,) + tuple(
+        HELD_PACKAGE + '.' + name[:-3] for name, _, _ in _bundle_pins(runtime)))
+
+
 HELD_PACKAGE = '_alertmind_guard_held'
 # Candidate prepared-table policy from the accepted B2/C1 name sets, not a
 # measured guard launch. Keep literal here: importing a policy module would
@@ -74,7 +98,7 @@ HELD_MODULE_KEYS = frozenset((HELD_PACKAGE,) + tuple(
     HELD_PACKAGE + '.' + name[:-3] for name, _, _ in PINNED_MODULES))
 # Same ordered direct roots as B2, including its first `import sys`. Importing
 # these can execute stdlib/native code: external launch/runtime trust is a
-# prerequisite, not something this dormant preparation step establishes.
+# prerequisite, not something the preparation step establishes.
 PREPARATION_ROOTS = (
     'sys', 'base64', 'binascii', 'contextlib', 'dataclasses', 'errno', 'grp',
     'hashlib', 'json', 'os', 'pathlib', 'pwd', 're', 'selectors', 'stat',
@@ -200,7 +224,7 @@ def _scan_exact_names(fd, expected):
     _require(names == expected, 'GUARD_BUNDLE_SET')
 
 
-def _verify_bundle_at(root_fd):
+def _verify_bundle_at(root_fd, *, runtime=False):
     """Return held verified bytes; NEVER import or execute the source set.
 
     The fixed pins bind to LF repository source, not an installer or a live
@@ -221,10 +245,11 @@ def _verify_bundle_at(root_fd):
             _require(_stamp(before) == _stamp(os.fstat(opened)), 'GUARD_CHANGED')
             records.append((parent, name, opened, before))
             parent = opened
-        expected_names = {'guard_entry.py'} | {name for name, _, _ in PINNED_MODULES}
+        pins = _bundle_pins(runtime)
+        expected_names = {'guard_entry.py'} | {name for name, _, _ in pins}
         _scan_exact_names(parent, expected_names)
         sources = []
-        for name, size, digest in PINNED_MODULES:
+        for name, size, digest in pins:
             before = os.stat(name, dir_fd=parent, follow_symlinks=False)
             _trusted(before, False)
             _require(before.st_size == size, 'GUARD_BUNDLE_SIZE')
@@ -250,12 +275,13 @@ def _verify_bundle_at(root_fd):
         return tuple(sources)
 
 
-def _compile_verified_bundle(sources):
+def _compile_verified_bundle(sources, *, runtime=False):
     """Compile exact held bytes without reopening a path or executing them."""
-    _require(type(sources) is tuple and len(sources) == len(PINNED_MODULES),
+    pins = _bundle_pins(runtime)
+    _require(type(sources) is tuple and len(sources) == len(pins),
              'GUARD_COMPILE_SET')
     compiled = []
-    for received, (name, size, digest) in zip(sources, PINNED_MODULES):
+    for received, (name, size, digest) in zip(sources, pins):
         _require(type(received) is tuple and len(received) == 2 and
                  received[0] == name and type(received[1]) is bytes,
                  'GUARD_COMPILE_SET')
@@ -281,15 +307,15 @@ class _DenyHeldFallback:
 
 
 @contextmanager
-def _loaded_verified_bundle(sources):
+def _loaded_verified_bundle(sources, *, runtime=False):
     """Execute only held, rechecked bytes in a temporary private namespace.
 
-    This offline candidate is not called by the entrypoint: interpreter,
-    standard-library and import-path trust must be established first. It is
-    neither a sandbox nor a startup decision.
+    The connected candidate calls this after preparation and verified source
+    acquisition. Interpreter, standard-library and import-path trust must be
+    established externally first. Neither a sandbox nor a startup decision.
     """
-    compiled = _compile_verified_bundle(sources)
-    # Import types only after the entry and descriptor checks in _check_entry.
+    compiled = _compile_verified_bundle(sources, runtime=runtime)
+    # In the connected path, types is already in the prepared module table.
     from types import ModuleType
 
     prefix = HELD_PACKAGE + '.'
@@ -349,8 +375,9 @@ def _table_text(value, expected, code):
     _require(type(value) is str and value == expected, code)
 
 
-def _table_capture(modules, held, loaded):
-    expected = PREPARED_MODULE_KEYS | HELD_MODULE_KEYS if held else PREPARED_MODULE_KEYS
+def _table_capture(modules, held, loaded, runtime=False):
+    held_keys = _held_keys(runtime)
+    expected = PREPARED_MODULE_KEYS | held_keys if held else PREPARED_MODULE_KEYS
     _table_keys(modules, expected)
     records = tuple((key, modules[key]) for key in sorted(expected))
     for _, module in records:
@@ -396,18 +423,18 @@ def _table_capture(modules, held, loaded):
     refs = [modules, main, builtins, source_class, loader, loader_fields, meta, *defaults,
             context['ExitStack'], context['contextmanager']]
     if held:
-        _table_keys(loaded, HELD_MODULE_KEYS)
-        _require(all(loaded[key] is modules[key] for key in HELD_MODULE_KEYS), 'GUARD_TABLE_REGISTRY')
+        _table_keys(loaded, held_keys)
+        _require(all(loaded[key] is modules[key] for key in held_keys), 'GUARD_TABLE_REGISTRY')
         package = _table_module(modules[HELD_PACKAGE])
         fields = frozenset(('__name__', '__doc__', '__package__', '__loader__', '__spec__', '__path__')) | frozenset(
-            name[:-3] for name, _, _ in PINNED_MODULES)
+            name[:-3] for name, _, _ in _bundle_pins(runtime))
         _table_keys(package, fields)
         _table_text(package.get('__name__'), HELD_PACKAGE, 'GUARD_TABLE_HELD')
         _table_text(package.get('__package__'), HELD_PACKAGE, 'GUARD_TABLE_HELD')
         _require(type(package.get('__path__')) is tuple and not package['__path__'] and
                  all(package.get(key) is None for key in ('__doc__', '__loader__', '__spec__')),
                  'GUARD_TABLE_HELD')
-        for name, _, _ in PINNED_MODULES:
+        for name, _, _ in _bundle_pins(runtime):
             stem = name[:-3]
             key = HELD_PACKAGE + '.' + stem
             module = modules[key]
@@ -433,8 +460,8 @@ def _table_capture(modules, held, loaded):
                  all(value is None for value in function.__defaults__) and function.__kwdefaults__ is None and
                  not function.__dict__, 'GUARD_TABLE_FINDER')
         refs.extend((loaded, package, finder, fd, finder_class, function, function.__code__))
-        _table_keys(loaded, HELD_MODULE_KEYS)
-        _require(all(loaded[key] is modules[key] for key in HELD_MODULE_KEYS), 'GUARD_TABLE_REGISTRY')
+        _table_keys(loaded, held_keys)
+        _require(all(loaded[key] is modules[key] for key in held_keys), 'GUARD_TABLE_REGISTRY')
     else:
         _require(loaded is None, 'GUARD_TABLE_PHASE')
     _table_keys(modules, expected)
@@ -442,8 +469,8 @@ def _table_capture(modules, held, loaded):
     return tuple(refs) + tuple(module for _, module in records)
 
 
-def _check_module_table(modules, *, held=False, loaded=None):
-    """Pure candidate policy on caller-supplied tables; unused by the entry.
+def _check_module_table(modules, *, held=False, loaded=None, runtime=False):
+    """Pure table policy, also applied at connected entry phase boundaries.
 
     Prepared: 103 selected stdlib keys plus direct-file __main__. Held: also
     exactly the private package and 13 pinned children, matching the loader's
@@ -451,14 +478,14 @@ def _check_module_table(modules, *, held=False, loaded=None):
     Checks twice without importing, invoking a finder, mutating, or reading a
     live sys.modules table itself. Returns None, NOT a startup decision.
 
-    Initialization and the trusted call point remain unimplemented. Mutable
+    The full observation path adds eight pinned runtime children. Mutable
     metadata and a supplied registry cannot attest executed bytes, freshness,
     bootstrap provenance, stdlib internals or an atomic process snapshot.
     """
     _require(type(held) is bool, 'GUARD_TABLE_PHASE')
     try:
-        first = _table_capture(modules, held, loaded)
-        second = _table_capture(modules, held, loaded)
+        first = _table_capture(modules, held, loaded, runtime)
+        second = _table_capture(modules, held, loaded, runtime)
     except (AttributeError, KeyError, TypeError, ValueError, RuntimeError):
         raise GuardLaunchError('GUARD_TABLE_STATE') from None
     _require(len(first) == len(second) and all(a is b for a, b in zip(first, second)),
@@ -558,7 +585,7 @@ def _import_preparation_root(name):
 
 
 def _prepare_stdlib():
-    """Dormant fixed preparation, NOT an external trust anchor or a permit.
+    """Fixed preparation, NOT an external trust anchor or a permit.
 
     A trusted launcher must establish the reviewed interpreter, sources, native
     inputs and clean environment BEFORE running this entry. These imports can
@@ -570,7 +597,8 @@ def _prepare_stdlib():
     grow. Finish with the existing exact 104-key table policy. Do not import a
     private capsule, invoke its observers, adjust paths/hooks/cache/environment,
     or issue startup authority. On failure, abandon the process; no retry or
-    partial-import cleanup is attempted. No current entrypoint calls this.
+    partial-import cleanup is attempted. The connected launch calls this before
+    loading private sources; the compile-only helper does not call it.
     """
     try:
         state = _preparation_capture()
@@ -604,8 +632,8 @@ def _check_entry():
                      os.O_NOFOLLOW | os.O_CLOEXEC)
         try:
             _check_entry_at(fd)
-            # Keep execution disabled until the interpreter, stdlib and import
-            # system are independently trusted. The tested loader is dormant.
+            # Retained compile-only helper, not the connected main() path.
+            # It must never execute the capsule or prepare the interpreter.
             _compile_verified_bundle(_verify_bundle_at(fd))
         finally:
             os.close(fd)
@@ -613,14 +641,114 @@ def _check_entry():
         raise GuardLaunchError('GUARD_IO') from None
 
 
+def _phase_state(loaded):
+    """Full held-phase check; never remove the deny-finder for an observer."""
+    _preparation_settings()
+    _require(vars(sys.modules['__main__']) is globals(), 'GUARD_PHASE_ENTRY')
+    _check_module_table(sys.modules, held=True, loaded=loaded, runtime=True)
+    return _table_capture(sys.modules, True, loaded, True)
+
+
+def _same_phase(before, after):
+    _require(len(before) == len(after) and all(a is b for a, b in zip(before, after)),
+             'GUARD_PHASE_CHANGED')
+
+
+def _observe_held(loaded):
+    """One fixed observation sequence. Results never become startup authority.
+
+    The external OS/launcher is the trust anchor, not an input Boolean or a
+    saved report. Private bootstrap data stays local. Every observer is bracketed
+    by full held-table/launch checks; Python checks bracket broker checks too.
+    """
+    baseline = _phase_state(loaded)
+    def module(stem):
+        return loaded[HELD_PACKAGE + '.' + stem]
+    def checked(call, *args, **kwargs):
+        _same_phase(baseline, _phase_state(loaded))
+        result = call(*args, **kwargs)
+        _same_phase(baseline, _phase_state(loaded))
+        return result
+    def python_checks():
+        for stem, method in (
+            ('operator_python_paths', 'observe_python_path_inputs'),
+            ('operator_python_runtime', 'observe_python_runtime'),
+            ('operator_python_candidates', 'observe_python_import_candidates'),
+            ('operator_python_native', 'observe_python_native'),
+            ('operator_python_path_importers', 'observe_python_path_importers'),
+        ):
+            checked(getattr(module(stem), method))
+        finder = sys.meta_path[0]  # Exact entry-defined object checked above.
+        checked(module('operator_python_import_state').observe_python_import_state,
+                held_finder=finder)
+        checked(module('operator_python_embedded').observe_python_embedded_modules,
+                held_finder=finder)
+
+    python_checks()
+    bootstrap = module('operator_bootstrap')
+    runtime = module('operator_runtime')
+    core = module('operator_core')
+    first = checked(bootstrap.load_bootstrap)
+    package = checked(runtime.observe_package_runtime, first.manifest)
+    for stem, method in (
+        ('operator_service', 'observe_service_configuration'),
+        ('operator_launch', 'observe_launch_files'),
+        ('operator_unit_sources', 'observe_unit_sources'),
+        ('operator_manager_environment', 'observe_manager_environment'),
+        ('operator_node_options', 'observe_node_options'),
+        ('operator_dependency', 'observe_direct_axios_shadow'),
+        ('operator_dependency_graph', 'observe_declared_axios_graph'),
+        ('operator_import_sites', 'observe_pinned_import_sites'),
+        ('operator_file_set', 'observe_package_file_set'),
+    ):
+        checked(getattr(module(stem), method))
+    # Compare installed bytes against the selected on-disk contract; passing
+    # NODE is NOT a claim that a live broker selected it (no PID in pre-start).
+    checked(core.verify_installed_bytes, first.manifest,
+            module('operator_fs').InstalledReader(first.manifest),
+            package_version=package.package.version, selected_node=core.NODE)
+    _require(checked(bootstrap.load_bootstrap) == first, 'GUARD_PHASE_BOOTSTRAP')
+    _require(checked(runtime.observe_package_runtime, first.manifest) == package,
+             'GUARD_PHASE_PACKAGE')
+    python_checks()
+    _same_phase(baseline, _phase_state(loaded))
+
+
+def _observe_launch():
+    """Fixed root-controlled launch target, still NOT a production permit.
+
+    Requires the separately trusted OS and generated launcher's pre-exec checks.
+    A root caller bypassing that launcher is outside the trust model. No token,
+    environment switch or CLI flag can assert bootstrap trust to this routine.
+    """
+    _preparation_settings()
+    fd = os.open('/', os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
+    try:
+        _check_entry_at(fd)
+        sources = _verify_bundle_at(fd, runtime=True)
+    finally:
+        os.close(fd)
+    _prepare_stdlib()
+    prepared = tuple(sys.modules.items())
+    table = sys.modules
+    with _loaded_verified_bundle(sources, runtime=True) as loaded:
+        _require(sys.modules is table and all(sys.modules.get(k) is v for k, v in prepared),
+                 'GUARD_PHASE_CHANGED')
+        _observe_held(loaded)
+    _preparation_settings()
+    _check_module_table(sys.modules)
+    _require(sys.modules is table and all(sys.modules.get(k) is v for k, v in prepared),
+             'GUARD_PHASE_CHANGED')
+
+
 def main():
     """Always fail closed: no installed guard or startup permit exists yet."""
     try:
-        _check_entry()
-    except GuardLaunchError as error:
-        print(str(error), file=sys.stderr)
+        _observe_launch()
+    except GuardLaunchError:
+        print('GUARD_OBSERVATION_FAILED', file=sys.stderr)
         return 1
-    except Exception:
+    except BaseException:
         print('GUARD_UNEXPECTED', file=sys.stderr)
         return 1
     print('GUARD_NOT_READY', file=sys.stderr)

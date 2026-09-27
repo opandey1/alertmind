@@ -428,7 +428,8 @@ class NativeObservationTests(unittest.TestCase):
         for forbidden in ('eval', 'exec', 'compile', 'open', 'os.write', 'os.system', 'os.listdir',
                           'os.scandir', 'os.execve', 'subprocess.run', 'ctypes.CDLL'):
             self.assertNotIn(forbidden, calls)
-        self.assertNotIn('operator_python_native', inspect.getsource(entry))
+        self.assertNotIn('operator_python_native.py', {pin[0] for pin in entry.PINNED_MODULES})
+        self.assertIn('operator_python_native.py', {pin[0] for pin in entry.RUNTIME_MODULES})
         self.assertEqual(len(entry.PINNED_MODULES), 13)
 
 

@@ -301,7 +301,7 @@ class PythonRuntimeAdapterTests(unittest.TestCase):
         with self.assertRaises(FrozenInstanceError):
             result.startup_authorized = True
         self.assertNotIn('operator_python_runtime.py', {pin[0] for pin in guard.PINNED_MODULES})
-        self.assertNotIn('operator_python_runtime', Path(guard.__file__).read_text(encoding='utf-8'))
+        self.assertIn('operator_python_runtime.py', {pin[0] for pin in guard.RUNTIME_MODULES})
         source = Path(runtime.__file__).read_text(encoding='utf-8')
         tree = ast.parse(source)
         self.assertFalse(any(isinstance(n, ast.Import) and any(a.name in ('subprocess', 'socket', 'pwd', 'grp')
