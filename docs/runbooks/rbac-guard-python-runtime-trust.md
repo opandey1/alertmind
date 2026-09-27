@@ -1181,3 +1181,12 @@ instances, launch namespaces and exclusive maintenance control remain open.
 It provides no planner admission, writes, CLI or guard integration. The native
 regular-file fixtures and real VM/kernel compatibility are distinct; no new
 VM command or repeat of accepted evidence gates is requested for this slice.
+
+**Cooperative-lock follow-up:** a dormant context manager now holds an exclusive,
+nonblocking advisory lock on one pre-provisioned root-private `/run` file, with
+fixed-path/metadata and lifetime checks. It does not create that anchor, change
+services or grant planner admission. It coordinates cooperating callers only;
+package-manager/start-path exclusion, outside-unit process coverage, host launch
+trust and durable transaction composition remain open. The three Linux fixture
+tests are distinct from native VM acceptance. No additional VM output is needed;
+see [the lock contract](../../siem/rbac/broker_tls/UPGRADES.md#held-cooperative-lock--not-host-wide-exclusive-control).
