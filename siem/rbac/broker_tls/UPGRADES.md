@@ -12,11 +12,16 @@ supply the planner's complete observation or clear a maintenance gate. Durable
 inhibition, process-quiescence proof, backup/install/recovery and final service
 admission remain unimplemented; native compatibility is not yet accepted.
 
+`operator_maintenance_cgroup.py` now adds a separate dormant observation of the
+fixed Dashboard cgroup-v2 tree, including boot identity and suspend-inclusive
+collection timing. It does not close the outside-unit process or exclusivity
+requirements, supply the planner's complete input or authorize a live step.
+
 ## Separate the lifecycle contracts
 
 | Phase | Required boundary | Current implementation |
 | --- | --- | --- |
-| Maintenance / recovery | Owner downtime approval, exclusive control, persistent inhibition, stopped Dashboard, fresh inventory and verified source backup | Planner rejects missing claims; separate mask/manager observer supplies narrow metadata only, not admission. |
+| Maintenance / recovery | Owner downtime approval, exclusive control, persistent inhibition, stopped Dashboard, fresh inventory and verified source backup | Planner rejects missing claims; separate mask/manager and fixed-cgroup observers supply narrow observations, not admission. |
 | Guarded service start | Exact reviewed unit/hook and activating-state contract; trustworthy fresh guard observations before broker execution | Not implemented. Existing empty-hook/no-drop-in baseline must not be widened implicitly. |
 | Live acceptance | Actual broker TLS, effective process context, human/admin reads and denials | Separate pending acceptance; not inferred from an offline PASS. |
 
@@ -92,6 +97,60 @@ Twenty-seven tests cover the parser, mask metadata/races, query bounds/cleanup,
 Linux descriptor operations on disposable trees with normalized owner metadata
 and a mocked null anchor; they do not query the real service bus or modify `/etc`.
 Those two are skipped on Windows. No live execution block is released.
+
+## Fixed service-tree observation — not host-wide process absence
+
+`observe_maintenance_cgroup()` has no arguments, CLI, stored receipt, planner
+adapter or guard integration. It first verifies the tool/platform prerequisites,
+persistent disk mask and exact masked/stopped manager state. Nonzero main/control
+PIDs, a queued job, reload, transition, runtime-only mask or unexpected manager
+cgroup path stops collection. The only accepted manager cgroup names are empty
+or `/system.slice/wazuh-dashboard.service`; neither supplies a filesystem path.
+
+The reader always targets `/sys/fs/cgroup/system.slice/wazuh-dashboard.service`.
+It checks bounded `/proc/<own-pid>/mountinfo` against one full-root cgroup-v2
+mount at `/sys/fs/cgroup`, rejects submounts below it and matches the reported
+major/minor device to held cgroup directories and files. Ancestors must be
+root-owned, non-symlink directories with safe modes. The trusted host namespaces,
+procfs/kernel, Python and OS tools are **external prerequisites**, not established
+by root UID or these checks. Full mount bytes bracket each kernel observation.
+([mountinfo format](https://man7.org/linux/man-pages/man5/proc_pid_mountinfo.5.html))
+
+An existing unit tree must be a normal `domain` cgroup. The strict `cgroup.events`
+parser accepts exactly one binary `populated` and `frozen` field each. The kernel's
+`populated` value covers live processes in the group **and its descendants**;
+zero is not a count of all host processes or unreaped zombies. Freezing is not
+process exit, so frozen and populated remain separate fields. Unknown additions
+or threaded layouts fail pending compatibility review, not automatic acceptance.
+([Linux cgroup-v2 documentation](https://www.kernel.org/doc/html/latest/admin-guide/cgroup-v2.html#un-populated-notification))
+
+If only the unit leaf is absent beneath the required trusted slice, the reader
+records an absent/empty tree; missing parents or a missing events file in an
+existing group are errors. No directory is created. Descriptor-relative reads
+are no-follow, bounded and rechecked; kernel files may report size zero despite
+readable content. Nothing is signalled, stopped, migrated, frozen or written.
+
+Two complete snapshots must agree on boot ID, cgroup presence/content, mount
+digest and metadata, with unchanged mask and full manager properties before and
+after. The boot ID is read at both ends of each snapshot. `CLOCK_BOOTTIME` bounds
+the whole collection to a candidate 30 seconds and includes suspend time. Its
+`captured_boottime_ms` is deliberately distinct from the planner's monotonic
+field; no clock conversion or receipt-replay adapter is provided.
+([Linux boot-inclusive clock](https://man7.org/linux/man-pages/man2/clock_gettime.2.html))
+
+The result reports only boot/time and minimized cgroup fields. A populated tree
+returns `unit_tree_empty_observed=false`; an empty tree is still **not** complete
+Dashboard shutdown. Escaped or manually launched instances outside the unit
+have not been checked. Host-namespace, host-wide quiescence, exclusive-control,
+atomic-snapshot, mutation and startup proof flags remain false. Equality neither
+detects ABA nor prevents later process creation or migration. No claim can be
+promoted to planner `dashboard_stopped=true` without the remaining controls.
+
+Twenty-five tests cover these scope, parser, path/device/metadata, drift, boot,
+timeout and cleanup rules. Two Linux-only tests exercise descriptors on disposable
+regular-file fixtures with normalized ownership. They do not establish real
+kernel/procfs/cgroup or VM acceptance and are skipped on Windows. No new live
+command or VM-output request is released.
 
 ## Versioned compatibility baseline
 
@@ -173,8 +232,9 @@ claim, matching baseline digest or successful observation as authority.
 
 The next implementation work completes trusted maintenance collection/execution:
 
-- Extend the narrow mask/manager observation with exclusive-update control,
-  stopped-process status, private exact backup and root-controlled versioned baseline/evidence
+- Complete the narrow mask/manager/fixed-tree observations with outside-unit
+  process coverage and exclusive-update control, private exact backup and
+  root-controlled versioned baseline/evidence
   binding. Verify rather than trusting hand-entered Booleans or a stored receipt.
 - Implement interruption-safe installation and recovery with exact metadata,
   parent-directory durability, independently inspected package transactions and

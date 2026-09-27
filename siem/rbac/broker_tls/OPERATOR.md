@@ -151,7 +151,13 @@ workflow**, nor a reason to hold back security updates indefinitely. The separat
 and systemd-reported activity without changing the existing guard contract.
 Its inactive/zero-PID result is not complete stopped-process proof; its output
 cannot clear a maintenance gate. Twenty-seven tests (two Linux-only) cover this
-read-only, non-authorizing slice; no native service-bus acceptance is claimed. The
+read-only, non-authorizing slice; no native service-bus acceptance is claimed.
+The companion `operator_maintenance_cgroup.py` now checks the fixed cgroup-v2
+tree (including its descendant population indicator), boot identity and bounded
+suspend-inclusive timing, bracketed by unchanged mask/manager observations.
+Twenty-five tests (two Linux-only) cover this separate non-authorizing slice.
+It cannot exclude outside-unit instances or establish exclusive control; neither
+observer clears the planner's stopped-process gate. The
 following live collection/execution/acceptance requirements remain open:
 
 - Record a versioned compatibility baseline for the OS/architecture, interpreter,
