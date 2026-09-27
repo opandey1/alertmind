@@ -17,11 +17,15 @@ fixed Dashboard cgroup-v2 tree, including boot identity and suspend-inclusive
 collection timing. It does not close the outside-unit process or exclusivity
 requirements, supply the planner's complete input or authorize a live step.
 
+`operator_maintenance_lock.py` adds a held, nonblocking **cooperative** lock.
+It coordinates callers using the same fixed inode; it is not host-wide exclusive
+maintenance control. It is not wired to the observers or planner yet.
+
 ## Separate the lifecycle contracts
 
 | Phase | Required boundary | Current implementation |
 | --- | --- | --- |
-| Maintenance / recovery | Owner downtime approval, exclusive control, persistent inhibition, stopped Dashboard, fresh inventory and verified source backup | Planner rejects missing claims; separate mask/manager and fixed-cgroup observers supply narrow observations, not admission. |
+| Maintenance / recovery | Owner downtime approval, exclusive control, persistent inhibition, stopped Dashboard, fresh inventory and verified source backup | Planner rejects missing claims; separate mask/manager, fixed-cgroup and cooperative-lock primitives do not constitute admission. |
 | Guarded service start | Exact reviewed unit/hook and activating-state contract; trustworthy fresh guard observations before broker execution | Not implemented. Existing empty-hook/no-drop-in baseline must not be widened implicitly. |
 | Live acceptance | Actual broker TLS, effective process context, human/admin reads and denials | Separate pending acceptance; not inferred from an offline PASS. |
 
@@ -152,6 +156,66 @@ regular-file fixtures with normalized ownership. They do not establish real
 kernel/procfs/cgroup or VM acceptance and are skipped on Windows. No new live
 command or VM-output request is released.
 
+## Held cooperative lock — not host-wide exclusive control
+
+`hold_maintenance_lock()` is a no-argument context manager, outside the guard
+capsule and not connected to an installer or planner. The trusted root/Linux
+caller must already be in the host mount namespace with a trusted local `/run`,
+kernel and Python runtime. These are prerequisites, not conclusions of UID 0.
+No live invocation or provisioning command is released.
+
+The fixed anchor is `/run/alertmind-broker-maintenance/owner.lock`. A future
+reviewed installer must provision the private root:root `0700` directory and
+empty, singly linked root:root `0600` regular file. Missing or unsuitable
+objects fail closed. The module does not create, truncate, read/write payloads,
+chmod, unlink or repair anything. The directory and file must share `/run`'s
+device. This rejects distinct-device submounts, not every possible bind mount;
+host namespace/local-filesystem trust remains external.
+
+All ancestors and the file are opened relative to held no-follow descriptors.
+Names, inode identity, ownership and modes are rechecked before the context is
+yielded, on `checkpoint()` and at successful exit. The private directory and
+file also have complete metadata stamps checked; unrelated `/run` timestamp
+changes are tolerated. Name replacement, hard links, symlinks, unsafe modes,
+payload contents and inheritable descriptors are refused. Visible changes are
+detected, not an atomic filesystem snapshot or ABA protection against root.
+
+Acquisition is exactly Linux `flock(LOCK_EX | LOCK_NB)`: contention returns a
+fixed busy error, with no wait/retry, stale-PID heuristic or lock stealing.
+The descriptor stays open for the whole context and is closed on success,
+caller failure or acquisition/readback failure. Never delete a lock file to
+"release" it: that can leave two different inodes independently locked.
+The kernel lock, not file existence or a stored observation, coordinates users
+of the same anchor. [`flock(2)`](https://man7.org/linux/man-pages/man2/flock.2.html)
+documents that this is advisory, not a block on other writers.
+
+The returned handle is for trusted code only. Check it immediately before each
+future protected operation, not merely once at transaction entry. It rejects
+use after context exit or by a different PID; the observation is immutable,
+minimized and not a replayable authority. Do not fork, duplicate/pass its private
+descriptor, exec or delegate the handle inside the critical section. Descriptors
+are close-on-exec; cleanup only closes them, never explicitly unlocks a shared
+open-file description. If a caller violates the no-fork/no-dup contract, an
+inherited descriptor can prolong the lock until its holder exits. Do not steal
+it. Actual process-launch composition remains to be implemented and reviewed.
+
+The lock alone does **not** stop Dashboard processes or exclude apt/dpkg,
+unattended upgrades, systemd activation, service-owned code changes or other
+administrators. Such actors do not automatically acquire this lock. It also
+does not survive reboot or provide persistent startup inhibition. All
+exclusive-control, quiescence, persistent-inhibition, mutation and startup proof
+flags remain false. It cannot populate planner `exclusive_control=True`.
+Reviewed coordination/inhibition of other writers and outside-unit process
+coverage remain necessary, along with a trusted composition holding the lock
+from preflight through durable verification and cleanup.
+
+Twenty-nine tests cover fixed targeting, metadata/path races, nonblocking
+acquisition, lifetime/PID checks, error cleanup and non-authorizing summaries.
+Three Linux-only tests use temporary fixtures (ownership normalized for
+unprivileged CI) for actual lock contention, release, symlink/hardlink/replacement
+rejection and an independent child contender. They are skipped on Windows and
+are not real `/run`, provisioning or VM acceptance.
+
 ## Versioned compatibility baseline
 
 `parse_baseline(bytes)` accepts schema version 1 with exactly `schema`,
@@ -232,8 +296,10 @@ claim, matching baseline digest or successful observation as authority.
 
 The next implementation work completes trusted maintenance collection/execution:
 
-- Complete the narrow mask/manager/fixed-tree observations with outside-unit
-  process coverage and exclusive-update control, private exact backup and
+- Complete the narrow mask/manager/fixed-tree observations and cooperative lock
+  with host launch-namespace trust, outside-unit process coverage and control of
+  noncooperating update/start paths. Implement trusted held-lock composition,
+  private exact backup and
   root-controlled versioned baseline/evidence
   binding. Verify rather than trusting hand-entered Booleans or a stored receipt.
 - Implement interruption-safe installation and recovery with exact metadata,

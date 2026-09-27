@@ -157,7 +157,12 @@ tree (including its descendant population indicator), boot identity and bounded
 suspend-inclusive timing, bracketed by unchanged mask/manager observations.
 Twenty-five tests (two Linux-only) cover this separate non-authorizing slice.
 It cannot exclude outside-unit instances or establish exclusive control; neither
-observer clears the planner's stopped-process gate. The
+observer clears the planner's stopped-process gate. The separate
+`operator_maintenance_lock.py` now provides a lifetime-bound, nonblocking
+cooperative lock at one pre-provisioned private `/run` anchor. Twenty-nine tests
+(three Linux-only) cover contention, metadata drift and cleanup. It does not
+exclude package managers, other administrators or service-owned writes; no
+planner permission, provisioning command or live transaction is supplied. The
 following live collection/execution/acceptance requirements remain open:
 
 - Record a versioned compatibility baseline for the OS/architecture, interpreter,
