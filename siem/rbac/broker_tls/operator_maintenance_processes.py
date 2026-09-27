@@ -6,7 +6,7 @@ Requires trusted host namespaces, procfs/kernel and root/Python/busctl context.
 No CLI, guard/planner wiring, receipt replay or permission to perform maintenance.
 """
 from contextlib import ExitStack
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 import hashlib
 import os
 import re
@@ -23,6 +23,7 @@ MAX_PIDS = 8192
 MAX_ENTRIES = 16384
 MAX_COLLECTION_NS = 30_000_000_000
 PF_KTHREAD = 0x00200000  # Candidate Linux policy; native compatibility still required.
+COVERAGE_POLICY = 'leader-credential-or-packaged-node-v1'
 
 
 def _uint(raw, maximum, code):
@@ -252,6 +253,8 @@ class MaintenanceProcessObservation:
     packaged_node_path_matches: int
     matched_in_unit: int
     matched_outside_unit: int
+    visible_pid1_alignment_observed: bool = False
+    coverage_policy: str = field(default=COVERAGE_POLICY, init=False)
     passes: int = field(default=2, init=False)
     process_leader_scope_only: bool = field(default=True, init=False)
     host_namespace_proven: bool = field(default=False, init=False)
@@ -264,7 +267,7 @@ class MaintenanceProcessObservation:
     review_required: bool = field(default=True, init=False)
 
 
-def observe_maintenance_processes():
+def _observe_processes():
     """Two stable leader scans bracketed by fixed masked/stopped manager reads.
 
     Errors/disappearance are never skipped. Known candidates are conservative
@@ -297,3 +300,19 @@ def observe_maintenance_processes():
     except (OSError, UnicodeError) as error:
         code = fs._os_error_code(error) if isinstance(error, OSError) else 'CENSUS_ENCODING'
         raise core.OperatorError(code) from None
+
+
+def observe_maintenance_processes():
+    """Collect inside a held/rechecked namespace window; still not admission.
+
+    The namespace helper reuses private proc parsers from this module, so import
+    it only after module initialization. It is not part of the guard capsule.
+    Both passes and manager checks are bracketed; exit drift discards the result.
+    """
+    from . import operator_maintenance_namespaces as namespaces
+    with namespaces.hold_maintenance_namespaces() as held:
+        before = held.checkpoint()
+        result = _observe_processes()
+        after = held.checkpoint()
+        core.require(before.boot_id == result.boot_id == after.boot_id, 'CENSUS_NAMESPACE_BOOT')
+        return replace(result, visible_pid1_alignment_observed=True)

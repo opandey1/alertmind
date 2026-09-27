@@ -24,6 +24,8 @@ maintenance control. It is not wired to the observers or planner yet.
 `operator_maintenance_processes.py` adds a bounded read-only process-leader
 census for service-credential and packaged-Node-path matches outside the unit.
 It detects known candidates, not every possible Dashboard copy or full shutdown.
+Its public entry now runs inside `operator_maintenance_namespaces.py`'s held,
+rechecked namespace window. Alignment with visible PID 1 is not host attestation.
 
 ## Separate the lifecycle contracts
 
@@ -159,6 +161,83 @@ timeout and cleanup rules. Two Linux-only tests exercise descriptors on disposab
 regular-file fixtures with normalized ownership. They do not establish real
 kernel/procfs/cgroup or VM acceptance and are skipped on Windows. No new live
 command or VM-output request is released.
+
+## Namespace boundary and candidate coverage — connected to the census
+
+`hold_maintenance_namespaces()` is a no-argument, read-only context manager for
+the existing Linux x86-64 target. It holds fourteen namespace handles: mount,
+PID, user, cgroup, time, PID-for-children and time-for-children for visible PID 1
+and the collector's own process. The caller must be a single-threaded process
+leader with all four UID/GID slots zero. Root ownership, a trusted kernel/procfs
+and trusted Python launch/imports remain prerequisites, not results.
+
+The fixed `/proc/<pid>` ancestors are held no-follow, with the existing bounded
+mount/visibility checks rejecting filtered procfs or PID/boot-path submounts.
+Only the seven allowlisted kernel namespace links are intentionally followed.
+Link syntax/inode, held descriptor identity/type, `NS_GET_NSTYPE`, ownership and
+close-on-exec are checked. Namespace identity comparison includes device and
+inode, not just equal link text. Namespace descriptors retain their objects;
+the code never enters, creates or changes a namespace. See the Linux
+[namespace interface](https://man7.org/linux/man-pages/man7/namespaces.7.html)
+and [namespace type query](https://man7.org/linux/man-pages/man2/NS_GET_NSTYPE.2const.html).
+The numeric ioctl/type constants use the reviewed Linux x86-64 ABI from
+[nsfs.h](https://raw.githubusercontent.com/torvalds/linux/v6.12/include/uapi/linux/nsfs.h)
+and [sched.h](https://raw.githubusercontent.com/torvalds/linux/master/include/uapi/linux/sched.h).
+Other architectures are rejected pending review, not silently assumed compatible.
+
+All five active namespace identities must match visible PID 1; both processes'
+child PID/time targets must also match their active identities. Time namespaces
+can offset boot/monotonic clocks, so checking only PID/mount membership is not
+sufficient for the collection clock context.
+([time namespace clocks](https://man7.org/linux/man-pages/man7/time_namespaces.7.html))
+An absent/empty child target, denied namespace, unexpected type, multiple caller
+threads or mismatch aborts. No namespace is skipped and no access is repaired.
+
+The handle checks boot identity, mount bytes, process start/credential/thread
+identity, held namespace objects, reopened current names and ancestors before
+yield, at checkpoints and at successful exit. Same-caller PID/native-thread
+checks reject cross-thread/fork reuse; use after exit fails. All descriptors close
+on failure. The candidate 30-second BOOTTIME bound includes the entire context
+and suspend; it is not preemptive cancellation of a stalled syscall. Observations
+are not atomic and cannot detect a change-and-return between checks.
+
+The public `observe_maintenance_processes()` brackets its scans and manager
+checks with this context, verifies common boot identity and discards the result
+on exit drift. It now reports `visible_pid1_alignment_observed=true`, while
+`host_namespace_proven` and all authority flags stay false. The census's fixed
+busctl queries already use `close_fds=True`, no passed descriptors or pre-exec
+callback, and bounded child cleanup; they never receive the namespace handle.
+Raw fork/delegation, descriptor passing, credential or namespace changes inside
+the context are unsupported. This does not alter the separate cooperative-lock
+no-fork contract: combining that lock with child queries still needs review.
+
+**External launch requirement:** a container can match its own visible PID 1.
+These checks cannot prove initial namespaces, the intended host identity or the
+system bus's relationship to that host. A trusted root-controlled host launcher,
+mount/procfs context and no concurrent privileged namespace changes remain
+required before maintenance admission. No installer or launcher is released.
+
+**Candidate coverage contract:** the census labels its existing predicate
+`leader-credential-or-packaged-node-v1`. It matches any leader UID/GID slot for
+the service identity, or the exact packaged Node path (including its deleted
+suffix), across the visible process-leader population. Counts are candidate
+matches, not script attribution. It covers these observed identities/paths only:
+nonleader-only credentials, supplementary-group-only identity, renamed/copied
+executables under other IDs, future launches and privileged evasion are not
+excluded. Service zombies are conservatively counted. Matching PID 1 does not
+expand that coverage. This policy is explicit but **not accepted as sufficient
+shutdown proof**; zero census matches plus an empty cgroup still cannot supply
+`dashboard_stopped=True`. Host launch and noncooperating update/start controls
+must establish the remaining scope before any such composition is authorized.
+
+Thirty-two new tests cover namespace identity/type, metadata/races, lifetime,
+clock bounds and connected census ordering/failure. Two Linux-only syscall
+tests query only the test process's namespace handles and a non-namespace file;
+they do not compare host PID 1, scan host processes, change namespaces or prove
+VM compatibility. Windows skips them. Existing census tests stub the boundary
+when testing scan-specific behavior; separate integration tests require the
+boundary before/after the scan and rejection of failed exit. No guard capsule,
+planner contract, live service, credential or historical evidence is changed.
 
 ## Held cooperative lock — not host-wide exclusive control
 
@@ -374,8 +453,10 @@ claim, matching baseline digest or successful observation as authority.
 The next implementation work completes trusted maintenance collection/execution:
 
 - Complete the narrow mask/manager/fixed-tree/candidate-census observations and
-  cooperative lock with host launch-namespace trust, an accepted process-coverage
-  policy and control of noncooperating update/start paths. Implement trusted held-lock composition,
+  cooperative lock with externally established host launch trust and control of
+  noncooperating update/start paths. The census now checks namespace alignment,
+  but its explicit coverage policy still needs acceptance in that controlled
+  context. Implement trusted held-lock composition,
   private exact backup and
   root-controlled versioned baseline/evidence
   binding. Verify rather than trusting hand-entered Booleans or a stored receipt.
