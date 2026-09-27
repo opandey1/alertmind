@@ -1022,15 +1022,45 @@ use and native loading remain separate controls. This is not complete import
 resolution, loaded-code attestation or an atomic combined observation. The
 module is dormant, outside the capsule, with trust/startup flags still false.
 
+### Dormant built-in/frozen metadata observer (27 September 2026)
+
+`siem/rbac/broker_tls/operator_python_embedded.py` covers the selected 36 built-in
+and 17 frozen B2 keys, with explicit bootstrap/collections/os aliases, current
+loader identities, parent bindings and separate module/spec names. It requires
+preloaded subjects and compares two observations without invoking subject
+imports, finders/loaders or file I/O. The
+[operator contract](../../siem/rbac/broker_tls/OPERATOR.md#built-in-and-frozen-python-modules--dormant-selected-metadata-checks)
+describes twenty synthetic tests and source-based candidate constraints.
+
+The [B2 projection](../../evidence/rbac/python-runtime-b2-embedded-modules-2026-09-27.tsv)
+is a lossless field projection of the owner's earlier diagnostic, **not a new
+VM run**. Source attachment: `Pasted text.txt`, attachment identifier
+`35fee2f5-e3e0-4542-9d2e-b90fc6caaf15`; raw SHA-256
+`8ab9d68c038774fbf62b15f08e739177ec40cf924e02aa731016335143f96a7f`.
+Parse the initial JSON object, select `modules` rows with origin `built-in` or
+`frozen`, preserve their order, emit `name`, `origin`, `file`, `cached` as TSV
+with one header and final LF; `-` encodes JSON null. Normalized projection hash:
+`496131f4994debb5b56767bcf7478b404a699cd1a0b916ce0f5d6753dc6ada3e`.
+The other 51 rows (50 file-backed and diagnostic `__main__`) are not in this
+projection. No previously retained evidence was changed. The observer never
+uses this file as current runtime evidence.
+
+B2 recorded none of the extra alias/loader/package identity fields. Those
+constraints are proposed from CPython 3.14.4 source and need native acceptance;
+Windows Python 3.12 fixtures do not validate the selected Ubuntu build. Even
+matching live metadata would not authenticate embedded or bootstrap code. This
+observer is dormant and outside the capsule, with runtime/startup flags false.
+
 ### Next work and VM availability
 
 The owner may shut down the VM normally after stopping the Windows tunnel.
 No more VM output is needed **for this offline slice**. Do not rerun A–C3.
 The mapped/cache/source byte adapter, fixed optional-path/null-anchor observer
-and selected in-process import-state, path-hook/importer-cache metadata and
-selected filesystem-candidate observers are implemented. Remaining work includes
-module/bootstrap coverage beyond these selected names, native resolution and
-externally trusted launch/composition. Matching selected mutable metadata does
+and selected in-process import-state, path-hook/importer-cache metadata,
+selected filesystem-candidate and built-in/frozen metadata observers are
+implemented. Remaining work includes entry/private-module and complete-table
+policy, bootstrap provenance, native resolution and externally trusted
+launch/composition. Matching selected mutable metadata does
 not complete those controls. Neither an observer nor later composition may use a stored C3 report
 as a substitute for fresh reads or auto-refresh pins after package drift.
 A changed generated loader cache also needs review; it is not automatically

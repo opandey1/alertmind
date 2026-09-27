@@ -1139,6 +1139,50 @@ names or content. There is no earlier/future-import or atomic-snapshot proof.
 It stays outside the guard capsule; runtime/startup authorization remains false.
 No deployment command or additional VM output is requested.
 
+### Built-in and frozen Python modules — dormant selected metadata checks
+
+`operator_python_embedded.py` adds a no-argument root/Linux observer for the
+36 built-in and 17 frozen `sys.modules` keys reported in B2. All subjects must
+already be loaded. It reuses the candidate settings checks and takes two
+bounded observations of module/spec names, origin, informational file, absent
+cache/package-path metadata, loader class identity and parent bindings.
+The current `sys` identity, selected builtin-name availability, ordered meta
+finders and six public import-machinery class bindings must agree. Available
+but unloaded builtins are allowed; this is not a whole-module-table allowlist.
+
+Four alias pairs are explicit: the two frozen bootstrap aliases, `os.path` /
+`posixpath`, and `collections.abc` / `_collections_abc`. Module and spec names
+are checked separately: legitimate aliases need not have matching key/name/spec
+strings. Retained object references detect replacements between passes.
+The observer does not invoke import machinery, lazy cache properties, subject
+imports, filesystem reads or repairs. Fixed diagnostic codes suppress raw data.
+
+The [retained B2 projection](../../../evidence/rbac/python-runtime-b2-embedded-modules-2026-09-27.tsv)
+contains only the owner's 53 built-in/frozen name/origin/file/cache rows. The
+runtime does not load this historical file. Alias identity, loader identity,
+module/spec/package names and builtin availability were **not recorded by B2**;
+they are candidate policy based on the version-matched
+[import bootstrap](https://github.com/python/cpython/blob/v3.14.4/Lib/importlib/_bootstrap.py),
+[importlib initialization](https://github.com/python/cpython/blob/v3.14.4/Lib/importlib/__init__.py),
+[collections initialization](https://github.com/python/cpython/blob/v3.14.4/Lib/collections/__init__.py),
+[_collections_abc](https://github.com/python/cpython/blob/v3.14.4/Lib/_collections_abc.py)
+and [os initialization](https://github.com/python/cpython/blob/v3.14.4/Lib/os.py).
+Native Ubuntu Python 3.14.4 compatibility remains unverified.
+
+Twenty portable synthetic tests cover the projection hash, aliases, every
+selected name/origin/file, missing subjects, loaders, package/cache metadata,
+parent/machinery bindings, type traps, replacement/drift, sanitized errors and
+explicitly limited results. They also exercise the existing file-backed-module
+observer against the same synthetic state; this is not a combined trust proof.
+
+Matching mutable metadata cannot authenticate embedded code or bootstrap
+functions. Frozen `__file__` is informational, not proof that source bytes ran.
+The entry module, guard-private modules, remaining table coverage, native
+resolution and externally trusted initialization/composition still need review.
+No earlier/future import or atomic snapshot is attested. All trust/startup flags
+remain false. The observer is outside the capsule and not called by the
+compile-only guard. No VM output or deployment is released by this package.
+
 ## Required next adapter package — not released here
 
 1. Establish selected packaged Linux runtime and real Server certificate
