@@ -127,8 +127,10 @@ def _sequence(*, checkpoint):
     """Private test/controller seam; no saved observation/result is accepted.
 
     Controller prerequisites are deliberately NOT inferred here. In particular,
-    launching children under the existing no-fork lock contracts needs reviewed
-    integration. Reload is manager-wide (including generators); stop can run
+    the private control composition now holds/rechecks the cooperative/package
+    locks and namespaces using an explicit fixed-child exception. This does not
+    establish external host/owner/writer/start authority. Reload is manager-wide
+    (including generators); stop can run
     unit hooks and propagate dependency jobs. Those effects need native review.
     The public entry stays closed until the full composition is authorized.
     """

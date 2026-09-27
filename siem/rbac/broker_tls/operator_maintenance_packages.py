@@ -100,8 +100,11 @@ class MaintenancePackageLockObservation:
 class _HeldPackageLocks:
     """Private same-process/thread handle. No raw fork/dup/pass/exec/delegation.
 
-    Observation-only fixed child queries must close unrelated FDs, never use
-    pass_fds/preexec_fn, and be reaped. No APT/dpkg call while this barrier is
+    The private control composition permits the existing fixed busctl queries
+    and manager reload/stop systemctl children only. They must close unrelated
+    FDs, never use pass_fds/preexec_fn or receive handles, and be waited/reaped
+    with parent checkpoints. This does not authorize arbitrary child execution.
+    No APT/dpkg call while this barrier is
     held: it would conflict with these locks. Upgrade handover is separate work.
     Use a dedicated controller with no pre-existing traditional record locks on
     these inodes: closing any FD could release that caller's POSIX locks. This

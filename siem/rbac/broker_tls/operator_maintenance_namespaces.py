@@ -104,7 +104,8 @@ class _HeldNamespaces:
 
     Do not transfer/duplicate its descriptors, change credentials/namespaces,
     raw-fork/delegate this handle or use it from another thread. The census's
-    existing fixed busctl children use close_fds=True, no pass_fds/preexec_fn,
+    existing fixed busctl children and the private control composition's fixed
+    reload/stop systemctl children use close_fds=True, no pass_fds/preexec_fn,
     and bounded wait/cleanup; they do not receive or use the handle. Alignment
     checks child targets too; it does not authorize arbitrary child launches.
     """
