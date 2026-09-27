@@ -1234,6 +1234,61 @@ held deny-finder is present, or remove that finder to make a check pass.
 Future composition must define the call order without creating a trust gap.
 Two equal passes are not atomic. No startup, installation or VM step is released.
 
+### Python native mappings — dormant current-process observer
+
+`operator_python_native.py` adds `observe_python_native()`, a no-argument
+root-Linux observer outside the capsule. It reads only its own numeric PID's
+`maps`, `map_files` and `exe`, plus the nine canonical C3 paths. No external PID,
+reader, transcript, alternate root or pin override is accepted by that API.
+The kernel/procfs and the already-running interpreter must be trusted separately.
+
+The bounded parser requires precisely the nine file paths, consistent device/
+inode identities, page-aligned sorted non-overlapping segments within rounded
+file bounds, a readable offset-zero and an executable segment for each file.
+It checks non-executable file segments too. Unknown/deleted/escaped paths,
+memfd, shared mappings, writable-executable regions and anonymous executable
+regions fail. Explicit kernel names have candidate permissions; only `[vdso]`
+and optional `[vsyscall]` may be executable without a backing file. Their bytes
+are not checked. The 4-KiB x86-64 policy and segment assumptions need native
+acceptance; C2/C3 did not record these detailed fields.
+
+The [Linux maps format](https://man7.org/linux/man-pages/man5/proc_pid_maps.5.html)
+defines device/inode and optional path fields. Anonymous trailing padding is
+handled according to the [kernel's maps producer](https://github.com/torvalds/linux/blob/v7.0/fs/proc/task_mmu.c).
+No pathname unescaping or generic bracket-name exception is used.
+
+Canonical files/ancestors are held via root-owned no-follow descriptors.
+For each file, one deliberately followed kernel
+[`map_files` magic link](https://man7.org/linux/man-pages/man5/proc_pid_map_files.5.html)
+opens the actual backing object. Its metadata/identity must equal the held
+canonical object, and every segment's link is checked before and after hashing.
+The returned link text is never used as an open path. Lack of permission for
+this procfs operation fails closed; there is no pathname-only fallback or
+request to broaden capabilities. The interpreter's `exe` identity must match.
+
+Two streaming byte-pin passes are bracketed by four maps reads. File segments
+and kernel executable extents must agree; selected metadata/names/ancestors
+are rechecked and descriptors close on success or error. Non-executable
+anonymous extents can grow during allocation and are intentionally excluded
+from equality, though each fresh parse still checks their permissions.
+
+Thirty tests cover exact selection, permission/range/type/size boundaries,
+all digests, link/descriptor substitution, cross-pass drift, denied access,
+fixed diagnostics and cleanup. One Linux-only temporary-tree test exercises
+actual no-follow syscalls with test-owner policy, not VM/root-runtime acceptance.
+The remaining tests use a synthetic descriptor tree and synthetic byte pins.
+
+`mapped_backing_pins_match` is not memory or full native-resolution proof.
+Relocations, private COW changes, symbol bindings, previously unloaded code,
+future loads and bootstrap execution are not established; neither are an atomic
+snapshot or signed package provenance. Loader environment/search/cache behavior
+must be constrained before startup by a separately trusted launch boundary;
+see [the dynamic loader's search rules](https://man7.org/linux/man-pages/man8/ld.so.8.html).
+All runtime/startup/provenance flags remain false. No memory inspection, library
+loading, `ldd`, shell, network, credential, write or activation is performed.
+No new imports were added to the entry and its thirteen capsule pins are intact.
+The entry remains compile-only and exits 1. This adapter is not wired into it.
+
 ## Required next adapter package — not released here
 
 1. Establish selected packaged Linux runtime and real Server certificate
