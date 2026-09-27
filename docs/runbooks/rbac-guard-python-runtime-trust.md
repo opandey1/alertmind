@@ -1212,3 +1212,13 @@ Remaining work is external host launch trust, noncooperating update/start-path
 control, held-lock/observer/planner composition, exact backup and durable
 installation/recovery. No repeated A-C3 diagnostic or VM output is requested;
 the VM may remain off for this offline slice.
+
+**Package-lock follow-up:** a dormant context manager now holds/rechecks OFD
+record locks on the four default APT/dpkg lock inodes. It coordinates tools
+honoring those locks during observation/backup; it is not an upgrade executor
+or blanket exclusion of privileged writes, service starts or pre-lock package
+housekeeping. Installed path/behavior validation, bounded inhibited handover,
+host launch trust and observer/planner composition remain open. Thirty-three
+tests include four Linux-only disposable-file/process checks; no real package
+lock or package command was used. See [the exact contract](../../siem/rbac/broker_tls/UPGRADES.md#package-manager-lock-barrier--observation-and-backup-only).
+No new VM output is required. Do not repeat A-C3; the VM may remain off.

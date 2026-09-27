@@ -27,11 +27,16 @@ It detects known candidates, not every possible Dashboard copy or full shutdown.
 Its public entry now runs inside `operator_maintenance_namespaces.py`'s held,
 rechecked namespace window. Alignment with visible PID 1 is not host attestation.
 
+`operator_maintenance_packages.py` adds a dormant record-lock barrier for the
+four default APT/dpkg lock inodes. It is for observation/backup, not for running
+an upgrade. Installed package configuration, host launch and service-start
+controls remain unverified; no maintenance or startup permission is supplied.
+
 ## Separate the lifecycle contracts
 
 | Phase | Required boundary | Current implementation |
 | --- | --- | --- |
-| Maintenance / recovery | Owner downtime approval, exclusive control, persistent inhibition, stopped Dashboard, fresh inventory and verified source backup | Planner rejects missing claims; mask/manager, fixed-cgroup, process-leader census and cooperative-lock primitives do not constitute admission. |
+| Maintenance / recovery | Owner downtime approval, exclusive control, persistent inhibition, stopped Dashboard, fresh inventory and verified source backup | Planner rejects missing claims; mask/manager, fixed-cgroup, process-leader census and cooperative/package-lock primitives do not constitute admission. |
 | Guarded service start | Exact reviewed unit/hook and activating-state contract; trustworthy fresh guard observations before broker execution | Not implemented. Existing empty-hook/no-drop-in baseline must not be widened implicitly. |
 | Live acceptance | Actual broker TLS, effective process context, human/admin reads and denials | Separate pending acceptance; not inferred from an offline PASS. |
 
@@ -238,6 +243,91 @@ VM compatibility. Windows skips them. Existing census tests stub the boundary
 when testing scan-specific behavior; separate integration tests require the
 boundary before/after the scan and rejection of failed exit. No guard capsule,
 planner contract, live service, credential or historical evidence is changed.
+
+## Package-manager lock barrier — observation and backup only
+
+`hold_maintenance_package_locks()` has no arguments, CLI, planner adapter or
+guard-capsule integration. It takes nonblocking whole-file write record locks,
+in fixed order, on these existing files only:
+
+- `/var/lib/dpkg/lock-frontend`
+- `/var/lib/dpkg/lock`
+- `/var/lib/apt/lists/lock`
+- `/var/cache/apt/archives/lock`
+
+This coordinates package tools that do not use AlertMind's separate cooperative
+lock but do honor these record locks. It does not inspect or kill an updater,
+disable a timer or authorize a package transaction. Upstream APT uses traditional
+`F_SETLK` locks, with configurable paths and a `Debug::NoLocking` bypass; those
+are not audited installed-VM settings here. See the
+[APT lock implementation](https://raw.githubusercontent.com/Debian/apt/main/apt-pkg/contrib/fileutl.cc),
+[dpkg integration](https://raw.githubusercontent.com/Debian/apt/main/apt-pkg/deb/debsystem.cc)
+and [lists/archive acquisition](https://raw.githubusercontent.com/Debian/apt/main/apt-pkg/acquire.cc).
+
+The implementation uses Linux **OFD record locks**, not `flock`. OFD locks
+conflict with traditional record locks, including in the same process, and
+survive closing an unrelated descriptor for that inode. Their lifetime ends
+when the last descriptor referring to the locked open-file description closes.
+Traditional `F_GETLK` reports an OFD conflict with PID -1, whereas `F_OFD_GETLK`
+would ignore this description's own lock. These semantics follow the Linux
+[record-lock interface](https://man7.org/linux/man-pages/man2/fcntl_locking.2.html).
+The packed `struct flock` layout is restricted to little-endian Linux x86-64;
+other architectures, missing OFD support and unsupported filesystems fail closed.
+
+All four must be acquired before yielding. Busy/error paths release any acquired
+subset without waiting, retrying, stealing a lock or deleting a lock file. Safe
+root-owned no-follow ancestors and empty, singly linked root:root regular files
+with mode 0600, 0640 or 0644 are required. Distinct inode identities and same-device
+leaf/parent checks reject aliases and different-device leaf mounts; they do not
+authenticate the host mount namespace or every bind mount. Missing/unsuitable
+locks are not created or repaired. Opening for write is required for `F_WRLCK`,
+but this code never reads/writes payloads, truncates or unlinks files.
+
+Held descriptors, named files, complete leaf metadata and ancestors are checked
+before yield, at `checkpoint()` and at successful exit. A checkpoint queries
+the existing lock without reacquiring it: a renewal could hide an unprotected
+gap. The query proves a conflicting OFD record, not owner identity; ownership
+also relies on trusted code retaining its private acquired descriptors unchanged.
+Visible drift aborts; a change-and-return between checks is not detected.
+
+Use only a dedicated trusted root-controlled host process, with trusted runtime,
+local filesystems and **no pre-existing traditional locks on these inodes**.
+It must not run inside APT/libapt: closing any descriptor can release that
+process's traditional locks. The private handle rejects cross-PID/thread and
+after-exit use. Do not fork/delegate, duplicate/pass its descriptors or exec
+inside the context. Any future fixed observation child must close unrelated
+FDs, receive no passed descriptors/pre-exec callback and be bounded/reaped.
+Cleanup closes descriptors without `F_UNLCK`, so a copied child cannot explicitly
+unlock the parent's OFD through cleanup. An illicit surviving duplicate can
+still prolong the lock; this is not a sandbox against trusted-code violations.
+
+**Limits and handover:** these advisory locks do not prevent arbitrary root or
+service-owned writes, manual launches, alternate package directories, lock
+bypasses or other package systems. They do not make all package activity inert:
+upstream [dpkg opens lock files with `O_TRUNC` before locking](https://raw.githubusercontent.com/guillemj/dpkg/main/lib/dpkg/dbmodify.c),
+and APT may prepare partial directories before acquiring a lock. Such pre-lock
+work is not excluded; changed lock metadata is rejected by this reader. A clean
+checkpoint is not evidence of zero filesystem mutations or package authenticity.
+
+Do **not** invoke APT/dpkg while holding this barrier: the intended upgrade
+would also contend. Bounded ownership, installed-path/behavior validation,
+persistent startup inhibition and a reviewed release-to-package-transaction
+handover remain separate work. There is no watchdog, timer suppression or
+reboot-persistent lock; a future controller must bound the interval and preserve
+inhibition through interruption. Security updates must not be deferred indefinitely.
+
+The immutable observation reports four held locks and path rechecks only; host,
+package-configuration, noncooperating-writer, service-start, quiescence and
+exclusive-control proof flags remain false. Mutation, package-transaction and
+startup authorization remain false. The result is not a replayable receipt or
+planner permission, and no installed lock files have been inspected here.
+
+Thirty-three tests cover exact locking/query requests, partial acquisition,
+metadata/races, lifetime, cleanup and non-authorizing output. Four Linux x86-64
+tests use disposable files and independent Python processes with traditional
+record locks, including contention and release. They never touch real package
+locks or invoke APT/dpkg. Windows skips these four; native fixture/installed-VM
+compatibility remains to be verified. No new VM command is released.
 
 ## Held cooperative lock — not host-wide exclusive control
 
@@ -453,8 +543,11 @@ claim, matching baseline digest or successful observation as authority.
 The next implementation work completes trusted maintenance collection/execution:
 
 - Complete the narrow mask/manager/fixed-tree/candidate-census observations and
-  cooperative lock with externally established host launch trust and control of
-  noncooperating update/start paths. The census now checks namespace alignment,
+  cooperative/package locks with externally established host launch trust and
+  service-start control. The default-path package barrier is implemented only
+  for observation/backup; installed path/behavior validation and a bounded,
+  inhibited handover to the intended package transaction remain open. Neither
+  advisory lock excludes arbitrary privileged writes. The census checks namespace alignment,
   but its explicit coverage policy still needs acceptance in that controlled
   context. Implement trusted held-lock composition,
   private exact backup and
