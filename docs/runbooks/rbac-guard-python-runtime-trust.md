@@ -1074,6 +1074,22 @@ selected-runtime acceptance. Before-load observers and the four-finder held
 state cannot be naively composed. No check may temporarily remove the deny
 finder or silently expand the allowlist to pass. No new VM output is requested.
 
+### Native mapped backing objects (27 September 2026)
+
+`operator_python_native.py` now adds the dormant, no-argument self-process
+mapping observer. The [operator contract](../../siem/rbac/broker_tls/OPERATOR.md#python-native-mappings--dormant-current-process-observer)
+describes the strict maps policy, held canonical/backing descriptors, exact
+C3 byte pins, four maps reads and two hashing passes, plus thirty regressions.
+Unknown mappings and inaccessible proc magic links fail without a fallback.
+
+This implements selected current mapping/backing-object verification, not
+pre-execution library resolution or memory/symbol attestation. The parser's
+4-KiB segment/kernel-name rules are candidate constraints, not additional
+owner evidence. Native Ubuntu compatibility and procfs access remain unverified.
+The interpreter, kernel and procfs must already be trusted; this observer cannot
+bootstrap that trust. It is outside the capsule and not invoked by the entry.
+No A-C3 evidence/pin, dependency, service or VM setting changed.
+
 ### Next work and VM availability
 
 The owner may shut down the VM normally after stopping the Windows tunnel.
@@ -1082,8 +1098,9 @@ The mapped/cache/source byte adapter, fixed optional-path/null-anchor observer
 and selected in-process import-state, path-hook/importer-cache metadata,
 selected filesystem-candidate and built-in/frozen metadata observers are
 implemented. The entry/private-module and declared complete-table policy is
-also implemented as dormant pure checks. Remaining work includes bootstrap
-provenance, native resolution, and externally trusted initialization/launch
+also implemented as dormant pure checks. The current-process mapped-backing
+observer is implemented separately. Remaining work includes bootstrap
+provenance, pre-execution native-loader constraints and externally trusted initialization/launch
 and phase-aware composition of the policies. Matching selected mutable metadata does
 not complete those controls. Neither an observer nor later composition may use a stored C3 report
 as a substitute for fresh reads or auto-refresh pins after package drift.
