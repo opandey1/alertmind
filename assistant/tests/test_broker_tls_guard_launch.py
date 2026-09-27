@@ -41,26 +41,57 @@ ORDER = PYTHON + ('load_bootstrap', 'observe_package_runtime') + BROKER + (
     'verify_installed_bytes', 'load_bootstrap', 'observe_package_runtime') + PYTHON
 
 
-def loaded_fixture(fail_at=None, mutate=None):
+def observation_fixture(stem):
+    """Independent successful summaries; native I/O is still mocked, not proven."""
+    m = __import__('siem.rbac.broker_tls.' + stem, fromlist=[stem])
+    constructors = {
+        'operator_python_paths': lambda: m.PythonPathObservation(),
+        'operator_python_runtime': lambda: m.PythonRuntimeObservation(tuple(
+            m.PackageRecord(name, arch, version, 'install') for name, arch, version in m.PACKAGE_PINS)),
+        'operator_python_candidates': lambda: m.PythonCandidateObservation(),
+        'operator_python_native': lambda: m.PythonNativeObservation(),
+        'operator_python_path_importers': lambda: m.PythonPathImporterObservation(9),
+        'operator_python_import_state': lambda: m.PythonImportObservation(126),
+        'operator_python_embedded': lambda: m.PythonEmbeddedObservation(126),
+        'operator_bootstrap': lambda: m.Bootstrap(b'PRIVATE MANIFEST', b'PUBLIC CERT'),
+        'operator_runtime': lambda: m.RuntimeObservation(
+            m.PackageIdentity('4.14.7-1', 'amd64', 'install'), '18.19.0'),
+        'operator_service': lambda: m.ServiceObservation(
+            'inactive', 1, 'dashboard_wrapper', False, 0, False, 0, 0, 0,
+            True, True, True, False, True, 0),
+        'operator_launch': lambda: m.LaunchObservation(True, True, False, False),
+        'operator_unit_sources': lambda: m.UnitSourcesObservation(True),
+        'operator_manager_environment': lambda: m.ManagerEnvironmentObservation(),
+        'operator_node_options': lambda: m.NodeOptionsObservation(1),
+        'operator_dependency': lambda: m.DependencyObservation(),
+        'operator_dependency_graph': lambda: m.GraphObservation(26, 35, 238),
+        'operator_import_sites': lambda: m.SiteObservation(26, 35, 153, 46, 89, 478),
+        # Synthetic bounded tree counts, not a claim about the live filesystem.
+        'operator_file_set': lambda: m.FileSetObservation(26, 26, 267, 294, 53),
+        'operator_core': lambda: dict(byte_integrity_passed=True, checked_files=270,
+                                     passes=2, startup_authorized=False, live_acceptance=False),
+    }
+    return constructors[stem]()
+
+
+def loaded_fixture(fail_at=None, mutate=None, result_change=None):
     """Stub I/O subjects only; execute the real composition function."""
     loaded, calls = {}, []
-    first = NS(manifest=b'PRIVATE MANIFEST', certificate=b'PUBLIC CERT')
-    runtime = NS(package=NS(version='4.14.7-1'))
     for name, _, _ in entry._bundle_pins(True):
         stem = name[:-3]
         real = __import__('siem.rbac.broker_tls.' + stem, fromlist=[stem])
-        module = NS()
+        module = NS(**vars(real))
         for method in set(ORDER):
             if hasattr(real, method):
-                def call(*args, _name=method, **kwargs):
+                def call(*args, _name=method, _stem=stem, **kwargs):
                     index = len(calls)
                     calls.append((_name, args, kwargs))
                     if index == fail_at:
                         raise RuntimeError('PRIVATE ERROR')
                     if mutate:
                         mutate(index)
-                    return first if _name == 'load_bootstrap' else (
-                        runtime if _name == 'observe_package_runtime' else None)
+                    result = observation_fixture(_stem)
+                    return result_change(index, _stem, result) if result_change else result
                 setattr(module, method, call)
         loaded[entry.HELD_PACKAGE + '.' + stem] = module
     loaded[entry.HELD_PACKAGE + '.operator_core'].NODE = '/pinned/node'
@@ -425,7 +456,13 @@ class GuardLaunchTests(unittest.TestCase):
                 nonlocal count
                 count += 1
                 result = original(*args)
-                return result if count == 1 else object()
+                if count == 2:
+                    # Still well-shaped/individually acceptable, but changed.
+                    if stem == 'operator_bootstrap':
+                        object.__setattr__(result, 'manifest', b'CHANGED MANIFEST')
+                    else:
+                        object.__setattr__(result.package, 'selection', 'hold')
+                return result
             setattr(module, method, changed)
             with patch.object(entry, '_phase_state', return_value=()), self.assertRaisesRegex(entry.GuardLaunchError, '^' + code + '$'):
                 entry._observe_held(loaded)

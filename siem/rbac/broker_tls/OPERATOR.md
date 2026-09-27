@@ -95,18 +95,55 @@ These are not blanket exemptions for fifteen failing tests. Every old assertion
 was mapped to its new phase responsibility; no tests were skipped or xfailed to
 resolve the transition. Synthetic tests are not a native launch proof.
 
-Observation completion is deliberately **not** an authorization policy. The
-composition currently discards several returned observations, some of which
-report properties instead of refusing every unsuitable value. Before any
-future zero exit, define and test the final accept/deny predicate over required
-observations, including contradictory and missing results. Do not turn
-"all calls returned" into "safe to start". No such policy is implemented here.
+#### Connected observation-result policy (27 September 2026)
+
+The entry now consumes all 19 result kinds across the 28 observer calls. A
+pure, explicit contract requires the exact held dataclass (or exact core-result
+dictionary), complete field set, strict primitive types, expected coverage
+counts and non-authorizing flags. Unknown fields/classes/versions, missing
+results, false success flags and contradictory file-tree counts stop the
+sequence before another observer runs. No truthiness or Boolean/integer
+coercion is accepted. This policy adds no imports or capsule sources.
+
+The service/launch result must describe the reviewed single wrapper, no
+execution flags, environment sources, alternate root or drop-ins, and the
+expected service identity/working directory. Dependency coverage must match
+the pinned package's reviewed counts. Bootstrap byte bounds are checked; the
+existing pinned bootstrap observer remains responsible for validating the
+manifest/certificate contents. Nested package records require the exact
+versions, architecture, set and order; both installed `install` and `hold`
+selections remain valid. Neither permits silently accepting an upgrade.
+
+Repeated results are compared using private immutable snapshots, including
+the Python package selections across the two Python passes. Cache entry counts
+may differ between those passes within the existing 0–9 bound: legitimate
+invalidation is not repaired or rejected. Each pass still verifies the cache
+metadata. The file-set contract preserves the observer's allowance for extra
+empty directories within its budget, with consistent file/entry/directory
+counts. These are point-in-time observations, not an atomic lock.
+
+**Not a final startup policy:** `active`, `inactive` and `failed` remain
+visibility-only service states, not proof of stopped/inhibited startup.
+`SetLoginEnvironment` may report either Boolean value; neither proves the
+complete environment. All unproven/runtime-trust/startup flags remain false.
+The current empty-auxiliary-command/no-drop-in baseline deliberately does not
+accommodate a future `ExecStartPre` installation or its `activating` state.
+That requires a separately reviewed lifecycle contract, not weakening these
+checks in an installer. Final startup admission, durable inhibition and
+installation/recovery are still absent; main always exits 1.
+
+Twenty-three offline result-policy tests cover all fields' Boolean/integer
+semantics, types/coverage/version drift, real held versus ambient classes,
+every connected call returning missing or false-authority evidence, repeated
+package drift, cache flexibility, private diagnostics and successful-path
+nonzero exit. The 28 phase-order tests now use genuine typed summaries instead
+of `None` results; observer I/O remains mocked. No VM acceptance is claimed.
 
 #### Upgrade and revalidation requirement — open before deployment
 
 The owner explicitly requires a maintainable upgrade path for Wazuh, the
 Python build and Ubuntu. This is a required follow-up, **not implemented by
-this test-only contract transition**, and not a reason to hold back security
+the contract/result-policy slices**, and not a reason to hold back security
 updates indefinitely. The following acceptance requirements remain open:
 
 - Record a versioned compatibility baseline for the OS/architecture, interpreter,
