@@ -1,5 +1,5 @@
 """Offline census fixtures: never scan the host's real processes or send signals."""
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from dataclasses import asdict, FrozenInstanceError, replace
 import errno
 import inspect
@@ -19,6 +19,7 @@ if str(ROOT) not in sys.path:
 from siem.rbac.broker_tls import operator_core as core
 from siem.rbac.broker_tls import operator_guard_entry as guard
 from siem.rbac.broker_tls import operator_maintenance_processes as p
+from siem.rbac.broker_tls import operator_maintenance_namespaces as namespaces
 from test_broker_tls_maintenance_cgroup import KernelFS, metadata, manager, BOOT
 
 MOUNT = b'20 1 0:1 / /proc rw,nosuid,nodev,noexec - proc proc rw\n'
@@ -99,7 +100,10 @@ class MaintenanceProcessTests(unittest.TestCase):
         first = self.native() if first is None else first
         second = first if second is None else second
         m = manager()
-        with (patch.object(p.state.service, '_check_tool'),
+        namespace_handle = SimpleNamespace(checkpoint=lambda: SimpleNamespace(boot_id=BOOT))
+        with (patch.object(namespaces, 'hold_maintenance_namespaces',
+                           return_value=nullcontext(namespace_handle)),
+              patch.object(p.state.service, '_check_tool'),
               patch.object(p.fs, '_identity', side_effect=[IDENTITY, later_identity]),
               patch.object(p.state, '_read_mask', side_effect=masks or [(True, 'mask')] * 2),
               patch.object(p.state, '_read_manager', side_effect=[m, m if later_manager is None else later_manager]),
@@ -132,6 +136,8 @@ class MaintenanceProcessTests(unittest.TestCase):
                      'exclusive_control_proven', 'atomic_snapshot_proven', 'mutation_authorized', 'startup_authorized'):
             self.assertIs(getattr(value, name), False)
         self.assertTrue(value.process_leader_scope_only and value.review_required)
+        self.assertTrue(value.visible_pid1_alignment_observed)
+        self.assertEqual(value.coverage_policy, 'leader-credential-or-packaged-node-v1')
         with self.assertRaises(FrozenInstanceError):
             value.mutation_authorized = True
         summary = repr(asdict(value))
@@ -350,7 +356,9 @@ class MaintenanceProcessTests(unittest.TestCase):
             self.native(fs)
 
     def test_active_manager_prevents_any_scan(self):
-        with (patch.object(p.state.service, '_check_tool'), patch.object(p.fs, '_identity', return_value=IDENTITY),
+        handle = SimpleNamespace(checkpoint=lambda: SimpleNamespace(boot_id=BOOT))
+        with (patch.object(namespaces, 'hold_maintenance_namespaces', return_value=nullcontext(handle)),
+              patch.object(p.state.service, '_check_tool'), patch.object(p.fs, '_identity', return_value=IDENTITY),
               patch.object(p.state, '_read_mask', return_value=(True, 'mask')),
               patch.object(p.state, '_read_manager', return_value=dict(manager(), ActiveState='active', SubState='running')),
               patch.object(p, '_native_scan') as scan,
@@ -358,14 +366,16 @@ class MaintenanceProcessTests(unittest.TestCase):
               patch.object(p.os, 'supports_dir_fd', {p.os.readlink}),
               patch.object(p.time, 'CLOCK_BOOTTIME', 7, create=True),
               patch.object(p.time, 'clock_gettime_ns', return_value=1, create=True)):
-            with self.assertRaises(core.OperatorError):
+            with self.assertRaisesRegex(core.OperatorError, 'CGROUP_MANAGER_STATE'):
                 p.observe_maintenance_processes()
             scan.assert_not_called()
 
     def test_public_errors_do_not_expose_kernel_data(self):
         for error, code in ((OSError(errno.EACCES, 'PRIVATE_PATH'), 'FS_ACCESS'),
                             (UnicodeError('PRIVATE_BYTES'), 'CENSUS_ENCODING')):
-            with (patch.object(p.state.service, '_check_tool', side_effect=error),
+            handle = SimpleNamespace(checkpoint=lambda: SimpleNamespace(boot_id=BOOT))
+            with (patch.object(namespaces, 'hold_maintenance_namespaces', return_value=nullcontext(handle)),
+                  patch.object(p.state.service, '_check_tool', side_effect=error),
                   self.subTest(code=code), self.assertRaisesRegex(core.OperatorError, '^' + code + '$')):
                 p.observe_maintenance_processes()
 

@@ -1199,3 +1199,16 @@ errors and disappearing entries are not skipped. This is not all-copy absence,
 host namespace proof or planner admission. Trusted launch, process coverage
 policy and transaction composition remain required. The two Linux fixture
 tests do not establish real procfs/VM compatibility; no VM output is requested.
+
+**Namespace-boundary follow-up:** the public process census now holds/rechecks
+five active namespace types and child PID/time targets for itself and visible
+PID 1, with fixed procfs ancestry, descriptor/type/identity and same-caller/boot
+checks. A namespace change or failed exit discards a successful scan. This is
+alignment, not proof of the intended host or sufficient all-copy coverage.
+The existing predicate is explicitly labelled; no new absence/authority claim
+is added. Thirty-two tests include two Linux-only own-process nsfs syscall
+checks, not live VM acceptance. See [UPGRADES.md](../../siem/rbac/broker_tls/UPGRADES.md#namespace-boundary-and-candidate-coverage--connected-to-the-census).
+Remaining work is external host launch trust, noncooperating update/start-path
+control, held-lock/observer/planner composition, exact backup and durable
+installation/recovery. No repeated A-C3 diagnostic or VM output is requested;
+the VM may remain off for this offline slice.

@@ -168,7 +168,14 @@ for service UID/GID and packaged-Node-path candidates, including outside the uni
 Thirty-five tests (two Linux-only) cover matching, privacy and fail-closed drift.
 No argv/environment or executable payload is read. Zero matches does not exclude
 all copied/renamed instances or nonleader-only credential changes and cannot
-grant stopped-process or exclusive-control permission. The
+grant stopped-process or exclusive-control permission. The public census now
+runs inside a held namespace alignment boundary, checking five active namespace
+types and child PID/time targets against visible PID 1 before/after observation.
+Thirty-two additional tests (two Linux-only) cover this connection. Alignment is
+not intended-host attestation, and the explicit candidate-coverage policy is not
+full shutdown proof. Root-controlled host launch and noncooperating update/start
+controls still precede maintenance admission. See [the exact contract](UPGRADES.md#namespace-boundary-and-candidate-coverage--connected-to-the-census).
+The
 following live collection/execution/acceptance requirements remain open:
 
 - Record a versioned compatibility baseline for the OS/architecture, interpreter,
