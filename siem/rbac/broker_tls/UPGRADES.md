@@ -37,6 +37,76 @@ controls remain unverified; no maintenance or startup permission is supplied.
 persistent masking with disposable-tree tests. Its public entry always refuses
 before I/O. No live executor, manager reload/stop or complete inhibition is released.
 
+`operator_maintenance_manager.py` adds the private ordered reload/stop/readback
+sequence with mocked systemd tests. Its public entry also refuses before I/O;
+neither private primitive is wired to the held controller or released for the VM.
+
+## Manager reload/stop/readback — live entry blocked
+
+`establish_maintenance_inhibition()` always raises `MANAGER_NOT_RELEASED`.
+The private `_sequence(checkpoint=...)` is not an operator API, authorization
+boundary or planner dispatcher. It accepts no saved mask result, census result,
+journal, or caller-provided state as evidence. A future controller must first
+authorize downtime, establish the intended host/runtime and continuous writer/
+start-path control, compose held locks, and prepare/synchronize the disk mask.
+Returning `None` from a callable checkpoint does not establish these controls.
+
+The private sequence freshly reads the exact persistent mask and boot identity,
+then requires two equal manager snapshots with no pending unit job, no triggering
+units, a known stable active/inactive/failed state and the fixed cgroup path.
+It performs, in order:
+
+1. Fixed, synchronous system-manager daemon reload.
+2. Fresh equal manager reads reporting both persistent mask states and no reload
+   pending. A successful client exit alone is insufficient.
+3. Fixed Dashboard stop request with `--job-mode=fail`, not replacement/force or
+   dependency suppression. A nonzero client result is a failure even if the
+   service happens to look inactive afterward.
+4. Fresh equal masked/stopped manager reads, zero main/control PIDs and no job;
+   empty fixed-cgroup observation; zero-match namespace-aligned candidate census;
+   another empty fixed-cgroup observation and unchanged terminal manager reads.
+
+Only `/usr/bin/systemctl` with the two fixed argument lists is spawned. The
+child has closed inherited descriptors, fixed cwd/environment, no shell or
+interactive authentication, and discarded stdin/stdout/stderr. Its root-owned
+tool/ancestor metadata is checked, like `busctl`; this is **not** package
+authenticity, native-library closure or protection from a hostile root. Toolchain
+trust must be supplied by the future launch boundary.
+
+Reload affects the **whole manager**, rerunning generators and rebuilding unit
+dependencies; it is not a Dashboard-only operation. Stop may execute unit hooks
+and propagate dependency jobs. The selected job mode is not a universal
+conflict/exclusivity guarantee. Installed generators, unit/hooks/dependencies,
+tool versions and their effects require review and disposable-clone validation
+before deployment. ([systemctl semantics](https://raw.githubusercontent.com/systemd/systemd/main/man/systemctl.xml))
+
+The same PID/native thread, caller checkpoint, same boot, unchanged disk-mask
+token and monotonic-in-boot elapsed time are checked between phases and during
+client waits. Candidate budgets are 30 seconds for reload, 60 for stop and 180
+for the sequence, using suspend-inclusive `CLOCK_BOOTTIME`; client waits poll
+at most every 250 ms. These are not a kernel watchdog or measured VM budgets;
+individual filesystem/creation calls are not made deadline-interruptible. Each
+observer must return a same-boot timestamp within its actual call window and
+at most 30 seconds of collection time. No conversion to planner monotonic
+claims or replayable admission receipt is introduced.
+
+Timeout, checkpoint revocation, interrupt, late/nonzero exit or failed cleanup
+aborts. Only the owned systemctl child is killed/reaped if needed; this **does
+not cancel an already-submitted manager job**, stop its hooks, or undo reload.
+No automatic retry, cancel, mask removal, recovery write or service start is
+issued. Keep inhibition and reconcile fresh manager/job/host state before a
+separately authorized recovery. An unobservable masked/unloaded service still
+fails closed; it is never explicitly loaded or unmasked to obtain properties.
+
+The immutable result reports scoped observations only. Candidate-count zero
+still misses the census's documented copied/renamed/nonleader cases, and reads
+are not atomic. Full quiescence, exclusive control, host attestation, reboot
+persistence, mutation and startup authority remain false. The existing guard,
+planner and no-fork lock contracts are unchanged: child execution under held
+locks needs explicit reviewed composition, not a silent contract relaxation.
+Forty-four offline tests and eight in-memory negative mutations cover this
+slice; no real systemd command, VM action or new native acceptance is claimed.
+
 ## Separate the lifecycle contracts
 
 | Phase | Required boundary | Current implementation |
@@ -614,9 +684,10 @@ The next implementation work completes trusted maintenance collection/execution:
 - Complete the narrow mask/manager/fixed-tree/candidate-census observations and
   cooperative/package locks with externally established host launch trust and
   service-start control. Private persistent-mask disk preparation now exists;
-  next connect an authorized manager reload/stop and effective masked/quiescent
-  readback sequence, keeping public execution blocked until the complete
-  controller is reviewed. The default-path package barrier is implemented only
+  private manager reload/stop and fresh scoped readback sequencing also exists.
+  Next compose the trusted controller (including child execution under held
+  locks) and installed generator/unit/dependency prerequisites, keeping public
+  execution blocked until the complete controller is reviewed. The default-path package barrier is implemented only
   for observation/backup; installed path/behavior validation and a bounded,
   inhibited handover to the intended package transaction remain open. Neither
   advisory lock excludes arbitrary privileged writes. The census checks namespace alignment,
