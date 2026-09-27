@@ -1183,6 +1183,57 @@ No earlier/future import or atomic snapshot is attested. All trust/startup flags
 remain false. The observer is outside the capsule and not called by the
 compile-only guard. No VM output or deployment is released by this package.
 
+### Entry/private modules and closed table — dormant pure policy
+
+`operator_guard_entry.py` now contains `_check_module_table()`, an offline
+policy function over caller-supplied module objects and, for the held phase,
+the supplied held-loader registry. It adds **no imports** and is not called by
+`_check_entry()`, `main()` or the held loader. The entry still compiles only and
+always exits nonzero. Successful policy checking returns `None`, not a permit.
+
+There are two explicit candidate call points:
+
+- **Prepared:** exactly the 103 selected B2/C1 stdlib keys plus direct-file
+  `__main__` (104 keys). All are required, not optional or auto-imported.
+- **Held:** the same keys plus exactly `_alertmind_guard_held` and its thirteen
+  pinned children (118 keys). The registry must contain those fourteen private
+  keys and refer to the identical module objects. Partial bundles fail closed.
+
+The policy rejects extra or substituted keys, non-module values, broken aliases
+and shared identities except the four declared stdlib alias pairs. Entry file,
+package/spec/cache metadata, current SourceFileLoader identity/name/path, known
+entry import bindings and builtins identity are checked. The candidate direct
+script shape follows [CPython 3.14.4's file runner](https://github.com/python/cpython/blob/v3.14.4/Python/pythonrun.c)
+and [Python's `__main__` specification](https://docs.python.org/3.14/reference/import.html#special-considerations-for-main);
+it is **not** the `<stdin>` entry recorded by B2 or a verified guard launch.
+
+Prepared meta finders must be the three default classes. Held state additionally
+requires the entry's deny-fallback instance first, with no instance overrides
+and matching function globals/filename/default metadata. No finder is called.
+The private package has an empty tuple path, no filesystem loader/spec, and
+exact child bindings. Children have the held compiler's synthetic filename,
+private package/name, no loader/spec/cache/path, and the supplied builtins
+dictionary. These shapes follow the existing held loader, not a new importer.
+
+Two passes retain module, entry-loader, registry, parent, finder and relevant
+binding references; fixed diagnostics reject replacement or selected metadata
+drift. No source is loaded, compiled, imported or repaired by this checker.
+Twenty-three regressions include exhaustive missing/substituted-key checks,
+both phases, private children, alias/binding/metadata errors and drift. One test
+uses the actual existing held loader's thirteen pinned sources in the trusted
+local test interpreter, inserting only its private objects into synthetic
+candidate state. It is not a native Ubuntu guard/process acceptance test.
+
+The proposed initializer and trusted call point are still absent. The function
+does not acquire live `sys.modules`, establish that a supplied registry came
+from verified bytes, or attest stdlib globals, function code, bootstrap or
+earlier/later imports. The selected-origin, hook and byte observers are **not
+automatically composed** here. In particular, the older import-state observers
+expect the three-finder prepared state; do not invoke them unchanged while the
+held deny-finder is present, or remove that finder to make a check pass.
+Future composition must define the call order without creating a trust gap.
+Two equal passes are not atomic. No startup, installation or VM step is released.
+
 ## Required next adapter package — not released here
 
 1. Establish selected packaged Linux runtime and real Server certificate

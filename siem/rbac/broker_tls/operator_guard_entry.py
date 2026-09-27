@@ -39,6 +39,39 @@ PINNED_MODULES = (
     ('operator_file_set.py', 8964, 'f6819927f88de7030b47d5e2fdee690f514fda82e42b0a16326431a2e334f180'),
 )
 HELD_PACKAGE = '_alertmind_guard_held'
+# Candidate prepared-table policy from the accepted B2/C1 name sets, not a
+# measured guard launch. Keep literal here: importing a policy module would
+# itself change the entry's closed module table. Tests cross-check the sets.
+STDLIB_MODULE_KEYS = (
+    '_abc', '_ast', '_blake2', '_codecs', '_collections',
+    '_collections_abc', '_contextvars', '_frozen_importlib', '_frozen_importlib_external', '_functools',
+    '_hashlib', '_imp', '_io', '_json', '_locale',
+    '_opcode', '_opcode_metadata', '_operator', '_posixsubprocess', '_py_warnings',
+    '_signal', '_sre', '_stat', '_struct', '_thread',
+    '_tokenize', '_types', '_warnings', '_weakref', '_weakrefset',
+    'abc', 'annotationlib', 'ast', 'base64', 'binascii',
+    'builtins', 'codecs', 'collections', 'collections.abc', 'contextlib',
+    'copy', 'copyreg', 'dataclasses', 'dis', 'encodings',
+    'encodings.aliases', 'encodings.utf_8', 'enum', 'errno', 'fcntl',
+    'fnmatch', 'functools', 'genericpath', 'glob', 'grp',
+    'hashlib', 'importlib', 'importlib._bootstrap', 'importlib._bootstrap_external', 'importlib.machinery',
+    'inspect', 'io', 'itertools', 'json', 'json.decoder',
+    'json.encoder', 'json.scanner', 'keyword', 'linecache', 'locale',
+    'marshal', 'math', 'ntpath', 'opcode', 'operator',
+    'os', 'os.path', 'pathlib', 'pathlib._os', 'posix',
+    'posixpath', 'pwd', 're', 're._casefix', 're._compiler',
+    're._constants', 're._parser', 'reprlib', 'select', 'selectors',
+    'signal', 'stat', 'struct', 'subprocess', 'sys',
+    'threading', 'time', 'token', 'tokenize', 'types',
+    'warnings', 'weakref', 'zipimport',
+)
+MODULE_ALIASES = (('_collections_abc', 'collections.abc'),
+                  ('_frozen_importlib', 'importlib._bootstrap'),
+                  ('_frozen_importlib_external', 'importlib._bootstrap_external'),
+                  ('os.path', 'posixpath'))
+PREPARED_MODULE_KEYS = frozenset(STDLIB_MODULE_KEYS + ('__main__',))
+HELD_MODULE_KEYS = frozenset((HELD_PACKAGE,) + tuple(
+    HELD_PACKAGE + '.' + name[:-3] for name, _, _ in PINNED_MODULES))
 
 
 class GuardLaunchError(Exception):
@@ -284,6 +317,139 @@ def _loaded_verified_bundle(sources):
             if name == HELD_PACKAGE or name.startswith(prefix):
                 del sys.modules[name]
         sys.meta_path[:] = original_finders
+
+
+def _table_keys(table, expected):
+    _require(type(table) is dict and len(table) == len(expected), 'GUARD_TABLE_SET')
+    # Check types before hashing/comparing any supplier key to an expected key.
+    _require(all(type(key) is str and 0 < len(key) <= 128 for key in table),
+             'GUARD_TABLE_KEY')
+    _require(table.keys() == expected, 'GUARD_TABLE_SET')
+
+
+def _table_module(module):
+    _require(type(module) is type(sys), 'GUARD_TABLE_MODULE')
+    return vars(module)
+
+
+def _table_text(value, expected, code):
+    _require(type(value) is str and value == expected, code)
+
+
+def _table_capture(modules, held, loaded):
+    expected = PREPARED_MODULE_KEYS | HELD_MODULE_KEYS if held else PREPARED_MODULE_KEYS
+    _table_keys(modules, expected)
+    records = tuple((key, modules[key]) for key in sorted(expected))
+    for _, module in records:
+        _table_module(module)
+    for a, b in MODULE_ALIASES:
+        _require(modules[a] is modules[b], 'GUARD_TABLE_ALIAS')
+    # Only those four alias pairs may share module identity. Do not allow an
+    # unrelated key to disguise a missing module by pointing at another one.
+    allowed = {frozenset(pair) for pair in MODULE_ALIASES}
+    for index, (key, module) in enumerate(records):
+        for other_key, other in records[:index]:
+            _require(module is not other or frozenset((key, other_key)) in allowed,
+                     'GUARD_TABLE_ALIAS')
+    main = _table_module(modules['__main__'])
+    builtin = _table_module(modules['_frozen_importlib'])
+    external = _table_module(modules['_frozen_importlib_external'])
+    builtins = _table_module(modules['builtins'])
+    _table_text(main.get('__name__'), '__main__', 'GUARD_TABLE_ENTRY')
+    _table_text(main.get('__file__'), ENTRY_PATH, 'GUARD_TABLE_ENTRY')
+    _require(all(main.get(key) is None for key in
+                 ('__spec__', '__package__', '__cached__', '__path__')), 'GUARD_TABLE_ENTRY')
+    _require(main.get('__builtins__') is modules['builtins'] or
+             main.get('__builtins__') is builtins, 'GUARD_TABLE_BINDING')
+    source_class = external.get('SourceFileLoader')
+    loader = main.get('__loader__')
+    _require(type(source_class) is type and type(loader) is source_class,
+             'GUARD_TABLE_LOADER')
+    loader_fields = vars(loader)
+    _table_keys(loader_fields, frozenset(('name', 'path')))
+    _table_text(loader_fields['name'], '__main__', 'GUARD_TABLE_LOADER')
+    _table_text(loader_fields['path'], ENTRY_PATH, 'GUARD_TABLE_LOADER')
+    for name in ('sys', 'os', 'stat', 'hashlib'):
+        _require(main.get(name) is modules[name], 'GUARD_TABLE_BINDING')
+    context = _table_module(modules['contextlib'])
+    for name in ('ExitStack', 'contextmanager'):
+        _require(context.get(name) is not None and main.get(name) is context[name],
+                 'GUARD_TABLE_BINDING')
+    meta = _table_module(modules['sys']).get('meta_path')
+    defaults = (builtin.get('BuiltinImporter'), builtin.get('FrozenImporter'), external.get('PathFinder'))
+    _require(all(type(item) is type for item in defaults) and type(meta) is list and
+             len(meta) == (4 if held else 3) and
+             all(a is b for a, b in zip(meta[1:] if held else meta, defaults)), 'GUARD_TABLE_FINDER')
+    refs = [modules, main, builtins, source_class, loader, loader_fields, meta, *defaults,
+            context['ExitStack'], context['contextmanager']]
+    if held:
+        _table_keys(loaded, HELD_MODULE_KEYS)
+        _require(all(loaded[key] is modules[key] for key in HELD_MODULE_KEYS), 'GUARD_TABLE_REGISTRY')
+        package = _table_module(modules[HELD_PACKAGE])
+        fields = frozenset(('__name__', '__doc__', '__package__', '__loader__', '__spec__', '__path__')) | frozenset(
+            name[:-3] for name, _, _ in PINNED_MODULES)
+        _table_keys(package, fields)
+        _table_text(package.get('__name__'), HELD_PACKAGE, 'GUARD_TABLE_HELD')
+        _table_text(package.get('__package__'), HELD_PACKAGE, 'GUARD_TABLE_HELD')
+        _require(type(package.get('__path__')) is tuple and not package['__path__'] and
+                 all(package.get(key) is None for key in ('__doc__', '__loader__', '__spec__')),
+                 'GUARD_TABLE_HELD')
+        for name, _, _ in PINNED_MODULES:
+            stem = name[:-3]
+            key = HELD_PACKAGE + '.' + stem
+            module = modules[key]
+            md = _table_module(module)
+            _table_text(md.get('__name__'), key, 'GUARD_TABLE_HELD')
+            _table_text(md.get('__package__'), HELD_PACKAGE, 'GUARD_TABLE_HELD')
+            _table_text(md.get('__file__'), '<alertmind-guard>/' + name, 'GUARD_TABLE_HELD')
+            _require(all(md.get(attr) is None for attr in
+                         ('__loader__', '__spec__', '__cached__', '__path__')) and
+                     md.get('__builtins__') is builtins and package.get(stem) is module,
+                     'GUARD_TABLE_HELD')
+        finder = meta[0]
+        finder_class = main.get('_DenyHeldFallback')
+        _require(type(finder_class) is type and type(finder) is finder_class, 'GUARD_TABLE_FINDER')
+        fd = object.__getattribute__(finder, '__dict__')
+        _require(type(fd) is dict and not fd, 'GUARD_TABLE_FINDER')
+        definition = vars(finder_class)
+        _table_text(definition.get('__module__'), '__main__', 'GUARD_TABLE_FINDER')
+        function = definition.get('find_spec')  # Inspect, never bind/invoke.
+        _require(type(function) is type(lambda: None) and function.__globals__ is main and
+                 function.__code__.co_filename == ENTRY_PATH and function.__closure__ is None and
+                 type(function.__defaults__) is tuple and len(function.__defaults__) == 2 and
+                 all(value is None for value in function.__defaults__) and function.__kwdefaults__ is None and
+                 not function.__dict__, 'GUARD_TABLE_FINDER')
+        refs.extend((loaded, package, finder, fd, finder_class, function, function.__code__))
+        _table_keys(loaded, HELD_MODULE_KEYS)
+        _require(all(loaded[key] is modules[key] for key in HELD_MODULE_KEYS), 'GUARD_TABLE_REGISTRY')
+    else:
+        _require(loaded is None, 'GUARD_TABLE_PHASE')
+    _table_keys(modules, expected)
+    _require(all(modules[key] is module for key, module in records), 'GUARD_TABLE_CHANGED')
+    return tuple(refs) + tuple(module for _, module in records)
+
+
+def _check_module_table(modules, *, held=False, loaded=None):
+    """Pure candidate policy on caller-supplied tables; unused by the entry.
+
+    Prepared: 103 selected stdlib keys plus direct-file __main__. Held: also
+    exactly the private package and 13 pinned children, matching the loader's
+    supplied registry. Partial/extra tables never auto-select another phase.
+    Checks twice without importing, invoking a finder, mutating, or reading a
+    live sys.modules table itself. Returns None, NOT a startup decision.
+
+    Initialization and the trusted call point remain unimplemented. Mutable
+    metadata and a supplied registry cannot attest executed bytes, freshness,
+    bootstrap provenance, stdlib internals or an atomic process snapshot.
+    """
+    _require(type(held) is bool, 'GUARD_TABLE_PHASE')
+    try:
+        first = _table_capture(modules, held, loaded)
+        second = _table_capture(modules, held, loaded)
+    except (AttributeError, KeyError, TypeError, ValueError, RuntimeError):
+        raise GuardLaunchError('GUARD_TABLE_STATE') from None
+    _require(len(first) == len(second) and all(a is b for a, b in zip(first, second)),
+             'GUARD_TABLE_CHANGED')
 
 
 def _check_entry():
