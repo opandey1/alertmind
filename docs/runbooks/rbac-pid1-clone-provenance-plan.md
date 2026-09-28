@@ -47,7 +47,13 @@ Ubuntu documents [archive signature and checksum verification](https://documenta
 and [APT's signed Release-to-package chain](https://manpages.ubuntu.com/manpages/resolute/man8/apt-secure.8.html).
 The [dpkg manual](https://manpages.ubuntu.com/manpages/resolute/man1/dpkg.1.html)
 explicitly distinguishes its local `--verify` check from a security
-verification. This plan intentionally has no executable provenance command:
+verification. Ubuntu's [resolute-updates amd64 download listing](https://packages.ubuntu.com/resolute-updates/amd64/systemd/download)
+currently identifies `systemd_259.5-0ubuntu3.4_amd64.deb` (3,128,676 bytes)
+with SHA-256 `1b2eca56c5cfdbc1aca78591a68f94b7e1c996abd52095587069776b816b9dca`.
+That is a **candidate archive-artifact checksum**, not the extracted PID 1
+binary hash, proof of which pocket installed the clone's package, or a
+substitute for verifying signed metadata. This plan intentionally has no
+executable provenance command:
 the exact archive metadata/key, trusted retrieval location and extraction
 toolchain must be reviewed first. No VM package manager, systemd command,
 credential read, network connection or service change is requested now.
