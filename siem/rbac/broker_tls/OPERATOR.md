@@ -227,6 +227,13 @@ may be printed, saved or pasted. Twenty-four tests (one Linux-only) cover its
 bounded, two-pass refusal. Initial-environment absence is not current manager
 `getenv()` or installed search-path proof; it is not wired to the catalog or
 executor and releases no VM command. See [the narrow contract](UPGRADES.md#pid-1-initial-generator-path-override-check--narrow-evidence-only).
+A separate dormant PID 1 image inventory compares the running executable's
+fixed-path procfs magic-link target, inode and bounded bytes with the on-disk
+`/usr/lib/systemd/systemd` candidate and parses the local dpkg status/list
+claim. Its twenty tests are mocked; neither a reviewed image pin nor package
+authenticity, installed-host identity, current search paths or live acceptance
+follows. No package command, systemd request, guard wiring or VM step is
+released. See [the inventory limits](UPGRADES.md#pid-1-executable-and-local-dpkg-claim-inventory--evidence-only).
 The existing namespace contract caps the entire window at 30 seconds; this was
 not widened to the manager's longer budget. No live authorization, installed
 hook/dependency safety or complete process-absence claim follows. Its public

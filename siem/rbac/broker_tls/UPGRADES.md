@@ -156,6 +156,38 @@ catalog, guard, executor or planner. It releases **no VM command**; native
 compatibility and a separate installed-binary/path baseline remain to be
 reviewed before any live collection or pre-reload binding.
 
+### PID 1 executable and local dpkg-claim inventory — evidence only
+
+`operator_maintenance_pid1_image.py` adds another dormant, no-argument,
+read-only candidate outside the guard and executor. The fixed candidate path
+`/usr/lib/systemd/systemd` appears in [Ubuntu's resolute systemd package file
+list](https://packages.ubuntu.com/resolute/all/systemd/filelist); that public
+listing is **not** the VM's installed package baseline. A different running
+path, including a deleted or relocated binary, fails closed rather than being
+learned automatically.
+
+The collector checks the visible PID 1 procfs mount, root UID/GID, non-kernel
+and non-zombie state, start tick and boot ID. It checks the exact `/proc/1/exe`
+link text before following that kernel magic link, then compares the opened
+running executable's inode metadata and complete bounded bytes with the fixed
+root-owned on-disk file. Fixed descriptor-relative reads also check the local
+`/var/lib/dpkg/status` record for one installed amd64 `systemd` package and
+that `/var/lib/dpkg/info/systemd.list` names the candidate path exactly once.
+Only the candidate path, image SHA-256, local dpkg-claimed version, boot/start
+identity and elapsed time leave the collector; raw records and bytes do not.
+Two equal passes run in a same-caller, suspend-inclusive window under 30
+seconds. They are **not atomic** and no package-manager lock is held.
+
+The dpkg database is a local claim, not authenticated package provenance.
+There is no independently reviewed expected image digest or version in this
+module, and no assertion about the installed VM, loaded code, current manager
+environment, compiled generator paths, selected generators, host namespace or
+future mutations. All of those and startup/mutation authorization remain
+explicitly false. The collector calls no package manager or systemd process,
+performs no write, and releases **no VM command**. Twenty offline mocked tests
+cover the parser, fixed reads, process/disk comparison, drift and sanitized
+errors; native installed behavior still requires separate review.
+
 ## Selected stop-effect checks — not complete manager-effect proof
 
 The separate fixed-property reader queries 33 properties on the existing
