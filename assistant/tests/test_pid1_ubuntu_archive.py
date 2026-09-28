@@ -56,6 +56,22 @@ def index_for(deb):
     return lzma.compress(entry, format=lzma.FORMAT_XZ)
 
 
+def bsdtar_path():
+    """Find the required libarchive CLI, not an arbitrary GNU tar binary."""
+    for name in ('bsdtar', 'tar'):
+        executable = shutil.which(name)
+        if executable is None:
+            continue
+        try:
+            result = subprocess.run([executable, '--version'], capture_output=True,
+                                    timeout=5, check=False)
+        except (OSError, subprocess.TimeoutExpired):
+            continue
+        if result.returncode == 0 and result.stdout.startswith(b'bsdtar '):
+            return Path(executable).resolve()
+    return None
+
+
 class ArchiveVerifierTests(unittest.TestCase):
     def stop(self, code, call):
         with self.assertRaisesRegex(m.Stop, '^' + code + '$'):
@@ -96,9 +112,8 @@ class ArchiveVerifierTests(unittest.TestCase):
             archive + ar_member('data.tar.gz', b'fake')))
         self.stop('DEB_AR', lambda: m._data_tar(b'not-an-ar'))
 
-    @unittest.skipUnless(shutil.which('tar'), 'tar unavailable')
     def test_verified_metadata_chain_and_candidate_comparison(self):
-        tar = Path(shutil.which('tar')).resolve()
+        tar = Path('/unused/bsdtar')
         deb = deb_with_image()
         xz = index_for(deb)
         signed = release(xz)
@@ -108,9 +123,11 @@ class ArchiveVerifierTests(unittest.TestCase):
                                 ('Packages.xz', xz), (m.DEB_NAME, deb),
                                 ('ubuntu-archive-keyring.gpg', b'keyring')):
                 (bundle / name).write_bytes(value)
-            with patch.object(m, '_verified_release', return_value=signed):
+            with patch.object(m, '_verified_release', return_value=signed), \
+                    patch.object(m, 'extracted_image', return_value=IMAGE) as extract:
                 result = m.verify_bundle(bundle, Path('/unused/gpgv'), tar,
                                          sha(IMAGE), len(IMAGE))
+                extract.assert_called_once_with(tar, m._data_tar(deb))
                 self.assertEqual(result['extracted_image_sha256'], sha(IMAGE))
                 self.assertFalse(result['reference_approved'])
                 self.assertFalse(result['mutation_authorized'])
@@ -119,6 +136,7 @@ class ArchiveVerifierTests(unittest.TestCase):
                     bundle, Path('/unused/gpgv'), tar, 'a' * 64, len(IMAGE)))
                 self.stop('IMAGE_SIZE_MISMATCH', lambda: m.verify_bundle(
                     bundle, Path('/unused/gpgv'), tar, sha(IMAGE), len(IMAGE) + 1))
+                extract.reset_mock()
                 (bundle / 'Packages.xz').write_bytes(xz[:-1] + b'0')
                 self.stop('INDEX_HASH', lambda: m.verify_bundle(
                     bundle, Path('/unused/gpgv'), tar, sha(IMAGE), len(IMAGE)))
@@ -126,6 +144,14 @@ class ArchiveVerifierTests(unittest.TestCase):
                 (bundle / m.DEB_NAME).write_bytes(deb[:-1] + b'0')
                 self.stop('DEB_HASH', lambda: m.verify_bundle(
                     bundle, Path('/unused/gpgv'), tar, sha(IMAGE), len(IMAGE)))
+                extract.assert_not_called()
+
+    def test_real_bsdtar_extracts_compressed_member_when_available(self):
+        bsdtar = bsdtar_path()
+        if bsdtar is None:
+            self.skipTest('bsdtar is unavailable; GNU tar is not the host contract')
+        self.assertEqual(m.extracted_image(bsdtar, m._data_tar(deb_with_image())),
+                         IMAGE)
 
     def test_symlink_input_or_invalid_candidate_fails(self):
         self.stop('CANDIDATE_DIGEST', lambda: m.verify_bundle(
