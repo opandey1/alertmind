@@ -66,10 +66,16 @@ namei -l -- "$image"
 printf '%s\n' '=== Running and on-disk identity ==='
 running_identity=$(stat -Lc '%d:%i' -- /proc/1/exe)
 disk_identity=$(stat -Lc '%d:%i' -- "$image")
+running_size=$(stat -Lc '%s' -- /proc/1/exe)
+disk_size=$(stat -Lc '%s' -- "$image")
 stat -Lc 'running uid=%u gid=%g mode=%a bytes=%s device=%d inode=%i' -- /proc/1/exe
 stat -Lc 'disk    uid=%u gid=%g mode=%a bytes=%s device=%d inode=%i' -- "$image"
 if [ "$running_identity" != "$disk_identity" ]; then
     printf '%s\n' 'STOP: running and disk image device/inode differ'
+    exit 1
+fi
+if (( running_size < 1 || running_size > 33554432 || disk_size != running_size )); then
+    printf '%s\n' 'STOP: image size is outside the fixed 32 MiB bound or differs'
     exit 1
 fi
 running_hash=$(sha256sum -- /proc/1/exe)
