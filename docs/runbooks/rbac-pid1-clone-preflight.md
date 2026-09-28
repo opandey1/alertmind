@@ -114,7 +114,9 @@ requested. The command toolchain, filesystem and dpkg database are themselves
 clone-local observations: matching inodes/hashes and a dpkg file-list entry
 are **not** package-source authentication, an independently pinned baseline,
 proof of the intended host, or proof of loaded manager code. These shell reads
-are not atomic against privileged writes.
+are not atomic against privileged writes. The 32 MiB size check is a
+**pre-hash gate**, not a hard I/O cap if the file changes during `sha256sum`;
+only the separately reviewed native reader can enforce its own read bound.
 
 After reviewing the output, a separate packet must define native compatibility
 testing of the existing dormant observer and independently reviewed
