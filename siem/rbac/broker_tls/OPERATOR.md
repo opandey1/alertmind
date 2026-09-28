@@ -234,6 +234,11 @@ claim. Its twenty tests are mocked; neither a reviewed image pin nor package
 authenticity, installed-host identity, current search paths or live acceptance
 follows. No package command, systemd request, guard wiring or VM step is
 released. See [the inventory limits](UPGRADES.md#pid-1-executable-and-local-dpkg-claim-inventory--evidence-only).
+The separate [PID 1 reference comparison](UPGRADES.md#pid-1-image-reference-comparison--offline-candidate-contract)
+adds an exact public reference format and thirteen pure offline tests. A
+matching digest/version is candidate consistency, not an independently
+reviewed package pin or permission to run the observer on the VM; the
+reference has no populated installed values and no live controller wiring.
 The existing namespace contract caps the entire window at 30 seconds; this was
 not widened to the manager's longer budget. No live authorization, installed
 hook/dependency safety or complete process-absence claim follows. Its public

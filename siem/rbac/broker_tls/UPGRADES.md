@@ -188,6 +188,29 @@ performs no write, and releases **no VM command**. Twenty offline mocked tests
 cover the parser, fixed reads, process/disk comparison, drift and sanitized
 errors; native installed behavior still requires separate review.
 
+### PID 1 image reference comparison — offline candidate contract
+
+`operator_maintenance_pid1_reference.py` parses a small, exact-schema public
+reference containing the fixed candidate path, `systemd`/`amd64` identity,
+expected executable SHA-256 and expected local dpkg-claimed version. It does
+not include an installed value: a separately reviewed reference and its
+provenance must be retained and pinned outside this module. Its canonical
+SHA-256 identifies reference *content*, not approval. The pure comparator
+validates the observation's complete public shape and non-authorizing flags,
+then rejects any image-digest or version mismatch with a fixed diagnostic.
+It accepts no path override, performs no file/process/package read or write,
+and is not connected to the guard, catalog, controller or reload sequence.
+
+A match says only that two caller-supplied candidate records agree. Either
+record can be forged by an untrusted caller; a dpkg status/list claim is not
+package provenance. The result keeps reference provenance, observation
+authenticity/freshness, package authenticity, effective generator paths,
+mutation and startup authorization explicitly false. Thirteen offline tests
+cover malformed/duplicate/extra fields, exact identity, drift, forged public
+claims and the no-live-wiring contract. Native inventory compatibility, an
+independently reviewed VM image/package reference, current effective path
+source and manager-wide effects remain prerequisites before a live gate.
+
 ## Selected stop-effect checks — not complete manager-effect proof
 
 The separate fixed-property reader queries 33 properties on the existing
