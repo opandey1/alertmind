@@ -1,4 +1,4 @@
-"""Dormant fixed-default-path generator inventory, never execution/admission.
+"""Dormant default-path unit/environment-generator inventory, no admission.
 
 Requires an already trusted root/Linux host and runtime. Does not inspect PID1's
 environment, invoke systemd, follow generator symlinks or import observed bytes.
@@ -22,7 +22,13 @@ DIRECTORIES = (
     ('usr', 'local', 'lib', 'systemd', 'system-generators'),
     ('usr', 'lib', 'systemd', 'system-generators'),
 )
-MAX_ENTRIES = 256  # Across all four directories, including shadowed entries.
+ENV_DIRECTORIES = (
+    ('run', 'systemd', 'system-environment-generators'),
+    ('etc', 'systemd', 'system-environment-generators'),
+    ('usr', 'local', 'lib', 'systemd', 'system-environment-generators'),
+    ('usr', 'lib', 'systemd', 'system-environment-generators'),
+)
+MAX_ENTRIES = 256  # Across one pass, including both classes and shadowed entries.
 MAX_FILE_BYTES = 16 * 1024 * 1024
 MAX_TOTAL_BYTES = 64 * 1024 * 1024  # Per pass, including link text.
 MAX_LINK_BYTES = 4096
@@ -56,6 +62,27 @@ class GeneratorInventory:
     effective_selection_proven: bool = field(default=False, init=False)
     symlink_targets_verified: bool = field(default=False, init=False)
     generator_effects_proven: bool = field(default=False, init=False)
+    dependency_closure_proven: bool = field(default=False, init=False)
+    package_authenticity_proven: bool = field(default=False, init=False)
+    atomic_snapshot_proven: bool = field(default=False, init=False)
+    continuous_control_proven: bool = field(default=False, init=False)
+    mutation_authorized: bool = field(default=False, init=False)
+    startup_authorized: bool = field(default=False, init=False)
+    review_required: bool = field(default=True, init=False)
+
+
+@dataclass(frozen=True)
+class GeneratorCatalog:
+    unit: GeneratorInventory
+    environment: GeneratorInventory
+    catalog_sha256: str
+    collection_elapsed_ms: int
+    passes: int = field(default=2, init=False)
+    effective_search_paths_proven: bool = field(default=False, init=False)
+    effective_selection_proven: bool = field(default=False, init=False)
+    symlink_targets_verified: bool = field(default=False, init=False)
+    generator_effects_proven: bool = field(default=False, init=False)
+    generated_environment_proven: bool = field(default=False, init=False)
     dependency_closure_proven: bool = field(default=False, init=False)
     package_authenticity_proven: bool = field(default=False, init=False)
     atomic_snapshot_proven: bool = field(default=False, init=False)
@@ -195,17 +222,22 @@ def _directory_at(root, parts, budget, check):
         return missing is None, tuple(rows), stamps
 
 
-def _scan_at(root, check):
-    budget = [0, 0]
-    return tuple(_directory_at(root, parts, budget, check) for parts in DIRECTORIES)
+def _scan_at(root, check, paths=DIRECTORIES, budget=None):
+    # Test-only descriptor root; production always starts at the held `/` FD.
+    core.require(paths in (DIRECTORIES, ENV_DIRECTORIES), 'GENERATORS_SCOPE')
+    if budget is None:
+        budget = [0, 0]
+    return tuple(_directory_at(root, parts, budget, check) for parts in paths)
 
 
-def _result(snapshot, elapsed):
+def _result(snapshot, elapsed, paths=DIRECTORIES):
+    core.require(paths in (DIRECTORIES, ENV_DIRECTORIES) and len(snapshot) == len(paths),
+                 'GENERATORS_SCOPE')
     entries = []
     seen = {}
     directories = []
     for index, (present, rows, _) in enumerate(snapshot):
-        directories.append(('/' + '/'.join(DIRECTORIES[index]), present))
+        directories.append(('/' + '/'.join(paths[index]), present))
         for name, data, _ in rows:
             entries.append(GeneratorEntry(index, name, *data, tuple(seen.get(name, ()))))
             seen.setdefault(name, []).append(index)
@@ -216,8 +248,9 @@ def _result(snapshot, elapsed):
     return GeneratorInventory(tuple(directories), tuple(entries), digest, elapsed)
 
 
-def observe_maintenance_generators():
-    """Read-only, no arguments/CLI/approval token; dormant, not released live."""
+def _collect(groups):
+    core.require(groups in ((DIRECTORIES,), (ENV_DIRECTORIES,),
+                            (DIRECTORIES, ENV_DIRECTORIES)), 'GENERATORS_SCOPE')
     try:
         fs._platform()
         core.require(hasattr(time, 'CLOCK_BOOTTIME') and hasattr(time, 'clock_gettime_ns')
@@ -238,15 +271,47 @@ def observe_maintenance_generators():
         flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
         fd = os.open('/', flags)
         try:
-            first = _scan_at(fd, check)
+            def scan():
+                # One aggregate limit per pass. A large unit directory cannot
+                # hide environment-generator bytes or entries from the budget.
+                budget = [0, 0]
+                return tuple(_scan_at(fd, check, paths, budget) for paths in groups)
+
+            first = scan()
             check()
-            second = _scan_at(fd, check)
+            second = scan()
             check()
             core.require(first == second, 'GENERATORS_CHANGED')
-            result = _result(first, (previous - started) // 1_000_000)
+            elapsed = (previous - started) // 1_000_000
+            inventories = tuple(_result(snapshot, elapsed, paths)
+                                for snapshot, paths in zip(first, groups))
+            if len(groups) == 1:
+                result = inventories[0]
+            else:
+                unit, environment = inventories
+                payload = dict(version=1, unit=unit.inventory_sha256,
+                               environment=environment.inventory_sha256)
+                digest = hashlib.sha256(json.dumps(payload, sort_keys=True,
+                                     separators=(',', ':')).encode('ascii')).hexdigest()
+                result = GeneratorCatalog(unit, environment, digest, elapsed)
         finally:
             os.close(fd)
         check()  # No successful receipt on cleanup/window/caller failure.
         return result
     except OSError as error:
         raise core.OperatorError(fs._os_error_code(error)) from None
+
+
+def observe_maintenance_generators():
+    """Unit generators only; preserved no-argument read-only candidate."""
+    return _collect((DIRECTORIES,))
+
+
+def observe_maintenance_environment_generators():
+    """System environment generators only; no values/outputs are inspected."""
+    return _collect((ENV_DIRECTORIES,))
+
+
+def observe_maintenance_generator_catalog():
+    """Both default-path classes in one held-root/window, not an atomic snapshot."""
+    return _collect((DIRECTORIES, ENV_DIRECTORIES))

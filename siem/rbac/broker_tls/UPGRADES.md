@@ -49,15 +49,25 @@ stop. It does not establish the complete installed-effect or authorization bound
 
 ## Default-path generator inventory — evidence only, not reload admission
 
-`operator_maintenance_generators.py` adds a dormant, no-argument read-only
-observer outside the guard capsule and maintenance executor. It inventories
-four fixed candidate directories in order: `/run/systemd/system-generators`,
+`operator_maintenance_generators.py` adds dormant, no-argument read-only
+observers outside the guard capsule and maintenance executor. The unit class
+inventories four fixed candidate directories in order: `/run/systemd/system-generators`,
 `/etc/systemd/system-generators`, `/usr/local/lib/systemd/system-generators`,
-`/usr/lib/systemd/system-generators`. It never runs a generator, calls systemd,
+`/usr/lib/systemd/system-generators`. The environment class separately inventories
+`/run/systemd/system-environment-generators`,
+`/etc/systemd/system-environment-generators`,
+`/usr/local/lib/systemd/system-environment-generators`, and
+`/usr/lib/systemd/system-environment-generators`, in that order. It never runs a generator, calls systemd,
 imports observed code, reads credentials or inspects PID 1's environment.
 The [upstream generator manual](https://raw.githubusercontent.com/systemd/systemd/main/man/systemd.generator.xml)
-describes default precedence and reload execution; that is a contract reference,
-not proof of the installed manager's compiled paths or behavior.
+and [environment-generator manual](https://raw.githubusercontent.com/systemd/systemd/main/man/systemd.environment-generator.xml)
+describe default precedence and reload execution; those are contract references,
+not proof of the installed manager's compiled paths or behavior. Upstream
+[manager source](https://raw.githubusercontent.com/systemd/systemd/main/src/core/manager.c)
+runs environment generators before unit generators and passes a derived manager
+environment to the latter. This inventory does not read or prove those values.
+That source also has an unsandboxed fallback for some namespace-fork failures;
+no sandbox property of the installed VM is inferred from upstream defaults.
 
 The result records directory presence and every immediate entry's name, type,
 size, mode, owner and SHA-256, including earlier same-named directory indices.
@@ -65,7 +75,8 @@ Regular files are hashed as bytes; symlinks are hashed as link text and never
 followed. `/dev/null` link text is distinguished from other unresolved links,
 but its target is **not verified**. Empty regular files and non-executable files
 remain visible. Hidden/backup names are included, not silently filtered.
-`earlier_same_name` means only default-directory name precedence, **not** a
+`earlier_same_name` is calculated **within each class** and means only
+default-directory name precedence, **not** a
 selected executable, effective mask or invocation order. This avoids claiming
 that a non-executable or unresolved earlier entry necessarily overrides code.
 
@@ -79,28 +90,37 @@ alternate-root public API or package/provenance subprocess.
 
 Two full passes compare private file and ancestor stamps as well as bytes/link
 digests. Names, opened descriptors and ancestors are rechecked; cleanup failure
-prevents success. Bounds are 256 entries across all four directories, 16 MiB
-per regular file, 4096 bytes per link text and 64 MiB total per pass, including
-shadowed entries. Streaming reads are at most 64 KiB. PID/native-thread and
+prevents success. The combined catalog observes both classes through one held
+root FD and one same-caller window; each complete pass shares a 256-entry and
+64-MiB budget across all eight default directories, including shadowed entries.
+The two single-class APIs retain the same limits for their four paths. Bounds
+are 16 MiB per regular file and 4096 bytes per link text. Streaming reads are
+at most 64 KiB. PID/native-thread and
 suspend-inclusive BOOTTIME checks reject changes or elapsed time >=30 seconds.
 This is an elapsed-result bound, not a watchdog for blocking filesystem calls.
 Two equal passes are not atomic and do not exclude later privileged writers.
 
-The version-1 canonical inventory digest binds ordered paths, presence, public
+Each class has its own version-1 canonical inventory digest binding ordered
+paths, presence, public
 metadata and typed content/link hashes; elapsed time and inode/timestamp stamps
-are excluded from that portable digest but stamps must agree during collection.
+are excluded from those portable digests but stamps must agree during collection.
+The combined catalog has a separate digest binding the two class digests and
+refuses a change in either class. Scan order is not execution order.
 No file contents, link targets or raw errors are emitted. All effective-path,
 selection, target verification, effects, dependency/provenance, atomicity,
-continuous-control and authorization flags stay false. Thirty-five tests cover
-the candidate; six use disposable Linux trees and are skipped on Windows.
+continuous-control and authorization flags stay false. In particular an empty
+environment-generator directory does not prove an empty generated environment.
+Fifty-three tests cover the candidate; eight use disposable Linux trees and are
+skipped on Windows.
 
 **Next:** bind an independently reviewed installed search-path/selection and
 content baseline, resolve any relevant generator links and review selected
 code/interpreters/tools/dependencies and their package-lock interactions before
 connecting a fresh check ahead of private mask/reload. A default-path inventory
 cannot supply this authority, nor can empty results or auto-learning pins.
-Manager-wide environment generators/other reload effects and indirect unit-graph
-effects still need review. This package releases no VM command or deployment.
+Actual environment-generator **selection, output and downstream effects**,
+other manager-wide reload behavior and indirect unit-graph effects still need
+review. This package releases no VM command or deployment.
 
 ## Selected stop-effect checks — not complete manager-effect proof
 

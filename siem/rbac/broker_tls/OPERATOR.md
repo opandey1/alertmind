@@ -212,11 +212,13 @@ these checks and all three integration points. This is not complete generator/
 dependency review, installed-version acceptance or external authorization.
 The composed 30-second bound and public mutation refusal are unchanged; no
 live query is released. See [the scoped contract](UPGRADES.md#selected-stop-effect-checks--not-complete-manager-effect-proof).
-The separate default-path generator inventory now records public hashes and
-metadata without executing or following generator code. It is not connected to
+The separate default-path generator catalog now records unit and system
+environment-generator public hashes and metadata in one bounded two-pass window,
+without executing or following generator code or reading its generated values.
+It is not connected to
 the executor: default name precedence is not actual manager selection, and no
 installed effects, dependencies or package authenticity are approved by a hash.
-Thirty-five tests (six Linux-only) cover this evidence-only observer. See
+Fifty-three tests (eight Linux-only) cover this evidence-only observer. See
 [its limits and next binding step](UPGRADES.md#default-path-generator-inventory--evidence-only-not-reload-admission).
 The existing namespace contract caps the entire window at 30 seconds; this was
 not widened to the manager's longer budget. No live authorization, installed
