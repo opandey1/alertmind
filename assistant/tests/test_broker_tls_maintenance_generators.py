@@ -32,6 +32,10 @@ def snapshot():
     return tuple((False, (), ('private_stamp',)) for _ in m.DIRECTORIES)
 
 
+def environment_snapshot():
+    return tuple((False, (), ('private_stamp',)) for _ in m.ENV_DIRECTORIES)
+
+
 def row(name='one', kind='executable_regular', digest='a' * 64, mode=0o755):
     return (name, (kind, 3, mode, 0, 0, digest), ('private_stamp',))
 
@@ -82,6 +86,157 @@ class GeneratorInventoryTests(unittest.TestCase):
             '/run/systemd/system-generators', '/etc/systemd/system-generators',
             '/usr/local/lib/systemd/system-generators', '/usr/lib/systemd/system-generators'))
         self.assertEqual(str(inspect.signature(m.observe_maintenance_generators)), '()')
+
+    def test_environment_paths_and_no_argument_entries_are_fixed(self):
+        self.assertEqual(tuple('/' + '/'.join(p) for p in m.ENV_DIRECTORIES), (
+            '/run/systemd/system-environment-generators',
+            '/etc/systemd/system-environment-generators',
+            '/usr/local/lib/systemd/system-environment-generators',
+            '/usr/lib/systemd/system-environment-generators'))
+        for function in (m.observe_maintenance_environment_generators,
+                         m.observe_maintenance_generator_catalog):
+            self.assertEqual(str(inspect.signature(function)), '()')
+
+    def test_environment_inventory_has_own_names_and_digest(self):
+        unit = m._result(snapshot(), 1)
+        environment = m._result(environment_snapshot(), 1, m.ENV_DIRECTORIES)
+        self.assertNotEqual(unit.directories, environment.directories)
+        self.assertNotEqual(unit.inventory_sha256, environment.inventory_sha256)
+        self.assertTrue(all('system-environment-generators' in p for p, _ in
+                            environment.directories))
+
+    def test_environment_precedence_is_separate_from_unit_names(self):
+        one = ((True, (row('same'),), ()),) + environment_snapshot()[1:]
+        two = (one[0], (True, (row('same'),), ())) + one[2:]
+        environment = m._result(two, 0, m.ENV_DIRECTORIES)
+        self.assertEqual([e.earlier_same_name for e in environment.entries], [(), (0,)])
+        self.assertEqual(m._result(((True, (row('same'),), ()),) + snapshot()[1:], 0)
+                         .entries[0].earlier_same_name, ())
+
+    def test_empty_environment_directory_does_not_prove_empty_output(self):
+        environment = m._result(environment_snapshot(), 0, m.ENV_DIRECTORIES)
+        self.assertEqual(environment.entries, ())
+        self.assertFalse(environment.effective_search_path_proven)
+        self.assertFalse(environment.generator_effects_proven)
+
+    def test_private_scope_rejects_arbitrary_paths_and_groups_before_io(self):
+        with patch.object(m, '_directory_at') as walk:
+            self.error('GENERATORS_SCOPE', lambda: m._scan_at(99, lambda: None,
+                      (('tmp', 'PRIVATE'),)))
+            walk.assert_not_called()
+        with patch.object(m.fs, '_platform') as platform:
+            self.error('GENERATORS_SCOPE', lambda: m._collect((m.ENV_DIRECTORIES,
+                      m.DIRECTORIES)))
+            platform.assert_not_called()
+
+    def test_environment_only_observer_scans_its_four_paths_twice(self):
+        with self.collect() as f:
+            f['scan'].return_value = environment_snapshot()
+            result = m.observe_maintenance_environment_generators()
+            self.assertEqual(f['scan'].call_count, 2)
+            self.assertTrue(all(c.args[2] is m.ENV_DIRECTORIES for c in f['scan'].call_args_list))
+            self.assertEqual(result.directories[0][0],
+                             '/run/systemd/system-environment-generators')
+
+    def test_catalog_uses_one_root_and_orders_both_classes_each_pass(self):
+        with self.collect() as f:
+            f['scan'].side_effect = [snapshot(), environment_snapshot()] * 2
+            result = m.observe_maintenance_generator_catalog()
+            self.assertIsInstance(result, m.GeneratorCatalog)
+            self.assertEqual([c.args[2] for c in f['scan'].call_args_list],
+                             [m.DIRECTORIES, m.ENV_DIRECTORIES] * 2)
+            self.assertEqual(f['open'].call_count, 1)
+            f['close'].assert_called_once_with(99)
+            self.assertEqual(result.unit.directories[0][0],
+                             '/run/systemd/system-generators')
+            self.assertEqual(result.environment.directories[0][0],
+                             '/run/systemd/system-environment-generators')
+
+    def test_catalog_shares_aggregate_budget_within_not_across_passes(self):
+        with self.collect() as f:
+            f['scan'].side_effect = [snapshot(), environment_snapshot()] * 2
+            m.observe_maintenance_generator_catalog()
+            a, b, c, d = [call.args[3] for call in f['scan'].call_args_list]
+            self.assertIs(a, b)
+            self.assertIs(c, d)
+            self.assertIsNot(a, c)
+
+    def test_environment_change_disposes_entire_catalog(self):
+        with self.collect() as f:
+            changed = ((False, (), ('changed',)),) + environment_snapshot()[1:]
+            f['scan'].side_effect = [snapshot(), environment_snapshot(), snapshot(), changed]
+            self.error('GENERATORS_CHANGED', m.observe_maintenance_generator_catalog)
+            f['close'].assert_called_once_with(99)
+
+    def test_unit_change_disposes_entire_catalog(self):
+        with self.collect() as f:
+            changed = ((False, (), ('changed',)),) + snapshot()[1:]
+            f['scan'].side_effect = [snapshot(), environment_snapshot(), changed,
+                                     environment_snapshot()]
+            self.error('GENERATORS_CHANGED', m.observe_maintenance_generator_catalog)
+
+    def test_first_class_failure_never_scans_second_class(self):
+        with self.collect() as f:
+            f['scan'].side_effect = core.OperatorError('PRIVATE_FAIL')
+            self.error('PRIVATE_FAIL', m.observe_maintenance_generator_catalog)
+            self.assertEqual(f['scan'].call_count, 1)
+            f['close'].assert_called_once_with(99)
+
+    def test_catalog_hash_binds_both_independent_inventory_hashes(self):
+        with self.collect() as f:
+            f['scan'].side_effect = [snapshot(), environment_snapshot()] * 2
+            baseline = m.observe_maintenance_generator_catalog()
+        unit_changed = ((True, (row('unit'),), ()),) + snapshot()[1:]
+        env_changed = ((True, (row('environment'),), ()),) + environment_snapshot()[1:]
+        for unit, environment in ((unit_changed, environment_snapshot()),
+                                  (snapshot(), env_changed)):
+            with self.collect() as f:
+                f['scan'].side_effect = [unit, environment] * 2
+                result = m.observe_maintenance_generator_catalog()
+                self.assertNotEqual(result.catalog_sha256, baseline.catalog_sha256)
+                self.assertNotEqual((result.unit.inventory_sha256,
+                                     result.environment.inventory_sha256),
+                                    (baseline.unit.inventory_sha256,
+                                     baseline.environment.inventory_sha256))
+
+    def test_catalog_flags_and_components_are_immutable_non_authorizing(self):
+        with self.collect() as f:
+            f['scan'].side_effect = [snapshot(), environment_snapshot()] * 2
+            result = m.observe_maintenance_generator_catalog()
+            for name, value in asdict(result).items():
+                if name.endswith(('_proven', '_authorized', '_verified')):
+                    self.assertIs(value, False, name)
+            self.assertTrue(result.review_required)
+            self.assertFalse(result.generated_environment_proven)
+            self.assertEqual(result.passes, 2)
+            with self.assertRaises(FrozenInstanceError):
+                result.startup_authorized = True
+            with self.assertRaises(FrozenInstanceError):
+                result.environment.inventory_sha256 = 'tampered'
+
+    def test_catalog_cleanup_failure_prevents_success(self):
+        with self.collect() as f:
+            f['scan'].side_effect = [snapshot(), environment_snapshot()] * 2
+            f['close'].side_effect = OSError(errno.EIO, 'PRIVATE')
+            self.error('FS_IO', m.observe_maintenance_generator_catalog)
+
+    def test_catalog_path_count_and_byte_limits_cover_both_classes(self):
+        for offset, code in ((0, 'GENERATORS_COUNT'), (1, 'GENERATORS_BYTES')):
+            with self.collect() as f, patch.object(m, 'MAX_ENTRIES', 1), \
+                    patch.object(m, 'MAX_TOTAL_BYTES', 1):
+                def scan(_root, _check, paths, budget):
+                    budget[offset] += 1
+                    m.core.require(budget[offset] <= 1, code)
+                    return snapshot() if paths is m.DIRECTORIES else environment_snapshot()
+                f['scan'].side_effect = scan
+                self.error(code, m.observe_maintenance_generator_catalog)
+                self.assertEqual(f['scan'].call_count, 2)
+
+    def test_environment_inventory_never_reads_or_emits_generated_values(self):
+        source = inspect.getsource(m)
+        self.assertNotIn('/run/systemd/generator', source)
+        for forbidden in ('subprocess', 'os.environ', 'getenv(', 'exec(', 'eval('):
+            self.assertNotIn(forbidden, source)
 
     def test_result_is_immutable_non_authorizing_and_minimized(self):
         result = m._result(snapshot(), 1)
@@ -412,6 +567,37 @@ class GeneratorNativeTests(unittest.TestCase):
                 with self.assertRaises(core.OperatorError):
                     m._scan_at(fd, lambda: None)
             self.assertEqual(len(os.listdir('/proc/self/fd')), count)
+
+    def test_environment_class_uses_real_fd_walk_and_hashed_file(self):
+        with self.tree() as (root, fd):
+            directory = root.joinpath(*m.ENV_DIRECTORIES[0])
+            directory.mkdir()
+            directory.chmod(0o755)
+            target = directory / '20-fixture'
+            target.write_bytes(b'#!/bin/sh\nexit 79\n')
+            target.chmod(0o755)
+            a = m._scan_at(fd, lambda: None, m.ENV_DIRECTORIES)
+            b = m._scan_at(fd, lambda: None, m.ENV_DIRECTORIES)
+            self.assertEqual(a, b)
+            self.assertEqual(m._result(a, 0, m.ENV_DIRECTORIES).entries[0].sha256,
+                             hashlib.sha256(target.read_bytes()).hexdigest())
+
+    def test_shared_budget_counts_environment_after_unit(self):
+        with self.tree() as (root, fd):
+            unit = root.joinpath(*m.DIRECTORIES[0], 'same')
+            unit.write_bytes(b'')
+            unit.chmod(0o644)
+            directory = root.joinpath(*m.ENV_DIRECTORIES[0])
+            directory.mkdir()
+            directory.chmod(0o755)
+            environment = directory / 'same'
+            environment.write_bytes(b'')
+            environment.chmod(0o644)
+            budget = [0, 0]
+            with patch.object(m, 'MAX_ENTRIES', 1):
+                m._scan_at(fd, lambda: None, m.DIRECTORIES, budget)
+                with self.assertRaisesRegex(core.OperatorError, '^GENERATORS_COUNT$'):
+                    m._scan_at(fd, lambda: None, m.ENV_DIRECTORIES, budget)
 
 
 if __name__ == '__main__':

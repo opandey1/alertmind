@@ -1262,12 +1262,16 @@ closed; no load/unmask workaround is added. The 30-second composition budget
 and public mutation refusal remain. No new VM output is required; do not repeat
 A-C3. See [the contract](../../siem/rbac/broker_tls/UPGRADES.md#selected-stop-effect-checks--not-complete-manager-effect-proof).
 
-**Generator-inventory follow-up:** a dormant, fixed-default-path reader now
-records directory presence, all immediate entry metadata and regular-file/link-
-text digests in two bounded passes. It never executes a generator, follows a
+**Generator-inventory follow-up:** dormant, fixed-default-path readers now
+record directory presence, all immediate entry metadata and regular-file/link-
+text digests for both unit and system environment generators in two bounded
+passes. The combined catalog shares one root/window and aggregate budget.
+It never executes a generator, follows a
 generator symlink or invokes systemd. Same-name precedence is not actual manager
 selection; even a literal `/dev/null` link is only text, not target verification.
-Thirty-five tests include six Linux-only disposable-tree checks. Installed
+It does not read generated environment values or prove the installed manager's
+effective environment. Fifty-three tests include eight Linux-only disposable-tree
+checks. Installed
 search paths, selected code/dependency effects, provenance, package-lock
 compatibility and review binding remain open before executor composition.
 No live step is released, and no new VM output or A-C3 repetition is requested.
