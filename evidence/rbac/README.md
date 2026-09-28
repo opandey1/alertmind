@@ -3,6 +3,10 @@
 This directory contains sanitized proof for the post-v1 least-privilege Wazuh
 integration.
 
+The [PID 1 Current-State clone preflight](pid1-current-clone-preflight-2026-09-28.md)
+is an owner-reported image/dpkg candidate only. It is not an authenticated
+package reference or permission to run a native observer on either VM.
+
 The [Dashboard broker provenance record](dashboard-broker-code-review-2026-09-09.json)
 supports the independently approved [static installed-byte TLS review](../../docs/reviews/dashboard-broker-control-flow-tls-2026-09-09.md)
 (PR #29). It is not live broker or handshake proof. The subsequent
