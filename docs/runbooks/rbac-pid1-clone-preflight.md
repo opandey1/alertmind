@@ -1,18 +1,24 @@
 # PID 1 installed-image preflight — disposable clone only
 
-Status: **proposed read-only owner packet; not executed or independently
-reviewed**. The owner confirmed that a disposable clone of `Snapshot 1` is
-available. This packet does not authorize the dormant Python PID 1 observer,
+Status: **Gate 1 owner-executed on 2026-09-28; independently unreviewed**.
+The owner identified `Ubuntu SOC 201 - Current Isolated Clone` as a clone of
+the original VM's **Current State (changed)**, not a clone of historical
+`Snapshot 1`. The owner reports every adapter disabled in the clone's
+VirtualBox settings, the original VM untouched, and no clone update or
+configuration change after cloning. The reported output and limits are in
+[the sanitized evidence record](../../evidence/rbac/pid1-current-clone-preflight-2026-09-28.md).
+This packet does not authorize the dormant Python PID 1 observer,
 the Dashboard guard, a package change, or any command on the original
 `wazuh-siem` VM. It gathers the first native candidate observations needed to
 review an installed `systemd` reference; it is not that reference.
 
 ## Gate 0 — distinguish and isolate the clone
 
-Before booting or using its console, identify the **clone** by its VirtualBox
-VM entry and settings, not by its hostname or IP address (both can be copied
-from the original). In the clone's VirtualBox network settings, disconnect
-**every** virtual adapter from NAT, host-only, bridged and other networks
+Before booting or using its console on any future repetition, identify the
+**clone** by its VirtualBox VM entry and settings, not by its hostname or IP
+address (both can be copied from the original). In the clone's VirtualBox
+network settings, disconnect **every** virtual adapter from NAT, host-only,
+bridged and other networks
 (`Not attached` or cable disconnected). Do not change the original VM's
 settings. Confirm the clone is disposable, its console is open, no AlertMind
 application is running against it, and no update or configuration work is in
@@ -118,9 +124,14 @@ are not atomic against privileged writes. The 32 MiB size check is a
 **pre-hash gate**, not a hard I/O cap if the file changes during `sha256sum`;
 only the separately reviewed native reader can enforce its own read bound.
 
-After reviewing the output, a separate packet must define native compatibility
-testing of the existing dormant observer and independently reviewed
-package/source provenance. A locally clean `dpkg --verify` would compare
+The reported running and disk image observations agree, and the local package
+record names the same path; this remains only a clone-local candidate. The
+owner has not yet confirmed the separate Gate 0 condition that no AlertMind
+app was running against the clone; this must be checked before any further
+clone execution.
+The [next-gate plan](rbac-pid1-clone-provenance-plan.md) separates
+independent package-source comparison from native compatibility testing of
+the existing dormant observer. A locally clean `dpkg --verify` would compare
 against the same local database, not authenticate the installed package. No
 pin may be auto-learned from Gate 1 or copied into admission policy. The
 original VM remains untouched and Phase 1/OIDC acceptance remains open.

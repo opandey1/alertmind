@@ -1295,7 +1295,9 @@ baseline or proof of loaded code, host identity, effective generator paths or
 safe reload. The twenty offline tests mock this collection; native behavior
 and a reviewed VM baseline remain open. No VM operation is released. See
 [the image-inventory contract](../../siem/rbac/broker_tls/UPGRADES.md#pid-1-executable-and-local-dpkg-claim-inventory--evidence-only).
-The owner has confirmed a disposable clone of `Snapshot 1` is available. A
-[separate clone-only preflight](rbac-pid1-clone-preflight.md) proposes the first
-read-only installed-image observation; it has not run and does not approve the
-dormant reader or any original-VM step.
+The owner reports executing the [clone-only preflight](rbac-pid1-clone-preflight.md)
+on a network-isolated **Current-State** clone, not historical `Snapshot 1`.
+The [recorded Gate 1 result](../../evidence/rbac/pid1-current-clone-preflight-2026-09-28.md)
+is a local image/dpkg candidate, not package authentication, an approved pin
+or native-reader acceptance. The [next-gate plan](rbac-pid1-clone-provenance-plan.md)
+holds the dormant reader and all original-VM steps pending separate review.
