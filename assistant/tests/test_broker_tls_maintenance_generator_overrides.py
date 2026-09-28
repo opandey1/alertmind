@@ -302,6 +302,7 @@ class GeneratorOverrideNativeTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             leaf = Path(directory, 'environ')
             leaf.write_bytes(b'PATH=/usr/bin\0')
+            leaf.chmod(0o400)  # Match the observer's non-writable procfs-leaf policy.
             before = len(os.listdir('/proc/self/fd'))
             fd = os.open(directory, os.O_RDONLY | os.O_DIRECTORY)
             try:
