@@ -12,6 +12,8 @@ untouched and the clone isolated; it may remain powered off during this review.
    identity and that no update/configuration change intervened. A new package
    version, executable digest, boot image or connected adapter invalidates
    this candidate and requires a new review, not an automatic pin update.
+   The owner has since confirmed no app is running against the clone now;
+   that does not prove the earlier Gate 1-time state.
 2. **Establish package-source provenance independently of the clone's dpkg
    database.** Use a separately trusted Ubuntu archive signing key and the
    corresponding authenticated Release/InRelease → Packages checksum → exact
@@ -27,7 +29,9 @@ untouched and the clone isolated; it may remain powered off during this review.
    `dpkg-query` or `dpkg --verify` result alone only checks local records and
    cannot do this.
    Do not fetch packages on, alter or update the clone/original VM to complete
-   this step.
+   this step. Codex's [host-side smoke result](../../evidence/rbac/pid1-ubuntu-archive-host-smoke-2026-09-28.md)
+   matches the reported image, but remains a candidate pending independent
+   review of the trust anchor, toolchain and extraction contract.
 3. **Review native observer compatibility separately.** Review the installed
    Ubuntu/Python/procfs assumptions and a trusted, bounded launch packet for
    `operator_maintenance_pid1_image.py` on the isolated clone. The Gate 1
@@ -53,7 +57,7 @@ with SHA-256 `1b2eca56c5cfdbc1aca78591a68f94b7e1c996abd52095587069776b816b9dca`.
 That is a **candidate archive-artifact checksum**, not the extracted PID 1
 binary hash, proof of which pocket installed the clone's package, or a
 substitute for verifying signed metadata. This plan intentionally has no
-executable provenance command:
-the exact archive metadata/key, trusted retrieval location and extraction
-toolchain must be reviewed first. No VM package manager, systemd command,
-credential read, network connection or service change is requested now.
+VM executable provenance command. A separate [host-only, unexecuted archive
+verification packet](rbac-pid1-ubuntu-archive-verification.md) now supplies
+an exact local bundle check for review. No VM package manager, systemd
+command, credential read or service change is requested by that packet.

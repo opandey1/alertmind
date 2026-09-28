@@ -14,7 +14,10 @@ transcribes only that report; Codex did not access either VM.
   configuration changes on the clone after cloning. A disabled-adapter setting
   is an operator report, not a shell-verifiable ongoing isolation guarantee.
 - Whether any AlertMind app was running against the clone was **not reported**.
-  This remains a Gate 0 prerequisite before further clone execution.
+  On the next turn, the owner confirmed no AlertMind app **is** running
+  against the clone. That resolves current app-state uncertainty but does
+  not retroactively prove the state at the Gate 1 instant. Recheck before
+  any further clone execution.
 
 ## Reported Gate 1 result
 
