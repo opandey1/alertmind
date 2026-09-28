@@ -1295,3 +1295,7 @@ baseline or proof of loaded code, host identity, effective generator paths or
 safe reload. The twenty offline tests mock this collection; native behavior
 and a reviewed VM baseline remain open. No VM operation is released. See
 [the image-inventory contract](../../siem/rbac/broker_tls/UPGRADES.md#pid-1-executable-and-local-dpkg-claim-inventory--evidence-only).
+The owner has confirmed a disposable clone of `Snapshot 1` is available. A
+[separate clone-only preflight](rbac-pid1-clone-preflight.md) proposes the first
+read-only installed-image observation; it has not run and does not approve the
+dormant reader or any original-VM step.
