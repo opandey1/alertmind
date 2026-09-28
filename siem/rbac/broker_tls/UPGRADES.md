@@ -122,6 +122,40 @@ Actual environment-generator **selection, output and downstream effects**,
 other manager-wide reload behavior and indirect unit-graph effects still need
 review. This package releases no VM command or deployment.
 
+### PID 1 initial generator-path override check — narrow evidence only
+
+`operator_maintenance_generator_overrides.py` adds a separate dormant,
+no-argument, read-only candidate. It checks only whether the exact names
+`SYSTEMD_GENERATOR_PATH` and `SYSTEMD_ENVIRONMENT_GENERATOR_PATH` occur in
+PID 1's **initial** `/proc/1/environ` data. [systemd's environment contract](https://github.com/systemd/systemd/blob/main/man/systemd.xml)
+allows these names to replace or extend the usual generator search paths.
+The [Linux procfs contract](https://man7.org/linux/man-pages/man5/proc_pid_environ.5.html)
+says this file need not reflect later environment changes and may be redirected
+by the process; an absent name here is therefore **not** proof of its current
+`getenv()` state or effective paths. The existing `Manager.Environment` check
+is a different property and does not close that gap.
+
+The candidate requires root/Linux, a validated procfs mount without a numeric
+PID submount, root-owned non-kernel/non-zombie PID 1, a present executable
+link, a fixed bounded descriptor-relative `/proc/1/environ` read, two equal
+snapshots and one suspend-inclusive 30-second same-caller window. It rejects
+either override name and malformed/oversized/changing data with fixed error
+codes. The environment bytes are necessarily read into the observer process;
+they may contain secrets, are never logged/returned or included in an error,
+and Python memory erasure is **not** guaranteed. Do not paste, export or save
+`/proc/1/environ` to run this check. No caller-selected path, shell, systemd
+request, generator execution or manager mutation is used.
+
+The result exposes only boot ID, PID 1 start tick, elapsed time and explicit
+non-authorizing flags. It does not establish that PID 1 is the installed
+systemd binary, compile-time vendor directories, current manager environment,
+effective generator search paths/selection, host identity, atomicity or
+continuous control. Twenty-four tests include one disposable Linux fixture;
+that fixture is skipped on Windows. This observer is not connected to the
+catalog, guard, executor or planner. It releases **no VM command**; native
+compatibility and a separate installed-binary/path baseline remain to be
+reviewed before any live collection or pre-reload binding.
+
 ## Selected stop-effect checks — not complete manager-effect proof
 
 The separate fixed-property reader queries 33 properties on the existing

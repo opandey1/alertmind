@@ -1276,3 +1276,13 @@ search paths, selected code/dependency effects, provenance, package-lock
 compatibility and review binding remain open before executor composition.
 No live step is released, and no new VM output or A-C3 repetition is requested.
 The VM may remain off. See [the inventory contract](../../siem/rbac/broker_tls/UPGRADES.md#default-path-generator-inventory--evidence-only-not-reload-admission).
+
+**Installed-path override follow-up:** a separate dormant candidate now
+checks the two exact generator-path override names in PID 1's initial procfs
+environment, without returning values or executing systemd. It uses two bounded
+read-only snapshots, but procfs initial environment is not the manager's current
+environment. The read necessarily handles potentially sensitive bytes in memory;
+do not display, export or paste them. Twenty-four tests include one Linux-only
+fixture. The result does not prove installed systemd identity, compiled vendor
+paths, effective selection or a safe reload. No VM operation is released; the
+VM may remain off. See [the override contract](../../siem/rbac/broker_tls/UPGRADES.md#pid-1-initial-generator-path-override-check--narrow-evidence-only).
