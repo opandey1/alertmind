@@ -1286,3 +1286,12 @@ do not display, export or paste them. Twenty-four tests include one Linux-only
 fixture. The result does not prove installed systemd identity, compiled vendor
 paths, effective selection or a safe reload. No VM operation is released; the
 VM may remain off. See [the override contract](../../siem/rbac/broker_tls/UPGRADES.md#pid-1-initial-generator-path-override-check--narrow-evidence-only).
+
+**PID 1 image follow-up:** a separate dormant reader now compares the visible
+PID 1 executable with the fixed `/usr/lib/systemd/systemd` disk candidate and
+parses a local dpkg status/file-list claim in two bounded passes. Its output is
+an observed hash and claimed version, **not** an independently pinned package
+baseline or proof of loaded code, host identity, effective generator paths or
+safe reload. The twenty offline tests mock this collection; native behavior
+and a reviewed VM baseline remain open. No VM operation is released. See
+[the image-inventory contract](../../siem/rbac/broker_tls/UPGRADES.md#pid-1-executable-and-local-dpkg-claim-inventory--evidence-only).
