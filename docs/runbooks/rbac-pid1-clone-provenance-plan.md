@@ -59,10 +59,14 @@ untouched and the clone isolated; it may remain powered off during this review.
    is also complete: both checksums, eight-source non-executing verification,
    root-private metadata and final STOP results were reported, with fresh
    `CLONE-ONLY` confirmation. Preserve the staged copies; do not repeat Block 2.
-   Next prepare/review the separate bounded observation command and its external
-   clone/runtime trust boundary. No root observation command is provided by
-   the staging packet; actual native observation and reference approval remain
-   pending. No further staging-checkpoint VM output is requested.
+   The separate [Gate 2C bounded launch candidate](rbac-pid1-clone-observation.md)
+   now implements source/interpreter pre/post checks, cleared runtime environment,
+   disabled core dumps and nested timeouts. Its offline tests use synthetic
+   tools, not a root observer. Next review that packet and explicitly settle
+   the diagnostic's external clone/runtime trust assumption before execution
+   release. No root observation command is released by the staging packet;
+   actual native observation and reference approval remain pending. No further
+   staging-checkpoint VM output is requested.
 4. **Only then consider an exact reference.** An independent reviewer must
    approve both the authenticated package comparison and native result before
    producing a versioned, retained reference. The pure comparator can check
