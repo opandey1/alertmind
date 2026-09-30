@@ -49,6 +49,12 @@ untouched and the clone isolated; it may remain powered off during this review.
    complete; proceed with designing the trusted launch and actual native
    collector test rather than repeating the probe. Its result is not native
    collector acceptance or a trusted root launch.
+   The [Gate 2B source/launch package](rbac-pid1-clone-source-launch.md) now
+   renders eight exact sources into one externally hash-checked script, with
+   separate non-executing verification and root-only observation modes.
+   Host rendering and clone root-private staging are unexecuted. Accept those
+   outputs and externally review the clone/runtime launch before releasing
+   observation; no root observation command is provided by that packet.
 4. **Only then consider an exact reference.** An independent reviewer must
    approve both the authenticated package comparison and native result before
    producing a versioned, retained reference. The pure comparator can check

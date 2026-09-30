@@ -1,0 +1,180 @@
+"""Standalone, clone-only PID 1 diagnostic candidate, not a maintenance guard.
+
+Trust the OS/interpreter/stdlib and the externally reviewed script bytes BEFORE
+starting Python. Self-checks cannot authenticate already-executed bootstrap code.
+--verify-only never executes bundled code. --observe is a separate root-only
+candidate operation; release requires the isolated clone and operator approval.
+"""
+import base64
+from contextlib import contextmanager
+from dataclasses import asdict, fields
+import hashlib
+import json
+import os
+import re
+import sys
+from types import ModuleType
+
+PACKAGE = '_alertmind_pid1_clone'
+ORDER = (
+    'operator_core', 'operator_fs', 'operator_python_paths', 'operator_service',
+    'operator_maintenance_state', 'operator_maintenance_cgroup',
+    'operator_maintenance_processes', 'operator_maintenance_pid1_image',
+)
+SOURCES = (
+@SOURCES@
+)
+STAGE = '/root/alertmind-pid1-clone-2b'
+ENTRY = STAGE + '/pid1_clone_entry.py'
+CACHE_PREFIX = '/dev/null/alertmind-pid1-clone'
+PYTHON_SHA256 = '52e0a13e60a981d8c4b6478be2ba5176f69da07948a056bf49cf6f077e30cb41'
+# Earlier owner/archive candidate, NOT an approved installed-image reference.
+IMAGE_SHA256 = '3c4b78ddb68e29e23da0465dd273f1ee82f5b9439ebfcec9798b395c05a2c1e3'
+SYSTEMD_VERSION = '259.5-0ubuntu3.4'
+
+
+class Stop(Exception):
+    """Only fixed diagnostic labels reach the console."""
+
+
+def need(condition, code):
+    if not condition:
+        raise Stop(code)
+
+
+def stamp(info):
+    # Reading may advance atime; only content/identity metadata binds this read.
+    return (info.st_dev, info.st_ino, info.st_mode, info.st_uid, info.st_gid,
+            info.st_nlink, info.st_size, info.st_mtime_ns, info.st_ctime_ns)
+
+
+def verified_sources():
+    need(type(SOURCES) is tuple and len(SOURCES) == len(ORDER), 'SOURCE_TABLE')
+    verified = []
+    for row, name in zip(SOURCES, ORDER):
+        need(type(row) is tuple and len(row) == 4 and row[0] == name
+             and type(row[1]) is int and 0 < row[1] <= 65536
+             and type(row[2]) is str and re.fullmatch('[0-9a-f]{64}', row[2])
+             and type(row[3]) is str and len(row[3]) <= 90000, 'SOURCE_TABLE')
+        raw = base64.b64decode(row[3], validate=True)
+        need(len(raw) == row[1] and raw.endswith(b'\n') and b'\r' not in raw
+             and base64.b64encode(raw).decode('ascii') == row[3]
+             and hashlib.sha256(raw).hexdigest() == row[2], 'SOURCE_HASH')
+        verified.append((name, compile(raw, '<held-clone:' + name + '>', 'exec')))
+    return tuple(verified)
+
+
+@contextmanager
+def held_modules(verified):
+    # Private synthetic package with no filesystem import search path. Only the
+    # verified in-memory sources above are executed, in dependency order.
+    need(not any(k == PACKAGE or k.startswith(PACKAGE + '.') for k in sys.modules),
+         'SOURCE_NAMESPACE')
+    created = []
+    try:
+        package = ModuleType(PACKAGE)
+        package.__path__ = []
+        package.__package__ = PACKAGE
+        sys.modules[PACKAGE] = package
+        created.append(PACKAGE)
+        for name, code in verified:
+            key = PACKAGE + '.' + name
+            module = ModuleType(key)
+            module.__package__ = PACKAGE
+            module.__file__ = '<held-clone:' + name + '>'
+            sys.modules[key] = module
+            created.append(key)
+            setattr(package, name, module)
+            exec(code, module.__dict__)
+        yield package
+    finally:
+        for key in reversed(created):
+            sys.modules.pop(key, None)
+
+
+def launch_policy():
+    need(sys.platform == 'linux' and os.geteuid() == 0 and os.getegid() == 0
+         and os.uname().machine == 'x86_64' and sys.version_info[:3] == (3, 14, 4),
+         'RUNTIME_PLATFORM')
+    import resource  # Linux-only; verification mode remains host-portable.
+    need(sys.argv == [ENTRY, '--observe'] and sys.executable == '/usr/bin/python3.14'
+         and os.readlink('/proc/self/exe') == '/usr/bin/python3.14'
+         and all(getattr(sys.flags, key) == 1 for key in
+                 ('isolated', 'ignore_environment', 'no_site', 'dont_write_bytecode'))
+         and sys.pycache_prefix == CACHE_PREFIX
+         and sys.path == ['/usr/lib/python314.zip', '/usr/lib/python3.14',
+                          '/usr/lib/python3.14/lib-dynload']
+         and os.getcwd() == '/', 'RUNTIME_LAUNCH')
+    need(dict(os.environ) == {'HOME': '/nonexistent', 'LC_ALL': 'C',
+                              'PATH': '/usr/bin:/bin'}, 'RUNTIME_ENVIRONMENT')
+    need(resource.getrlimit(resource.RLIMIT_CORE) == (0, 0), 'RUNTIME_CORES')
+    fd = os.open('/usr/bin/python3.14', os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
+    try:
+        before = os.fstat(fd)
+        need(before.st_uid == 0 and before.st_gid == 0
+             and before.st_size == 7477160 and before.st_nlink == 1
+             and before.st_mode == 0o100755, 'RUNTIME_METADATA')
+        digest = hashlib.sha256()
+        remaining = before.st_size
+        while remaining:
+            part = os.read(fd, min(65536, remaining))
+            need(bool(part), 'RUNTIME_CHANGED')
+            digest.update(part)
+            remaining -= len(part)
+        after = os.fstat(fd)
+        need(not os.read(fd, 1) and stamp(before) == stamp(after) == stamp(
+                 os.stat('/usr/bin/python3.14', follow_symlinks=False))
+             and digest.hexdigest() == PYTHON_SHA256, 'RUNTIME_DIGEST')
+    finally:
+        os.close(fd)
+
+
+def observation_summary(package):
+    image = package.operator_maintenance_pid1_image
+    try:
+        value = image.observe_pid1_image_inventory()
+    except package.operator_core.OperatorError as error:
+        code = str(error)
+        need(re.fullmatch(r'(?:PID1_|CENSUS_|CGROUP_|FS_)[A-Z0-9_]{1,64}', code),
+             'OBSERVER_DIAGNOSTIC')
+        raise Stop(code) from None
+    need(type(value) is image.Pid1ImageInventory and value.passes == 2
+         and value.running_and_disk_bytes_matched is True
+         and value.local_dpkg_status_and_list_claim_matched is True
+         and value.review_required is True, 'OBSERVER_RESULT')
+    data = asdict(value)
+    for item in fields(value):
+        if item.name.endswith(('_proven', '_verified', '_authorized')):
+            need(data[item.name] is False, 'OBSERVER_AUTHORITY')
+    need(value.executable_sha256 == IMAGE_SHA256
+         and value.dpkg_claimed_version == SYSTEMD_VERSION, 'CANDIDATE_DRIFT')
+    return {'scope': 'isolated-clone native diagnostic; not maintenance admission',
+            'source_count': len(ORDER), 'candidate_fields_match': True,
+            'runtime_authenticity_proven': False, 'reference_approved': False,
+            'inventory': data}
+
+
+def main():
+    try:
+        need(len(sys.argv) == 2 and sys.argv[1] in ('--verify-only', '--observe'), 'MODE')
+        verified = verified_sources()
+        if sys.argv[1] == '--verify-only':
+            print('PASS held source hashes and syntax: 8 modules; none executed')
+            print('PASS verification mode complete; observer was not executed')
+            return 0
+        launch_policy()
+        with held_modules(verified) as package:
+            result = observation_summary(package)
+        print(json.dumps(result, sort_keys=True))
+        print('STOP POINT: native diagnostic only; no reference or maintenance approval')
+        return 0
+    except Stop as error:
+        print('STOP: ' + str(error))
+    except Exception:
+        # Never serialize an OS error, traceback, process record or source data.
+        print('STOP: CLONE_DIAGNOSTIC_FAILED')
+    return 1
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())

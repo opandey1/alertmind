@@ -1308,3 +1308,7 @@ isolation, unchanged state and no app use reconfirmed. It does not import the
 collector, establish trusted Python/source startup or authorize its root
 execution. The next task is the separately reviewed launch and actual native
 observer test; no further Gate 2A output is requested.
+The [Gate 2B package](rbac-pid1-clone-source-launch.md) supplies the offline
+renderer, held-source entry and unexecuted clone-only staging checks. Its
+root observation mode remains on hold pending staging and external runtime
+review; it is not the production guard's trusted runtime launch.
