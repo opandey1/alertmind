@@ -44,6 +44,13 @@ outer timeout starts after sudo authentication; the observer has a separate
 40-second timeout/2-second kill grace and a 30-second BOOTTIME collection window.
 Fixed hash reads have 5-second timeouts. These are process timeouts, not a
 guarantee across host sleep, kernel failure or a hostile privileged actor.
+Only the outer timeout creates a process group. Nested hash/observer timeouts
+use `--foreground` to stay in that group rather than escaping the outer
+monitor's group signal. This follows the [GNU timeout implementation](https://github.com/coreutils/coreutils/blob/master/src/timeout.c):
+foreground mode omits the separate group and signals its direct child.
+The fixed observer does not spawn children; this is not a containment promise
+for arbitrary code that changes groups or sessions. The upstream source is
+semantic guidance, not authentication of the clone's installed tool.
 
 ```bash
 (
@@ -86,8 +93,8 @@ check_files() {
     [ "$(/usr/bin/stat -c '%F:%u:%g:%a:%h:%s' -- "$python")" = 'regular file:0:0:755:1:7477160' ] || fail CLONE_PYTHON_METADATA
 }
 check_hashes() {
-    [ "$(/usr/bin/timeout --signal=TERM --kill-after=2s 5s /usr/bin/sha256sum -- "$entry")" = "$source_sha  $entry" ] || fail CLONE_SOURCE_DIGEST
-    [ "$(/usr/bin/timeout --signal=TERM --kill-after=2s 5s /usr/bin/sha256sum -- "$python")" = "$python_sha  $python" ] || fail CLONE_PYTHON_DIGEST
+    [ "$(/usr/bin/timeout --foreground --signal=TERM --kill-after=2s 5s /usr/bin/sha256sum -- "$entry")" = "$source_sha  $entry" ] || fail CLONE_SOURCE_DIGEST
+    [ "$(/usr/bin/timeout --foreground --signal=TERM --kill-after=2s 5s /usr/bin/sha256sum -- "$python")" = "$python_sha  $python" ] || fail CLONE_PYTHON_DIGEST
 }
 check_files
 source_stamp=$(/usr/bin/stat -c '%d:%i:%f:%u:%g:%h:%s:%y:%z' -- "$entry")
@@ -98,7 +105,7 @@ check_hashes
 printf '%s\n' 'PASS pre-launch staged source and candidate interpreter: exact metadata, digests and stable identity'
 # Clear again: Bash exports PWD/SHLVL; the entry requires exactly these three keys.
 if /usr/bin/env -i HOME=/nonexistent LC_ALL=C PATH=/usr/bin:/bin \
-    /usr/bin/timeout --signal=TERM --kill-after=2s 40s \
+    /usr/bin/timeout --foreground --signal=TERM --kill-after=2s 40s \
     /usr/bin/python3.14 -I -S -B -X pycache_prefix=/dev/null/alertmind-pid1-clone \
     "$entry" --observe
 then

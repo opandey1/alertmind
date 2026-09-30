@@ -3,7 +3,9 @@ import hashlib
 import os
 from pathlib import Path
 import re
+import shlex
 import shutil
+import signal
 import subprocess
 import sys
 import unittest
@@ -79,6 +81,8 @@ fake_env() {
     "$@"
 }
 fake_timeout() {
+    [ "$1" = --foreground ] || return 95
+    shift
     [ "$1" = --signal=TERM ] && [ "$2" = --kill-after=2s ] || return 95
     local duration="$3"
     shift 3
@@ -173,6 +177,8 @@ class CloneBoundedLaunchTests(unittest.TestCase):
         self.assertIn('60s \\\n    /bin/bash --noprofile --norc -s', shell)
         self.assertIn('40s \\\n    /usr/bin/python3.14 -I -S -B -X pycache_prefix=/dev/null/alertmind-pid1-clone', inner)
         self.assertEqual(inner.count('5s /usr/bin/sha256sum'), 2)
+        self.assertEqual(inner.count('/usr/bin/timeout --foreground '), 3)
+        self.assertIn('/usr/bin/timeout --signal=TERM --kill-after=2s 60s', shell)
         self.assertEqual(inner.count('"$entry" --observe'), 1)
         self.assertIn('124|137) fail CLONE_OBSERVATION_TIMEOUT', inner)
         self.assertIn('124|137) printf', shell)
@@ -257,6 +263,50 @@ class CloneBoundedLaunchTests(unittest.TestCase):
                 self.assertIn('STOP:', result.stdout)
                 self.assertNotIn('TEST_OBSERVER_CALLED', result.stdout)
                 self.assertNotIn('sudo', result.stderr)
+
+    @unittest.skipUnless(sys.platform == 'linux', 'Linux-only unprivileged process-group check')
+    def test_native_unprivileged_nested_timeout_group_and_cancellation(self):
+        if os.geteuid() == 0:
+            self.skipTest('Do not run the disposable process test as root')
+        timeout = Path('/usr/bin/timeout')
+        if not timeout.is_file() or not Path('/bin/bash').is_file():
+            self.skipTest('GNU timeout or Bash unavailable')
+        help_result = subprocess.run([str(timeout), '--help'], capture_output=True,
+                                     text=True, check=False, timeout=5)
+        if '--foreground' not in help_result.stdout or 'GNU coreutils' not in help_result.stdout:
+            self.skipTest('GNU foreground-timeout contract unavailable')
+
+        def run_owned_group(body, duration):
+            # Only this newly created session/group can be killed on test failure.
+            process = subprocess.Popen(
+                [str(timeout), '--signal=TERM', '--kill-after=0.2s', duration,
+                 '/bin/bash', '--noprofile', '--norc', '-c', body],
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                env={'PATH': '/usr/bin:/bin', 'LC_ALL': 'C'}, start_new_session=True)
+            try:
+                stdout, stderr = process.communicate(timeout=6)
+                return process.pid, process.returncode, stdout, stderr
+            except subprocess.TimeoutExpired:
+                try:
+                    os.killpg(process.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+                process.communicate(timeout=3)
+                raise
+
+        probe = shlex.join([sys.executable, '-I', '-S', '-B', '-c',
+                            'import os; print(os.getpgrp())'])
+        pid, status, stdout, stderr = run_owned_group(
+            '/usr/bin/timeout --foreground --signal=TERM --kill-after=0.2s 3s ' + probe, '5s')
+        self.assertEqual(status, 0, stderr)
+        self.assertEqual(stdout.strip(), str(pid))
+        leaf = shlex.join([sys.executable, '-I', '-S', '-B', '-c',
+                           'import time; time.sleep(10)'])
+        _, status, stdout, _ = run_owned_group(
+            'set -e; /usr/bin/timeout --foreground --signal=TERM --kill-after=0.2s 10s '
+            + leaf + '; printf SHOULD_NOT_PASS', '0.5s')
+        self.assertIn(status, (124, 137))
+        self.assertNotIn('SHOULD_NOT_PASS', stdout)
 
 
 if __name__ == '__main__':
