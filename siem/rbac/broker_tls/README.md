@@ -1,5 +1,12 @@
 # Dashboard broker TLS — offline candidate, not deployed
 
+**1 October 2026 release scope:** the [finite Phase 1 checklist](../../../docs/rbac-phase1-exit-checklist.md)
+selects this shared-client candidate plus a new compact, separately reviewed
+deploy/start/recovery package under trusted lab administration. The expanded
+operator/OS-attestation framework is preserved experimental work, not a release
+prerequisite. Its guard/controller remain blocked; no existing test, runtime
+check, evidence or review obligation is removed, and nothing is deployed here.
+
 This is Choice 1 of the [approved design](../../../docs/hardening/broker-tls/hardening.md).
 The existing shared client disables TLS peer verification for both internal
 and scoped authentication/requests. This package builds a candidate and tests

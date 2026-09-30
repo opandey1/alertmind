@@ -1,5 +1,11 @@
 # Server/Dashboard read-only implementation gate
 
+**Active work order, 1 October 2026:** use the [finite Phase 1 exit checklist](../rbac-phase1-exit-checklist.md).
+The next author task is the compact broker TLS deployment/startup/recovery
+package, followed by a clone rehearsal and separately approved live acceptance.
+Expanded OS/runtime attestation is deferred; the actual-context, permission,
+safe-denial and broader-Server-scope requirements in this runbook remain.
+
 **Status:** Local configuration and corrected Server-admin inventory completed
 from owner-reported output. Broker TLS remediation remains offline and has not
 been deployed or accepted on the actual Dashboard path. The offline
@@ -271,11 +277,14 @@ identity/context, exact requests/status/error classification, positive controls,
 denials, broader Server-read disclosure, failures and rollback results. Unrun
 rows remain NOT TESTED. Do not add a "proof" file before execution.
 
-**Next owner action:** obtain independent review of the new broker-code package;
-then run only its newly pinned, local-only staging/inventory packet. Do not replay
-the completed configuration/Server inventory or enter broker credentials.
-**Next author action:** review installed code and resolve the broker TLS decision
-before producing the actual context/broker proof and exact mutation/denial
-package; do not improvise live permissions.
+**Next owner action:** no VM output is requested for the scope decision. Obtain
+focused independent review and separate execution approval for the forthcoming
+compact package. Do not replay completed inventory, PID 1 diagnostics or drills.
+Before human activation, explicitly accept or decline the built-in Server
+`readonly` role's broader read scope; it is not constrained by Indexer DLS.
+**Next author action:** implement checklist Batch A using the existing reviewed
+TLS candidate, not the unreleased experimental guard/controller. After rehearsal
+and actual broker TLS acceptance, produce the exact context/mapping and safe
+denial package. Do not improvise live permissions.
 Then, after this gate passes, implement OIDC/named permissions, the constrained
 Indexer reader, guarded live-alert triage and transactional sanitized auditing.

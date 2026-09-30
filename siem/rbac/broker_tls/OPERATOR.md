@@ -1,5 +1,13 @@
 # Operator safety core — offline, not an installer
 
+**1 October 2026 scope notice:** this document describes the preserved
+experimental full operator framework. It is not the selected Phase 1 deployment
+path. The [finite local-first exit checklist](../../../docs/rbac-phase1-exit-checklist.md)
+requires a separate compact package; it does not release this framework or make
+its always-refusing guard successful. The requirements below still bind any
+future deployment of this experimental framework. Earlier review debt remains
+open; this notice supplies no live permission or acceptance result.
+
 This is an incremental implementation of the approved design's operator
 package. `operator_core.py` implements byte-integrity checks for a future
 pre-start guard and conservative rollback decisions. It has no command-line

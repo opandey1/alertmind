@@ -1,5 +1,13 @@
 # Maintenance lifecycle and upgrade planning — offline only
 
+**1 October 2026 scope notice:** this experimental general maintenance framework
+is deferred outside the selected Phase 1 release path. Follow the [finite
+local-first checklist](../../../docs/rbac-phase1-exit-checklist.md) for the new
+compact deployment package and controlled supported-package updates. Keep this
+code, tests and evidence; all unreleased entry points stay blocked and independent
+review debt stays open. The requirements below apply if this full framework is
+resumed, not as extra gates for the selected local-first path.
+
 `operator_maintenance.py` is a pure planner, not a collector, installer,
 package manager or startup guard. It performs no I/O, accepts no journal
 position, emits no commands and never authorizes mutation or startup. Inputs
