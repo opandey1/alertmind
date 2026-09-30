@@ -121,6 +121,17 @@ are refused rather than assumed safe. Twenty-six synthetic tests include all
 256 priority combinations in each class. No collection, installed-equivalence
 claim, held-source change, controller binding or VM release is added.
 
+The [host runtime-artifact candidate](../../../docs/runbooks/rbac-systemd-runtime-archive.md)
+now authenticates two exact package artifacts through the same signed Ubuntu
+index and matches the manager candidate before inspecting manager/core/shared
+ELF metadata. The [retained host report](../../../evidence/rbac/systemd-runtime-archive-host-smoke-2026-09-30.md)
+records the private-library hashes, declared loader dependencies/search strings
+and fixed path/override suffix counts. These are not loaded-library identity,
+effective path semantics, complete dependency closure or an approved pin.
+Thirty-four additional offline tests cover this host-only candidate; no image
+executes, held source changes or maintenance/controller binding is added.
+Independent archive/native-result and implementation review remains deferred.
+
 **Next:** establish installed path-construction/current-path-source equivalence,
 then bind an independently reviewed installed search-path/selection and
 content baseline, resolve any relevant generator links and review selected
