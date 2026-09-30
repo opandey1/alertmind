@@ -1,7 +1,8 @@
 # PID 1 clone follow-up — provenance and native compatibility plan
 
 Status: **package-provenance candidate recorded; owner-reported Gate 2A and
-Gate 2B staging completed; root observer launch remains pending**.
+Gate 2B staging completed; one clone-only diagnostic released by the owner;
+native result and independent approval remain pending**.
 The owner-reported [Gate 1 result](../../evidence/rbac/pid1-current-clone-preflight-2026-09-28.md)
 is a candidate for Ubuntu 26.04 / `systemd` 259.5-0ubuntu3.4 on an isolated
 Current-State clone. It is not a trusted baseline. Keep the original VM
@@ -62,10 +63,14 @@ untouched and the clone isolated; it may remain powered off during this review.
    The separate [Gate 2C bounded launch candidate](rbac-pid1-clone-observation.md)
    now implements source/interpreter pre/post checks, cleared runtime environment,
    disabled core dumps and nested timeouts. Its offline tests use synthetic
-   tools, not a root observer. Next review that packet and explicitly settle
-   the diagnostic's external clone/runtime trust assumption before execution
-   release. No root observation command is released by the staging packet;
-   actual native observation and reference approval remain pending. No further
+   tools plus a Linux-only unprivileged timeout check, not a root observer.
+   On 2026-09-30 the owner separately approved one read-only run of the exact
+   merged Gate 2C packet and confirmed its isolation/no-change conditions and
+   external diagnostic runtime trust. Execute only that bounded packet once,
+   then return its complete sanitized output for review. This limited release
+   is not independent review or a native result. No root observation command
+   is released by the staging packet itself; actual native observation and
+   reference approval remain pending. No further
    staging-checkpoint VM output is requested.
 4. **Only then consider an exact reference.** An independent reviewer must
    approve both the authenticated package comparison and native result before

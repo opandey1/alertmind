@@ -12,8 +12,10 @@ Block 1 or Block 2, or overwrite their existing artifacts/stages.
 This package prepares the actual
 image observer without importing a writable checkout as root.
 **No root observation command is released**
-by this packet. Staging is accepted as owner-reported success; runtime trust
-and the separate bounded observation command remain an explicit release decision.
+by this staging packet. Staging is accepted as owner-reported success. The owner
+separately released one read-only [Gate 2C diagnostic](rbac-pid1-clone-observation.md)
+on 2026-09-30 and accepted its external runtime trust assumptions for that
+disposable clone only. Native results and independent review remain pending.
 
 The renderer bundles eight exact LF source files in dependency order inside
 one standalone script. Its private empty-path package loads verified bytes,
@@ -185,12 +187,12 @@ standard-library bootstrap but **not** any bundled project source. `sudo`
 above performs file metadata/copy/hash operations, not Python execution.
 Do not treat staging as clone-native observer acceptance.
 
-## Implemented launch policy — held pending runtime/launch acceptance
+## Implemented launch policy — separate limited Gate 2C release
 
 The separate [Gate 2C bounded launch candidate](rbac-pid1-clone-observation.md)
 now implements the shell-side pre/post checks and timeout/environment contract.
-It is offline and unexecuted; it still requires an explicit diagnostic release
-and external clone/runtime trust acknowledgement. Do not run its root command
+It is unexecuted; the owner's separate single-run diagnostic release and
+external clone/runtime trust acknowledgement are recorded there. Do not run its root command
 merely because staging passed or a branch was merged.
 
 The standalone script implements an explicit `--observe` mode, never an
