@@ -1,7 +1,7 @@
 # PID 1 clone follow-up — provenance and native compatibility plan
 
-Status: **package-provenance candidate recorded; unprivileged clone Gate 2A
-prepared; no root observer or original-VM action released**.
+Status: **package-provenance candidate recorded; owner-reported Gate 2A
+completed; root observer launch remains pending**.
 The owner-reported [Gate 1 result](../../evidence/rbac/pid1-current-clone-preflight-2026-09-28.md)
 is a candidate for Ubuntu 26.04 / `systemd` 259.5-0ubuntu3.4 on an isolated
 Current-State clone. It is not a trusted baseline. Keep the original VM
@@ -13,8 +13,10 @@ untouched and the clone isolated; it may remain powered off during this review.
    identity and that no update/configuration change intervened. A new package
    version, executable digest, boot image or connected adapter invalidates
    this candidate and requires a new review, not an automatic pin update.
-   The owner has since confirmed no app is running against the clone now;
-   that does not prove the earlier Gate 1-time state.
+   For the Gate 2A result received 2026-09-30, the owner reconfirmed clone identity,
+   disconnected adapters, unchanged state and no app use. That completes
+   the reported prerequisites for this run; earlier Gate 1-time app state
+   remains unknown.
 2. **Establish package-source provenance independently of the clone's dpkg
    database.** Use a separately trusted Ubuntu archive signing key and the
    corresponding authenticated Release/InRelease → Packages checksum → exact
@@ -41,9 +43,12 @@ untouched and the clone isolated; it may remain powered off during this review.
    failures stopping rather than falling back to a different path. Do not
    import project code as root from an unverified writable checkout. A
    [Gate 2A unprivileged diagnostic](rbac-pid1-clone-native-compatibility.md)
-   now checks selected interpreter/procfs/dpkg input shapes without running
-   project code. Its PASS is not native collector acceptance or a trusted
-   root launch; the latter still needs separate design and review.
+   checks selected interpreter/procfs/dpkg input shapes without running
+   project code. The [owner-reported result](../../evidence/rbac/pid1-clone-native-probe-2026-09-30.md)
+   includes all expected PASS lines and the final STOP POINT. Gate 2A is
+   complete; proceed with designing the trusted launch and actual native
+   collector test rather than repeating the probe. Its result is not native
+   collector acceptance or a trusted root launch.
 4. **Only then consider an exact reference.** An independent reviewer must
    approve both the authenticated package comparison and native result before
    producing a versioned, retained reference. The pure comparator can check
