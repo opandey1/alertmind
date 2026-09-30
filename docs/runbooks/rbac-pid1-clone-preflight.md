@@ -126,9 +126,11 @@ only the separately reviewed native reader can enforce its own read bound.
 
 The reported running and disk image observations agree, and the local package
 record names the same path; this remains only a clone-local candidate. The
-owner has not yet confirmed the separate Gate 0 condition that no AlertMind
-app was running against the clone; this must be checked before any further
-clone execution.
+owner subsequently confirmed no AlertMind app uses the clone and reconfirmed
+that prerequisite, clone identity, disconnected adapters and unchanged state
+before the [completed Gate 2A diagnostic](../../evidence/rbac/pid1-clone-native-probe-2026-09-30.md).
+This later confirmation does not establish the app state at the earlier
+Gate 1 instant.
 The [next-gate plan](rbac-pid1-clone-provenance-plan.md) separates
 independent package-source comparison from native compatibility testing of
 the existing dormant observer. A locally clean `dpkg --verify` would compare

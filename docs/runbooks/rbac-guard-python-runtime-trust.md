@@ -1302,5 +1302,9 @@ is a local image/dpkg candidate, not package authentication, an approved pin
 or native-reader acceptance. The [next-gate plan](rbac-pid1-clone-provenance-plan.md)
 holds the dormant reader and all original-VM steps pending separate review.
 The [unprivileged clone-native diagnostic](rbac-pid1-clone-native-compatibility.md)
-is prepared but has no owner result. It does not import the collector, establish
-trusted Python/source startup or authorize its root execution.
+has a [completed owner-reported Gate 2A result](../../evidence/rbac/pid1-clone-native-probe-2026-09-30.md):
+all expected PASS lines and the final STOP POINT, with clone identity,
+isolation, unchanged state and no app use reconfirmed. It does not import the
+collector, establish trusted Python/source startup or authorize its root
+execution. The next task is the separately reviewed launch and actual native
+observer test; no further Gate 2A output is requested.

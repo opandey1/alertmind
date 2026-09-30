@@ -1,6 +1,11 @@
 # PID 1 clone-native compatibility — unprivileged diagnostic
 
-Status: **candidate Gate 2A; not native observer acceptance or startup approval**.
+Status: **Gate 2A owner result received 2026-09-30; independent review pending**.
+The owner reconfirmed clone identity, disconnected adapters, unchanged state
+and no AlertMind app use, then returned all four expected PASS lines and the
+final STOP POINT. The [retained result](../../evidence/rbac/pid1-clone-native-probe-2026-09-30.md)
+records this completed checkpoint. Preserve the packet below; do not rerun
+Gate 2A for this accepted observation.
 The owner-reported [Gate 1](../../evidence/rbac/pid1-current-clone-preflight-2026-09-28.md)
 and the [host-side Ubuntu archive comparison](../../evidence/rbac/pid1-ubuntu-archive-host-smoke-2026-09-28.md)
 agree on the executable bytes. Neither establishes trusted Python execution on
@@ -8,7 +13,8 @@ the clone. This gate checks selected Linux/procfs/Python and local dpkg input
 shapes **without importing or executing AlertMind project code**. It does not
 run `operator_maintenance_pid1_image.py`.
 
-Before running this block, identify `Ubuntu SOC 201 - Current Isolated Clone`
+For any separately requested future repetition, first identify
+`Ubuntu SOC 201 - Current Isolated Clone`
 in VirtualBox by its **VM entry and settings**, not its copied guest hostname.
 Confirm every clone network adapter is disconnected, no AlertMind app is
 using it, no clone updates or configuration changes occurred after Gate 1,
