@@ -1,7 +1,7 @@
 # PID 1 clone follow-up — provenance and native compatibility plan
 
-Status: **package-provenance candidate recorded; owner-reported Gate 2A
-completed; root observer launch remains pending**.
+Status: **package-provenance candidate recorded; owner-reported Gate 2A and
+Gate 2B staging completed; root observer launch remains pending**.
 The owner-reported [Gate 1 result](../../evidence/rbac/pid1-current-clone-preflight-2026-09-28.md)
 is a candidate for Ubuntu 26.04 / `systemd` 259.5-0ubuntu3.4 on an isolated
 Current-State clone. It is not a trusted baseline. Keep the original VM
@@ -55,10 +55,14 @@ untouched and the clone isolated; it may remain powered off during this review.
    The [host Block 1 checkpoint](../../evidence/rbac/pid1-clone-host-packet-2026-09-30.md)
    is complete: 121691 bytes, eight sources and the expected external checksum.
    Do not rerun the exclusive-creation builder over its existing output.
-   Clone root-private staging remains unexecuted; Block 2 is the next
-   staging-only checkpoint under fresh clone prerequisites. Accept its output
-   and externally review the clone/runtime launch before releasing observation;
-   no root observation command is provided by that packet.
+   The [clone Block 2 checkpoint](../../evidence/rbac/pid1-clone-source-stage-2026-09-30.md)
+   is also complete: both checksums, eight-source non-executing verification,
+   root-private metadata and final STOP results were reported, with fresh
+   `CLONE-ONLY` confirmation. Preserve the staged copies; do not repeat Block 2.
+   Next prepare/review the separate bounded observation command and its external
+   clone/runtime trust boundary. No root observation command is provided by
+   the staging packet; actual native observation and reference approval remain
+   pending. No further staging-checkpoint VM output is requested.
 4. **Only then consider an exact reference.** An independent reviewer must
    approve both the authenticated package comparison and native result before
    producing a versioned, retained reference. The pure comparator can check
