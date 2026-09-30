@@ -1301,3 +1301,6 @@ The [recorded Gate 1 result](../../evidence/rbac/pid1-current-clone-preflight-20
 is a local image/dpkg candidate, not package authentication, an approved pin
 or native-reader acceptance. The [next-gate plan](rbac-pid1-clone-provenance-plan.md)
 holds the dormant reader and all original-VM steps pending separate review.
+The [unprivileged clone-native diagnostic](rbac-pid1-clone-native-compatibility.md)
+is prepared but has no owner result. It does not import the collector, establish
+trusted Python/source startup or authorize its root execution.
