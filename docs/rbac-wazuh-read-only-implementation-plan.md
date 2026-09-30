@@ -12,13 +12,20 @@ remain unimplemented.
 
 **Date:** 1 September 2026
 
-**Last updated:** 7 September 2026
+**Last updated:** 1 October 2026 (local-first release scope)
 
 **Applies to:** current `assistant/` package; submitted-v1 Wazuh 4.14.5
 baseline; current live `wazuh-indexer` 4.14.7-1 / OpenSearch 2.19.5;
 Streamlit `>=1.59` user specification and Streamlit 1.62.0 CI lock
 
 **Roadmap item:** Post-v1 local-first access control and live alert ingestion
+
+**Active Phase 1 exit scope:** the [finite local-first checklist](rbac-phase1-exit-checklist.md)
+has one completed foundation and six pending acceptance outcomes. It preserves
+TLS, backend RBAC, scoped transport and recoverability while deferring the
+expanded OS/runtime-attestation framework. Existing experimental guards remain
+blocked and review debt remains open. No live operation is released by this
+planning update; OIDC and application integration are still unimplemented.
 
 ---
 
@@ -721,6 +728,12 @@ Phase 0 is closed. The approved commit is merged to `main` at `de4b6a5`.
 
 ### Phase 1 — Wazuh RBAC and transport
 
+**1 October work-order decision:** follow the [finite exit checklist](rbac-phase1-exit-checklist.md)
+for the remaining broker TLS, human-access and acceptance work. Its compact
+deployment path replaces completion of the expanded experimental maintenance
+framework as a release prerequisite. Preserve the completed checkpoints below;
+do not repeat their drills. The detailed human-access criteria remain binding.
+
 1. **Done and approved:** add the secret-free scope contract, exact Indexer
    role payloads, direct-user mappings and pre-registered denial matrix. Seven
    offline contract tests brought the suite from 86 to 93 tests.
@@ -810,8 +823,10 @@ possible from the UI or client.
 ### Phase 5 — proof, rollback drill and publication
 
 1. Run the complete automated and live verification matrices.
-2. Disable the feature, rotate/revoke the service credential and restore it to
-   demonstrate rollback.
+2. Demonstrate rollback of the new application profile and permission/session
+   lifecycle, then secure restoration. Reuse the accepted Phase 1 transport/
+   credential drill; repeat a credential/key leg only for a concrete changed
+   property, with scoped review and owner approval.
 3. Produce a sanitized proof artifact with hashes and screenshots.
 4. Update README, assistant README/changelog, architecture source/render,
    report, presentation and evaluator questionnaire from **planned** to
@@ -826,8 +841,10 @@ possible from the UI or client.
 
 The Phase 1C drill in Phase 1 is an early transport/service-identity acceptance
 gate. It deliberately leaves `socanalyst` unchanged and cannot test a profile
-that does not yet exist. Phase 5 repeats the complete rollback after OIDC,
-Dashboard/Server RBAC, the constrained reader and live UI exist.
+that does not yet exist. Phase 5 demonstrates full-feature rollback after OIDC,
+Dashboard/Server RBAC, the constrained reader and live UI exist. Under the
+1 October finite scope it reuses accepted transport/credential evidence rather
+than automatically replaying those completed drills.
 
 ---
 
