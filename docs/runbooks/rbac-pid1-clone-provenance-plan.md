@@ -52,9 +52,13 @@ untouched and the clone isolated; it may remain powered off during this review.
    The [Gate 2B source/launch package](rbac-pid1-clone-source-launch.md) now
    renders eight exact sources into one externally hash-checked script, with
    separate non-executing verification and root-only observation modes.
-   Host rendering and clone root-private staging are unexecuted. Accept those
-   outputs and externally review the clone/runtime launch before releasing
-   observation; no root observation command is provided by that packet.
+   The [host Block 1 checkpoint](../../evidence/rbac/pid1-clone-host-packet-2026-09-30.md)
+   is complete: 121691 bytes, eight sources and the expected external checksum.
+   Do not rerun the exclusive-creation builder over its existing output.
+   Clone root-private staging remains unexecuted; Block 2 is the next
+   staging-only checkpoint under fresh clone prerequisites. Accept its output
+   and externally review the clone/runtime launch before releasing observation;
+   no root observation command is provided by that packet.
 4. **Only then consider an exact reference.** An independent reviewer must
    approve both the authenticated package comparison and native result before
    producing a versioned, retained reference. The pure comparator can check

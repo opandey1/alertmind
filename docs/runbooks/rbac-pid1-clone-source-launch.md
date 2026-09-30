@@ -1,9 +1,13 @@
 # PID 1 clone Gate 2B — verified source staging and launch candidate
 
-Status: **offline implementation; staging packet unexecuted; independent review pending**.
+Status: **host Block 1 completed; clone Block 2 staging unexecuted;
+independent review pending**.
 Gate 2A [is complete](../../evidence/rbac/pid1-clone-native-probe-2026-09-30.md).
-Do not repeat it. This package prepares the actual image observer without
-importing a writable checkout as root. **No root observation command is released**
+The [Block 1 checkpoint](../../evidence/rbac/pid1-clone-host-packet-2026-09-30.md)
+matches the rendered artifact's size, checksum and eight-source count.
+Do not repeat either completed checkpoint. This package prepares the actual
+image observer without importing a writable checkout as root.
+**No root observation command is released**
 by this packet. Staging results must be accepted first; runtime trust and the
 separate bounded observation command remain an explicit release decision.
 
@@ -63,6 +67,48 @@ changes this external checksum and must stop rather than update the expected
 value automatically. Existing host output is preserved on failure; do not
 overwrite it or reuse an uncertain clipboard value.
 
+### Restore the public transfer clipboard after copying Block 2
+
+For the accepted Block 1 artifact, do not run its exclusive-creation builder
+again. Copy and run the entire Block 2 Bash subshell on the clone first. After
+confirming its prerequisites, leave it waiting at the **public Base64 prompt**.
+Then run the following snippet on the Windows host and paste the resulting
+clipboard into that prompt. This avoids copying the Bash block over the
+Base64 immediately before transfer. Only public checked source bytes enter
+the clipboard; do not paste them into chat.
+
+```powershell
+& {
+    $ErrorActionPreference = 'Stop'
+    $Output = Join-Path $env:TEMP 'alertmind-pid1-clone-2b-20260930.py'
+    $Expected = '5b15151c91c3f6a2eb0e473489df1d70485cbe7c03cb1d8ffa22b7dc21c98106'
+    if (-not (Test-Path -LiteralPath $Output -PathType Leaf)) {
+        throw 'STOP: accepted public host artifact is absent'
+    }
+    if ((Get-Item -LiteralPath $Output).Length -ne 121691) {
+        throw 'STOP: accepted public host artifact has changed size'
+    }
+    $Bytes = [IO.File]::ReadAllBytes($Output)
+    $Hasher = [Security.Cryptography.SHA256]::Create()
+    try {
+        $Observed = ([BitConverter]::ToString($Hasher.ComputeHash($Bytes))).Replace('-', '').ToLowerInvariant()
+    } finally {
+        $Hasher.Dispose()
+    }
+    if ($Bytes.Length -ne 121691 -or $Observed -ne $Expected) {
+        throw 'STOP: accepted public host artifact differs from the reviewed candidate'
+    }
+    $Encoded = [Convert]::ToBase64String($Bytes)
+    $Wrapped = (@([regex]::Matches($Encoded, '.{1,76}') | ForEach-Object { $_.Value }) -join "`n")
+    Set-Clipboard -Value ($Wrapped + "`nALERTMIND_PUBLIC_SOURCE_END")
+    'PASS public transfer clipboard restored from the exact accepted host artifact'
+}
+```
+
+If this fails, stop; do not regenerate the artifact, alter the checksum or
+continue with uncertain clipboard contents. The snippet does not execute the
+artifact or contact the clone.
+
 ## Block 2 — stage on the isolated clone, not the original VM
 
 After Block 1 is accepted, use the console of
@@ -75,8 +121,8 @@ Shared Clipboard may carry only these public bytes; alternatively stop and
 request an approved offline transfer if Clipboard is unavailable.
 
 Run the entire subshell as `notroot` in one paste. At the Base64 prompt,
-paste **only** the wrapped value and end marker prepared in Block 1, then
-press Enter once if needed. Lines are at most 76 characters to avoid the
+paste **only** the wrapped value and end marker restored by the snippet above,
+then press Enter once if needed. Lines are at most 76 characters to avoid the
 terminal's canonical-input line limit. Do not
 paste this Bash block into that prompt. The root destination is new and
 separate from every existing guard/service path. No prior directory is reused.
