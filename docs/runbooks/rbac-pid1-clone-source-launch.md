@@ -187,6 +187,12 @@ Do not treat staging as clone-native observer acceptance.
 
 ## Implemented launch policy — held pending runtime/launch acceptance
 
+The separate [Gate 2C bounded launch candidate](rbac-pid1-clone-observation.md)
+now implements the shell-side pre/post checks and timeout/environment contract.
+It is offline and unexecuted; it still requires an explicit diagnostic release
+and external clone/runtime trust acknowledgement. Do not run its root command
+merely because staging passed or a branch was merged.
+
 The standalone script implements an explicit `--observe` mode, never an
 automatic continuation of `--verify-only`. The later reviewed launch must:
 
