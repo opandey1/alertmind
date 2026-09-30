@@ -100,6 +100,19 @@ untouched and the clone isolated; it may remain powered off during this review.
    prove installed build paths, current path sources, selected-code provenance
    or reload effects. No candidate loader or live maintenance binding is added.
    Independent review and the remaining installed context/boundaries stay open.
+6. **Extend host artifact provenance without claiming loaded-code identity.**
+   The [host-only runtime verifier](rbac-systemd-runtime-archive.md) checks
+   systemd and libsystemd-shared from the same signed index and extracts three
+   fixed members to stdout. The [completed Windows-host report](../../evidence/rbac/systemd-runtime-archive-host-smoke-2026-09-30.md)
+   matches the manager candidate and records private core/shared library
+   hashes, SONAMEs, declared dependencies/search strings and ten literal
+   suffix counts. No Ubuntu binary or library executes. Thirty-four offline
+   tests protect the chain/parser and retained non-authorizing report.
+   This is not installed loaded-library identity, loader/dependency closure,
+   build/current-path semantics or approval. Next review exact Ubuntu
+   source/build path construction against these candidate artifacts before
+   establishing installed context and selected generator effects. Neither VM
+   is needed for this host checkpoint; do not repeat completed clone gates.
 
 Ubuntu documents [archive signature and checksum verification](https://documentation.ubuntu.com/security/software-integrity/archive-verification/)
 and [APT's signed Release-to-package chain](https://manpages.ubuntu.com/manpages/resolute/man8/apt-secure.8.html).

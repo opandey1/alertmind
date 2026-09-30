@@ -15,6 +15,14 @@ The [retained image candidate](../../evidence/rbac/pid1-image-reference-candidat
 matches historical reports, but neither authenticates loaded libraries nor
 settles current manager environment, generator paths or host identity.
 
+The separate [host runtime-artifact report](../../evidence/rbac/systemd-runtime-archive-host-smoke-2026-09-30.md)
+now checks the same signed index's systemd and libsystemd-shared packages,
+matches the manager candidate and records static ELF metadata for manager,
+core and shared images. The ten NUL-terminated path/override suffix observations
+in the shared image are not call-site or compiled path-construction proof.
+No library is loaded, and installed loaded-library/current-path equivalence
+and independent approval remain open.
+
 ## Path construction
 
 [`generator_binary_paths_internal()`](https://github.com/systemd/systemd/blob/b3d8fc43e9cb531d958c17ef2cd93b374bc14e8a/src/libsystemd/sd-path/path-lookup.c)
