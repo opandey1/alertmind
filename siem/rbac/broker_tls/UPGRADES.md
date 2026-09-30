@@ -113,7 +113,16 @@ environment-generator directory does not prove an empty generated environment.
 Fifty-three tests cover the candidate; eight use disposable Linux trees and are
 skipped on Windows.
 
-**Next:** bind an independently reviewed installed search-path/selection and
+The [version-bound selection contract review](../../../docs/runbooks/rbac-generator-selection-contract.md)
+now adds a pure upstream-v259.5 regular-file subset model. It validates the
+combined catalog's shape, shared limits and digests; empty files mask later
+names, while nonempty non-executables do not. All links and ambiguous basenames
+are refused rather than assumed safe. Twenty-six synthetic tests include all
+256 priority combinations in each class. No collection, installed-equivalence
+claim, held-source change, controller binding or VM release is added.
+
+**Next:** establish installed path-construction/current-path-source equivalence,
+then bind an independently reviewed installed search-path/selection and
 content baseline, resolve any relevant generator links and review selected
 code/interpreters/tools/dependencies and their package-lock interactions before
 connecting a fresh check ahead of private mask/reload. A default-path inventory
