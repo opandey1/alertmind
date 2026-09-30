@@ -1,6 +1,7 @@
 # PID 1 clone follow-up — provenance and native compatibility plan
 
-Status: **design only; no Gate 2 command or original-VM action released**.
+Status: **package-provenance candidate recorded; unprivileged clone Gate 2A
+prepared; no root observer or original-VM action released**.
 The owner-reported [Gate 1 result](../../evidence/rbac/pid1-current-clone-preflight-2026-09-28.md)
 is a candidate for Ubuntu 26.04 / `systemd` 259.5-0ubuntu3.4 on an isolated
 Current-State clone. It is not a trusted baseline. Keep the original VM
@@ -38,7 +39,11 @@ untouched and the clone isolated; it may remain powered off during this review.
    shell script is not an authorization to execute that module. The native
    result must be sanitized and compared with the reviewed candidate, with
    failures stopping rather than falling back to a different path. Do not
-   import project code as root from an unverified writable checkout.
+   import project code as root from an unverified writable checkout. A
+   [Gate 2A unprivileged diagnostic](rbac-pid1-clone-native-compatibility.md)
+   now checks selected interpreter/procfs/dpkg input shapes without running
+   project code. Its PASS is not native collector acceptance or a trusted
+   root launch; the latter still needs separate design and review.
 4. **Only then consider an exact reference.** An independent reviewer must
    approve both the authenticated package comparison and native result before
    producing a versioned, retained reference. The pure comparator can check
