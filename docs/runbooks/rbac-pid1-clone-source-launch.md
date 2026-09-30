@@ -1,15 +1,19 @@
 # PID 1 clone Gate 2B — verified source staging and launch candidate
 
-Status: **host Block 1 completed; clone Block 2 staging unexecuted;
-independent review pending**.
+Status: **host Block 1 and clone Block 2 staging completed;
+root observation and independent review pending**.
 Gate 2A [is complete](../../evidence/rbac/pid1-clone-native-probe-2026-09-30.md).
 The [Block 1 checkpoint](../../evidence/rbac/pid1-clone-host-packet-2026-09-30.md)
 matches the rendered artifact's size, checksum and eight-source count.
-Do not repeat either completed checkpoint. This package prepares the actual
+The [Block 2 checkpoint](../../evidence/rbac/pid1-clone-source-stage-2026-09-30.md)
+contains both checksum checks, eight-source verification and root-private
+metadata PASS results with the final STOP. Do not repeat completed Gate 2A,
+Block 1 or Block 2, or overwrite their existing artifacts/stages.
+This package prepares the actual
 image observer without importing a writable checkout as root.
 **No root observation command is released**
-by this packet. Staging results must be accepted first; runtime trust and the
-separate bounded observation command remain an explicit release decision.
+by this packet. Staging is accepted as owner-reported success; runtime trust
+and the separate bounded observation command remain an explicit release decision.
 
 The renderer bundles eight exact LF source files in dependency order inside
 one standalone script. Its private empty-path package loads verified bytes,
@@ -181,7 +185,7 @@ standard-library bootstrap but **not** any bundled project source. `sudo`
 above performs file metadata/copy/hash operations, not Python execution.
 Do not treat staging as clone-native observer acceptance.
 
-## Implemented launch policy — held pending staging/runtime acceptance
+## Implemented launch policy — held pending runtime/launch acceptance
 
 The standalone script implements an explicit `--observe` mode, never an
 automatic continuation of `--verify-only`. The later reviewed launch must:
