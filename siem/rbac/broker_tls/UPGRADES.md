@@ -201,6 +201,15 @@ then rejects any image-digest or version mismatch with a fixed diagnostic.
 It accepts no path override, performs no file/process/package read or write,
 and is not connected to the guard, catalog, controller or reload sequence.
 
+The [retained v1 candidate](../../../evidence/rbac/pid1-image-reference-candidate-v1.md)
+now supplies an exact public JSON artifact outside this module under the
+owner's explicit offline-review deferral. Its image/version match the historical
+archive and Gate 2C reports. Seven offline checks pin the JSON, normalized
+evidence and pending-review status; they neither attest the archive/runtime nor
+populate a live baseline. No candidate loader, approval flag or controller
+connection is added. Upgrades require separate evidence and a new candidate,
+not overwriting this record or auto-learning changed installed hashes.
+
 A match says only that two caller-supplied candidate records agree. Either
 record can be forged by an untrusted caller; a dpkg status/list claim is not
 package provenance. The result keeps reference provenance, observation

@@ -30,6 +30,8 @@ siem/rbac/BROKER-CODE-SHA256SUMS text eol=lf
 siem/rbac/build_pid1_clone_packet.py text eol=lf
 siem/rbac/pid1_clone_entry.py.in text eol=lf
 siem/rbac/PID1-CLONE-SHA256SUMS text eol=lf
+# New retained candidate only; never renormalise historical observation logs.
+evidence/rbac/pid1-image-reference-candidate-v1.json text eol=lf
 # New offline candidate assets only; no historical evidence normalization.
 siem/rbac/broker_tls/*.py text eol=lf
 siem/rbac/broker_tls/*.cjs text eol=lf

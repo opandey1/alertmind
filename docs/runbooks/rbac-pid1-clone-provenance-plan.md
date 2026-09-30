@@ -2,6 +2,7 @@
 
 Status: **package-provenance candidate recorded; owner-reported Gate 2A and
 Gate 2B staging and Gate 2C native diagnostic completed;
+versioned offline reference candidate retained under owner-authorized offline continuation;
 independent result/reference approval remains pending**.
 The owner-reported [Gate 1 result](../../evidence/rbac/pid1-current-clone-preflight-2026-09-28.md)
 is a candidate for Ubuntu 26.04 / `systemd` 259.5-0ubuntu3.4 on an isolated
@@ -75,13 +76,23 @@ untouched and the clone isolated; it may remain powered off during this review.
    is needed for these checkpoints; the clone can remain off and isolated.
    Independent archive/native-result review and reference approval remain
    pending. The staging packet itself never released root observation.
-4. **Only then consider an exact reference.** An independent reviewer must
-   approve both the authenticated package comparison and native result before
-   producing a versioned, retained reference. The pure comparator can check
-   matching candidate fields; it cannot attest the source of either input.
+4. **Retain a candidate separately from approval.** On 2026-09-30 the owner
+   confirmed Claude remained unavailable and authorized offline continuation
+   without independent review for now. Under that explicit deferral, the
+   [versioned JSON candidate](../../evidence/rbac/pid1-image-reference-candidate-v1.json)
+   and [content/evidence binding record](../../evidence/rbac/pid1-image-reference-candidate-v1.md)
+   now retain the exact path, image digest and local dpkg-claimed version.
+   Seven offline tests mechanically compare it with the recorded archive
+   summary and complete native result. They do not rerun signature verification
+   or the observer, independently attest either input or refresh the pin.
+   This is a candidate, not an approved reference or a maintenance gate.
+   An independent reviewer must still approve the authenticated package
+   comparison and native result before trusted-reference/live acceptance;
+   the deferral does not close any older review debt. The pure comparator
+   keeps all authenticity/freshness and mutation/startup claims false.
    Even an approved match would not prove loaded manager code, the current
    generator paths, host identity, exclusion of concurrent privileged writes,
-   safe reload or Phase 1/OIDC completion.
+   safe reload or Phase 1/OIDC completion. No extra VM output is requested.
 
 Ubuntu documents [archive signature and checksum verification](https://documentation.ubuntu.com/security/software-integrity/archive-verification/)
 and [APT's signed Release-to-package chain](https://manpages.ubuntu.com/manpages/resolute/man8/apt-secure.8.html).
