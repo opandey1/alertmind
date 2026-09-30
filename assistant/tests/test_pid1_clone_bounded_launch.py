@@ -131,10 +131,12 @@ class CloneBoundedLaunchTests(unittest.TestCase):
         self.assertNotIn(FINAL, result.stdout)
         self.assertEqual('TEST_OBSERVER_CALLED' in result.stdout, observer)
 
-    def test_owner_release_is_one_diagnostic_not_reference_approval(self):
+    def test_owner_reported_diagnostic_is_not_reference_approval(self):
         text, _, _ = packet()
-        for value in ('owner released one read-only clone diagnostic',
-                      'not executed or accepted yet; reference not approved',
+        for value in ('owner-reported Gate 2C diagnostic completed',
+                      'independent review pending; reference not approved',
+                      'Do not rerun this packet',
+                      'pid1-clone-observation-2026-09-30.md',
                       'Approve and confirm all conditions',
                       'PR #99', '40e8abb',
                       'Stop for review before any retry',

@@ -1,7 +1,12 @@
 # PID 1 clone Gate 2C — bounded observation launch candidate
 
-Status: **owner released one read-only clone diagnostic on 2026-09-30;
-not executed or accepted yet; reference not approved**.
+Status: **owner-reported Gate 2C diagnostic completed on 2026-09-30;
+independent review pending; reference not approved**.
+The [retained result](../../evidence/rbac/pid1-clone-observation-2026-09-30.md)
+contains both wrapper PASS lines, the matching two-pass JSON and both STOP
+POINT lines, with no reported failure. The single-run release has been used.
+**Do not rerun this packet.** Its unchanged Bash block below is retained as
+execution provenance, not permission for another run.
 Gate 2A and [Gate 2B source staging](../../evidence/rbac/pid1-clone-source-stage-2026-09-30.md)
 are complete as owner-reported checkpoints. Do not repeat them, regenerate
 the source artifact or overwrite either staged copy.
@@ -20,7 +25,7 @@ packet merged in PR #99 (`7fcc211`, `5c4dbb2`; merge `40e8abb`), not independent
 review or evidence that it has run. The Bash block is unchanged by this release.
 Merge or successful offline tests alone do not release privileged observation.
 
-Reconfirm these conditions immediately before that single run:
+For that single run, these conditions had to be reconfirmed at execution:
 
 - The exact clone entry is selected in VirtualBox, every network adapter is
   disconnected, no AlertMind app uses it and the original VM remains untouched.
@@ -37,18 +42,19 @@ Reconfirm these conditions immediately before that single run:
   Typing a confirmation below does not independently review this packet or
   close any deferred obligation.
 
-No new VM inventory output is needed before this released diagnostic. If a
-condition is unknown or a digest has changed, stop for review; do not install
+No further VM output is needed for this completed diagnostic. For any later
+separately authorized operation, an unknown condition or changed digest must
+stop for review; do not install
 packages, repair paths or auto-learn an updated pin to make the diagnostic pass.
 
-## Packet — one owner-released clone diagnostic
+## Packet — historical single-run diagnostic; do not repeat
 
-Run this entire subshell once as `notroot` at the clone's console, only while
-the conditions above still hold. Enter `CLONE-ONLY`, `TRUSTED-DIAGNOSTIC` and
+The owner ran this entire subshell as `notroot` at the clone's console under
+the single-run release. The original instructions were: enter `CLONE-ONLY`, `TRUSTED-DIAGNOSTIC` and
 `LAUNCH-RELEASED` at their respective confirmation prompts, not as standalone
 shell commands. Enter the normal sudo password only at sudo's password prompt;
 do not paste it into chat. These confirmations do not grant production authority.
-No additional branch merge is required for this unchanged, already merged block.
+No additional branch merge was required for this unchanged, already merged block.
 The root shell reads fixed public instructions from a quoted heredoc. Its
 outer timeout starts after sudo authentication; the observer has a separate
 40-second timeout/2-second kill grace and a 30-second BOOTTIME collection window.
@@ -147,6 +153,10 @@ fi
 ```
 
 ## Accepting the output
+
+The retained owner report satisfies the diagnostic contract below. This is
+not independent result review or reference approval; do not request another
+run to reconfirm the completed checkpoint.
 
 A successful packet must have the pre-launch PASS, the entry's sanitized JSON
 and diagnostic STOP, the post-launch PASS and the final review STOP, with

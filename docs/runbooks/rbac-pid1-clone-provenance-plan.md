@@ -1,8 +1,8 @@
 # PID 1 clone follow-up — provenance and native compatibility plan
 
 Status: **package-provenance candidate recorded; owner-reported Gate 2A and
-Gate 2B staging completed; one clone-only diagnostic released by the owner;
-native result and independent approval remain pending**.
+Gate 2B staging and Gate 2C native diagnostic completed;
+independent result/reference approval remains pending**.
 The owner-reported [Gate 1 result](../../evidence/rbac/pid1-current-clone-preflight-2026-09-28.md)
 is a candidate for Ubuntu 26.04 / `systemd` 259.5-0ubuntu3.4 on an isolated
 Current-State clone. It is not a trusted baseline. Keep the original VM
@@ -66,12 +66,15 @@ untouched and the clone isolated; it may remain powered off during this review.
    tools plus a Linux-only unprivileged timeout check, not a root observer.
    On 2026-09-30 the owner separately approved one read-only run of the exact
    merged Gate 2C packet and confirmed its isolation/no-change conditions and
-   external diagnostic runtime trust. Execute only that bounded packet once,
-   then return its complete sanitized output for review. This limited release
-   is not independent review or a native result. No root observation command
-   is released by the staging packet itself; actual native observation and
-   reference approval remain pending. No further
-   staging-checkpoint VM output is requested.
+   external diagnostic runtime trust. The owner subsequently returned the
+   [complete Gate 2C result](../../evidence/rbac/pid1-clone-observation-2026-09-30.md):
+   pre/post checks PASS, eight sources, two matching passes, candidate digest
+   and version match, 61 ms, all trust/authority claims false and both review
+   STOP lines. This completes the owner-reported native diagnostic only.
+   The release has been used; do not repeat Gate 2A/2B/2C. No further VM output
+   is needed for these checkpoints; the clone can remain off and isolated.
+   Independent archive/native-result review and reference approval remain
+   pending. The staging packet itself never released root observation.
 4. **Only then consider an exact reference.** An independent reviewer must
    approve both the authenticated package comparison and native result before
    producing a versioned, retained reference. The pure comparator can check

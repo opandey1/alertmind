@@ -1,7 +1,7 @@
 # PID 1 clone Gate 2B — verified source staging and launch candidate
 
 Status: **host Block 1 and clone Block 2 staging completed;
-root observation and independent review pending**.
+Gate 2C owner-reported observation completed; independent review pending**.
 Gate 2A [is complete](../../evidence/rbac/pid1-clone-native-probe-2026-09-30.md).
 The [Block 1 checkpoint](../../evidence/rbac/pid1-clone-host-packet-2026-09-30.md)
 matches the rendered artifact's size, checksum and eight-source count.
@@ -15,7 +15,10 @@ image observer without importing a writable checkout as root.
 by this staging packet. Staging is accepted as owner-reported success. The owner
 separately released one read-only [Gate 2C diagnostic](rbac-pid1-clone-observation.md)
 on 2026-09-30 and accepted its external runtime trust assumptions for that
-disposable clone only. Native results and independent review remain pending.
+disposable clone only. The [Gate 2C result](../../evidence/rbac/pid1-clone-observation-2026-09-30.md)
+is now retained as successful owner-reported observation. That single-run
+release has been used; do not repeat staging or observation. Independent review
+and reference approval remain pending.
 
 The renderer bundles eight exact LF source files in dependency order inside
 one standalone script. Its private empty-path package loads verified bytes,
@@ -191,9 +194,9 @@ Do not treat staging as clone-native observer acceptance.
 
 The separate [Gate 2C bounded launch candidate](rbac-pid1-clone-observation.md)
 now implements the shell-side pre/post checks and timeout/environment contract.
-It is unexecuted; the owner's separate single-run diagnostic release and
-external clone/runtime trust acknowledgement are recorded there. Do not run its root command
-merely because staging passed or a branch was merged.
+The owner's separate release, external clone/runtime trust acknowledgement
+and successful diagnostic report are recorded there. Do not rerun its root
+command; neither successful staging nor a merged branch grants another run.
 
 The standalone script implements an explicit `--observe` mode, never an
 automatic continuation of `--verify-only`. The later reviewed launch must:
