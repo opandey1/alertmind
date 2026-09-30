@@ -93,6 +93,13 @@ untouched and the clone isolated; it may remain powered off during this review.
    Even an approved match would not prove loaded manager code, the current
    generator paths, host identity, exclusion of concurrent privileged writes,
    safe reload or Phase 1/OIDC completion. No extra VM output is requested.
+5. **Model selection separately from installed equivalence.** The
+   [upstream-v259.5 regular-file selection contract](rbac-generator-selection-contract.md)
+   now models empty masks and non-executable fall-through on a validated default
+   catalog. It rejects unreviewed links and ambiguous basenames; it does not
+   prove installed build paths, current path sources, selected-code provenance
+   or reload effects. No candidate loader or live maintenance binding is added.
+   Independent review and the remaining installed context/boundaries stay open.
 
 Ubuntu documents [archive signature and checksum verification](https://documentation.ubuntu.com/security/software-integrity/archive-verification/)
 and [APT's signed Release-to-package chain](https://manpages.ubuntu.com/manpages/resolute/man8/apt-secure.8.html).
