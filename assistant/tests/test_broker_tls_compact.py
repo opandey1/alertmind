@@ -78,6 +78,11 @@ class FakeHost:
             m.require(self.meta[path] == [0o400, 0, 0], 'PRIVATE_FILE')
         return self.files[path]
 
+    def read_source_certificate(self):
+        raw = self.files[m.SOURCE_CERT]
+        m.certificate(raw)
+        return raw
+
     def metadata(self, path):
         return self.meta[path]
 

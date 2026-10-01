@@ -1,0 +1,65 @@
+{
+  "scope": "offline source-certificate compatibility correction; not native evidence or execution release",
+  "date": "2026-10-01",
+  "base_commit": "3f69fc9f45d776437b36b35f6b2330e8626bd8aa",
+  "approved_operator_base_commit": "7e53ecdda2c4df980d93588b8193c338910bb217",
+  "operator_revision": "source-certificate-reader-v2",
+  "review_status": "awaiting-focused-review",
+  "owner_authorized": "implementation, regression tests and refreshed rehearsal packet only",
+  "failure": {
+    "source": "owner-reported isolated-clone metadata and unchanged preflight recheck",
+    "code": "PARENT_METADATA",
+    "first_incompatible_parent": "/var/ossec/api/configuration",
+    "public_certificate_layout": "root:wazuh 0770 configuration/ssl ancestors; wazuh:wazuh 0400 leaf",
+    "original_TOOL_cause": "unexplained; retained separately",
+    "passing_native_retry": false
+  },
+  "changed": [
+    "fixed source-only certificate reader with named wazuh UID/GID, exact ancestor/leaf metadata and retained stable bounded read/DER pin",
+    "prepare/install/preflight use source accessor; generic installed-trust/private/helper/unit policies unchanged",
+    "LF operator/driver/bundle/checksum pins and schema-2 public packet separating approved base from pending revision",
+    "safe clone public-stage refresh preserves exact old stage; no Wazuh permission or service action"
+  ],
+  "public_packet": {
+    "schema": 2,
+    "bytes": 58726,
+    "sha256": "20d1ec0813bdf782708d7c44721820f8a3dee1c7bf976994f2465d8780e69a7c",
+    "files": {
+      "candidate.cjs": "fe721feb8599293853e10d33823e68ff72df001be00382e3701d5da645aba28f",
+      "compact_operator.py": "2200ccbe60fa347039ede8e7b627041056e21f2bdaed6755b7964e9529c48942",
+      "bundle.json": "13cd780dfdffe16887a78f69aa4655f2be846485689015975b61981279615e83",
+      "compact_clone_rehearsal.py": "b3f39e03dc32bd7d1de8f5a98b4f5a12dc201bc987ebcd6565c912be0da51340",
+      "SHA256SUMS": "ae6442b20322ba975f57aa339c9fdc88dd0920c573320b4663832f9666c9fab1"
+    },
+    "previous_packet_sha256_preserved": "f36ac4e7566890162045ecf5da27b31bcda8d669ede98971272aa59f5010bc68",
+    "operator_or_driver_executed_on_vm": false,
+    "approval_or_signature": false
+  },
+  "new_regression_tests": 8,
+  "focused_tests": {"run": 43, "skipped_on_windows": 2, "result": "OK"},
+  "full_regression": {
+    "python": "3.12.14",
+    "test_methods": 1337,
+    "test_files": 75,
+    "skipped_on_windows": 54,
+    "seconds": 12.701,
+    "result": "OK"
+  },
+  "frozen_evidence_verifier": "PASS; original files and retained runs unchanged",
+  "runbook_syntax": "PowerShell AST, bash -n and Python compile only; no VM block executed",
+  "candidate_contract_changed": false,
+  "existing_tests_deleted_or_weakened": false,
+  "wazuh_permissions_changed": false,
+  "vm_contacted_by_codex": false,
+  "native_stage_refresh_run": false,
+  "native_installation_refusal_rollback_accepted": false,
+  "correction_focused_approval": false,
+  "renewed_owner_execution_release": false,
+  "phase1_complete": false,
+  "remaining": [
+    "focused review of reader correction, regression tests, provenance and stage-refresh packet",
+    "renewed owner release for one corrected isolated-clone attempt",
+    "accepted P1-02 preflight/install/interruption/startup-refusal/rollback/secure-restoration evidence",
+    "P1-03 actual broker TLS and continuity; P1-04 human context/scope/mapping/UI; P1-05 safe backend allow/deny; P1-06 recovery/closure"
+  ]
+}

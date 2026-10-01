@@ -1,6 +1,16 @@
 # Compact broker TLS — one disposable-clone rehearsal (Batch B)
 
+**Correction notice:** the owner-approved original packet below was staged, but
+preflight failed (initial `TOOL`; later `PARENT_METADATA`). Its hashes/Blocks 1–2
+describe that retained attempt, not the corrected reader. Use the
+[source-certificate correction packet](rbac-broker-tls-compact-source-certificate-correction.md)
+after focused review and renewed owner release; do not replay old staging.
+Blocks 3–4 retain the same fixed stage path and finite action sequence. No native
+install/interruption/refusal/rollback acceptance has been recorded.
+
 **1 October 2026: prepared for focused review; VM execution NOT RELEASED.**
+The following describes the original submission state; later owner review and
+one execution release are recorded in HANDOFF. It does not release a retry.
 The owner confirmed focused independent approval of Batch A `7e53ecd` and its
 reused TLS candidate. That does **not** approve this new fault-injection driver
 or release its commands. Obtain focused approval of this packet, then separate
@@ -20,7 +30,9 @@ guest; correct clone selection/isolation is an **owner-verified external precond
 ## Scope and limits
 
 The [clone-only driver](../../siem/rbac/broker_tls/compact_clone_rehearsal.py)
-uses the unchanged, approved [compact operator](rbac-broker-tls-compact-deployment.md).
+uses the [compact operator](rbac-broker-tls-compact-deployment.md).
+Its approved original revision and pending scoped correction are distinguished
+in the correction packet; base approval does not approve new helper bytes.
 Only the fixed new TLS files/private state and Dashboard service are touched.
 No account, permission, SSH, enrollment, Server configuration, broker password
 or saved-object operation. No new credential prompt. Operator/driver make no
