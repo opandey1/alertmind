@@ -7,12 +7,17 @@ operator/OS-attestation framework is preserved experimental work, not a release
 prerequisite. Its guard/controller remain blocked; no existing test, runtime
 check, evidence or review obligation is removed, and nothing is deployed here.
 
-**Batch A candidate:** [compact deployment/startup/recovery](../../../docs/runbooks/rbac-broker-tls-compact-deployment.md)
-is implemented offline, awaiting focused independent review. The separate
+**Batch A package:** [compact deployment/startup/recovery](../../../docs/runbooks/rbac-broker-tls-compact-deployment.md)
+is implemented offline; the owner confirmed focused independent approval of
+`7e53ecd` and reused candidate on 1 October (not a Codex self-review). The separate
 `compact_operator.py`/`build_compact_bundle.py` use fixed targets, conventional
 trusted-admin tooling, persistent deny-start inhibition and private recovery
 state. Rollback of original unverified bytes never restarts Dashboard. This
-does not release a VM packet or make Phase 1 complete.
+does not release a VM packet or make Phase 1 complete. The new
+[Batch B clone packet](../../../docs/runbooks/rbac-broker-tls-compact-clone-rehearsal.md),
+`compact_clone_rehearsal.py` and `build_compact_clone_packet.py` are prepared for
+their own focused review/owner release; native results remain NOT TESTED. The
+clone-only fault driver is never installed as the production startup helper.
 
 This is Choice 1 of the [approved design](../../../docs/hardening/broker-tls/hardening.md).
 The existing shared client disables TLS peer verification for both internal

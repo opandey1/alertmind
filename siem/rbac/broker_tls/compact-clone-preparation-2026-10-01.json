@@ -1,0 +1,57 @@
+{
+  "scope": "Batch B offline preparation; not VM execution, native proof or release",
+  "date": "2026-10-01",
+  "base_commit": "cc60291",
+  "approved_batch_a_commit": "7e53ecdda2c4df980d93588b8193c338910bb217",
+  "batch_a_review": "owner confirmed focused independent approval of operator and reused candidate in chat; reviewer artifact not supplied here",
+  "batch_b_status": "awaiting-focused-review-and-owner-execution-release",
+  "public_packet": {
+    "bytes": 55784,
+    "sha256": "f36ac4e7566890162045ecf5da27b31bcda8d669ede98971272aa59f5010bc68",
+    "files": {
+      "candidate.cjs": "fe721feb8599293853e10d33823e68ff72df001be00382e3701d5da645aba28f",
+      "compact_operator.py": "e9a35d66d1e8e501fbee406215d4d54da3553acededffab91064b0e0b896b05c",
+      "bundle.json": "da3ced89b2e33528632e10d38b1a899fbe4119cf2cad3902b4c642d31e46cea4",
+      "compact_clone_rehearsal.py": "ef9459ecf51b32dfea3ac063fa8684898d266d176f834b0a18d0b8aed425399d",
+      "SHA256SUMS": "9ad02f92d10d34261ed57329b847797e698b2f00d4decad6e99c11c5b1dc64dd"
+    },
+    "five_payload_hashes_and_four_checksum_rows_verified": true,
+    "operator_or_driver_executed": false,
+    "approval_or_signature": false
+  },
+  "focused_tests": {"run": 10, "skipped": 0, "result": "OK"},
+  "full_regression": {
+    "python": "3.12.14",
+    "test_methods": 1329,
+    "test_files": 74,
+    "skipped_on_windows": 54,
+    "seconds": 13.571,
+    "result": "OK"
+  },
+  "frozen_evidence_verifier": "PASS; source artifacts unchanged",
+  "packet_syntax": "three Bash blocks via bash -n, Python stager via compile and PowerShell AST; none executed",
+  "local_markdown_targets_verified": 86,
+  "vendor_unit_observation": {
+    "source": "hash-verified local wazuh-dashboard_4.14.7-1_amd64.deb; public unit member only",
+    "archive_sha256": "83f472d9e5f59b28b1abb6260c466e77b99ae427ce8c5f76203d847f2f598b6f",
+    "member": "./etc/systemd/system/wazuh-dashboard.service",
+    "restart": "always",
+    "installed_unit_observed": false
+  },
+  "synthetic_test_scope": "fake files/systemd; intentional exit mocked; no real root/VM process interrupted",
+  "approved_operator_candidate_contract_modified": false,
+  "previous_tests_deleted_or_weakened": false,
+  "vm_contacted": false,
+  "native_rehearsal_run": false,
+  "batch_b_independent_approval": false,
+  "owner_execution_release": false,
+  "phase1_complete": false,
+  "remaining": [
+    "focused review of new clone-only fault driver, public transfer and packet",
+    "owner release and one isolated-clone native rehearsal",
+    "P1-03 actual broker TLS and administrator/two-dashboard continuity",
+    "P1-04 human context/scope decision/mapping/UI",
+    "P1-05 safe human backend allow/deny acceptance",
+    "P1-06 recovery/evidence/focused closure"
+  ]
+}
