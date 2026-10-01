@@ -1,0 +1,48 @@
+{
+  "scope": "Batch A offline compact-package candidate; not VM deployment or live acceptance",
+  "base_commit": "12be94c2efc6c335874f69c23d349224a8e64bb5",
+  "date": "2026-10-01",
+  "status": "awaiting-focused-independent-review",
+  "supported_dashboard_and_manager_version": "4.14.7-1",
+  "public_bundle": {
+    "candidate_sha256": "fe721feb8599293853e10d33823e68ff72df001be00382e3701d5da645aba28f",
+    "operator_lf_sha256": "e9a35d66d1e8e501fbee406215d4d54da3553acededffab91064b0e0b896b05c",
+    "bundle_json_sha256": "da3ced89b2e33528632e10d38b1a899fbe4119cf2cad3902b4c642d31e46cea4",
+    "three_payload_checksums_verified": true,
+    "operator_executed": false
+  },
+  "focused_tests": {"run": 25, "skipped_on_windows": 2, "result": "OK"},
+  "full_regression": {
+    "python": "3.12.14",
+    "test_methods": 1319,
+    "test_files": 73,
+    "skipped_on_windows": 54,
+    "seconds": 19.270,
+    "result": "OK"
+  },
+  "frozen_evidence_verifier": "PASS; source artifacts unchanged",
+  "actual_client_synthetic_fixture": {
+    "groups_passed": 17,
+    "node": "v24.19.0",
+    "openssl": "3.5.7",
+    "axios": "1.12.2",
+    "platform": "win32",
+    "pin": "synthetic substitution in memory only",
+    "linux_metadata": "adapted, not native proof",
+    "packaged_linux_runtime_executed": false,
+    "live_acceptance": false
+  },
+  "local_markdown_targets_verified": 76,
+  "prior_tests_deleted_or_weakened": false,
+  "experimental_guard_or_controller_changed": false,
+  "vm_contacted": false,
+  "live_execution_released": false,
+  "independent_approval": false,
+  "remaining": [
+    "focused review of compact package and reused candidate",
+    "native clone startup/install/refusal/interruption/recovery rehearsal",
+    "current configuration endpoint and vendor-unit compatibility",
+    "actual broker TLS and administrator/saved-dashboard continuity",
+    "human authorization context, scope consent, mapping/UI and safe allow/deny acceptance"
+  ]
+}

@@ -1,6 +1,6 @@
 # Phase 1 exit checklist — local-first release
 
-**Decision date:** 1 October 2026. **Status:** proposed implementation scope;
+**Decision date:** 1 October 2026. **Status:** owner-selected implementation scope;
 Phase 1 is not complete and no live commands are released by this document.
 
 We are delivering working human RBAC and a read-only assistant integration in
@@ -20,7 +20,7 @@ An outcome closes only when its required evidence is recorded and accepted.
 | ID | Outcome | Required evidence | Current status |
 | --- | --- | --- | --- |
 | P1-00 | Preserve accepted foundation | Indexer roles/direct mappings, agent-001/002 DLS, scoped `own_index`, service read/write-denial proof, restricted SSH/TLS and completed credential/key drill | Complete recorded checkpoints; not a fresh health assertion |
-| P1-01 | Reviewed, deployable broker TLS package | Existing shared-client candidate/actual-client fixture; compact startup check; exact supported package; scoped install, private backup and interruption-safe recovery instructions; focused independent review | Pending |
+| P1-01 | Reviewed, deployable broker TLS package | Existing shared-client candidate/actual-client fixture; compact startup check; exact supported package; scoped install, private backup and interruption-safe recovery instructions; focused independent review | Offline compact candidate implemented; focused review pending |
 | P1-02 | Disposable-clone deployment rehearsal | New package installs, starts securely, rejects drift, survives interrupted installation in a stopped state and restores a verified secure configuration | Pending |
 | P1-03 | Actual Dashboard broker TLS and continuity | Actual login, scoped Server read and refresh/re-authentication path; correct peer identity; synthetic negative TLS tests; administrator and two saved dashboards preserved | Pending |
 | P1-04 | Exact human read-only configuration | Actual Dashboard authorization context and matching rules; fresh relevant permission baseline; exact `socanalyst` Server mapping and read-only UI label; owner decision on broader Server reads | Pending |
@@ -40,10 +40,11 @@ bounded loopback resolution, no proxy/redirect or insecure fallback, and the
 root-controlled **public** Server certificate. No broker secret moves into the
 assistant, a browser widget or Git.
 
-The next implementation is a **separate compact operator package**, not a
+The [offline implementation](runbooks/rbac-broker-tls-compact-deployment.md) is a
+**separate compact operator package**, not a
 successful exit added to `operator_guard_entry.py`, and not release of
 `operator_maintenance_control.py`. Both experimental paths remain blocked.
-Use conventional root-admin/systemd tooling under the trust assumptions below.
+It uses conventional root-admin/systemd tooling under the trust assumptions below.
 The compact package must include:
 
 - One supported package/client contract and root-controlled startup-check
