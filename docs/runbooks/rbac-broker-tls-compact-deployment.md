@@ -3,8 +3,10 @@
 **1 October 2026: owner confirmed focused approval of `7e53ecd` and reused candidate.**
 This records the owner's review confirmation, not a Codex self-review; no reviewer
 artifact was supplied here. This is not a VM execution packet. The separate
-[Batch B clone packet](rbac-broker-tls-compact-clone-rehearsal.md) is prepared for
-its own focused review and owner execution release. P1-02 rehearsal,
+[Batch B clone packet](rbac-broker-tls-compact-clone-rehearsal.md) received
+owner-confirmed approval/release but stopped in preflight. The new
+[source-certificate reader correction](rbac-broker-tls-compact-source-certificate-correction.md)
+and refreshed packet await focused review and renewed owner release. P1-02 rehearsal,
 actual broker TLS and human `socanalyst` activation are NOT TESTED. Follow the
 [finite checklist](../rbac-phase1-exit-checklist.md), not the deferred guard work.
 

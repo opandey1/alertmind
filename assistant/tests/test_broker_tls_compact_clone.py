@@ -210,7 +210,11 @@ class ClonePacketTests(unittest.TestCase):
         raw = self.output.read_bytes()
         self.assertEqual(b.sha(raw), digest)
         packet = json.loads(raw)
-        self.assertEqual(packet['operator_commit'], b.APPROVED_COMMIT)
+        self.assertEqual(packet['schema'], 2)
+        self.assertEqual(packet['operator_base_commit'], b.BASE_COMMIT)
+        self.assertEqual(packet['operator_revision'], b.OPERATOR_REVISION)
+        self.assertEqual(packet['review_status'], 'awaiting-focused-review')
+        self.assertNotIn('operator_commit', packet)
         self.assertIn('not execution release', packet['scope'])
         self.assertEqual({f['name'] for f in packet['files']}, d.FILES)
         for item in packet['files']:

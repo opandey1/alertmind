@@ -9,10 +9,11 @@ HERE = Path(__file__).resolve().parent
 LIMIT = 128 * 1024
 PINS = {
     'candidate.cjs': 'fe721feb8599293853e10d33823e68ff72df001be00382e3701d5da645aba28f',
-    'compact_operator.py': 'e9a35d66d1e8e501fbee406215d4d54da3553acededffab91064b0e0b896b05c',
-    'bundle.json': 'da3ced89b2e33528632e10d38b1a899fbe4119cf2cad3902b4c642d31e46cea4',
+    'compact_operator.py': '2200ccbe60fa347039ede8e7b627041056e21f2bdaed6755b7964e9529c48942',
+    'bundle.json': '13cd780dfdffe16887a78f69aa4655f2be846485689015975b61981279615e83',
 }
-APPROVED_COMMIT = '7e53ecdda2c4df980d93588b8193c338910bb217'
+BASE_COMMIT = '7e53ecdda2c4df980d93588b8193c338910bb217'
+OPERATOR_REVISION = 'source-certificate-reader-v2'
 
 
 def sha(raw):
@@ -36,7 +37,7 @@ def build(bundle, output):
     sums = ''.join(sha(raw) + '  ' + name + '\n' for name, raw in payloads.items())
     if read(bundle / 'SHA256SUMS') != sums.encode('ascii'):
         raise ValueError('BUNDLE_SUMS')
-    # Refuse an accidental production-helper change after the approved review.
+    # Bind the corrected helper; its base approval is NOT approval of this revision.
     if read(HERE / 'compact_operator.py').replace(b'\r\n', b'\n') != payloads['compact_operator.py']:
         raise ValueError('OPERATOR_CHANGED')
     driver = read(HERE / 'compact_clone_rehearsal.py').replace(b'\r\n', b'\n')
@@ -44,8 +45,10 @@ def build(bundle, output):
     payloads['compact_clone_rehearsal.py'] = driver
     sums += sha(driver) + '  compact_clone_rehearsal.py\n'
     payloads['SHA256SUMS'] = sums.encode('ascii')
-    packet = {'schema': 1, 'scope': 'isolated-clone-only; not execution release',
-              'operator_commit': APPROVED_COMMIT, 'files': [
+    packet = {'schema': 2, 'scope': 'isolated-clone-only; not execution release',
+              'operator_base_commit': BASE_COMMIT,
+              'operator_revision': OPERATOR_REVISION,
+              'review_status': 'awaiting-focused-review', 'files': [
                   {'name': name, 'sha256': sha(raw),
                    'base64': base64.b64encode(raw).decode('ascii')}
                   for name, raw in payloads.items()]}

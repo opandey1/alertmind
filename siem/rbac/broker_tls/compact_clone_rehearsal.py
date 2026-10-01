@@ -14,7 +14,7 @@ import sys
 import types
 
 STAGE = '/root/alertmind-broker-tls-compact/stage'
-OPERATOR_SHA = 'e9a35d66d1e8e501fbee406215d4d54da3553acededffab91064b0e0b896b05c'
+OPERATOR_SHA = '2200ccbe60fa347039ede8e7b627041056e21f2bdaed6755b7964e9529c48942'
 INTERRUPTED_EXIT = 73
 LIMIT = 128 * 1024
 FILES = {'candidate.cjs', 'compact_operator.py', 'bundle.json',
@@ -91,7 +91,7 @@ def preflight(m, host):
             and host.info('FragmentPath') in m.FRAGMENTS, 'UNIT_BASELINE')
     host.read(host.info('FragmentPath'))
     require(m.sha(host.read(m.CLIENT, root=False)) == m.ORIGINAL_SHA, 'ORIGINAL_CLIENT')
-    m.certificate(host.read(m.SOURCE_CERT))
+    host.read_source_certificate()
     host.run(['/usr/bin/openssl', 'x509', '-in', m.SOURCE_CERT,
               '-noout', '-checkend', '0'])
     m.configuration(host.read(m.CONFIG, root=False))

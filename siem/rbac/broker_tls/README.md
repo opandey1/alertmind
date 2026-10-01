@@ -15,8 +15,13 @@ trusted-admin tooling, persistent deny-start inhibition and private recovery
 state. Rollback of original unverified bytes never restarts Dashboard. This
 does not release a VM packet or make Phase 1 complete. The new
 [Batch B clone packet](../../../docs/runbooks/rbac-broker-tls-compact-clone-rehearsal.md),
-`compact_clone_rehearsal.py` and `build_compact_clone_packet.py` are prepared for
-their own focused review/owner release; native results remain NOT TESTED. The
+`compact_clone_rehearsal.py` and `build_compact_clone_packet.py` received
+owner-confirmed review/release for the original packet; native preflight failed.
+The [scoped source-certificate correction](../../../docs/runbooks/rbac-broker-tls-compact-source-certificate-correction.md)
+accepts only the reported named-wazuh public source layout, retaining its DER
+pin and strict installed-trust checks. Eight regression tests and new packet
+pins are prepared for focused review; no permission changes or native retry.
+Native installation/refusal/recovery results remain NOT TESTED. The
 clone-only fault driver is never installed as the production startup helper.
 
 This is Choice 1 of the [approved design](../../../docs/hardening/broker-tls/hardening.md).

@@ -88,6 +88,21 @@ def certificate(raw):
     require(base64.b64encode(der) == encoded and sha(der) == CERT_SHA, 'CERT_PIN')
 
 
+def wazuh_identity():
+    # Resolve the named vendor principal; numeric IDs differ between installs.
+    try:
+        import pwd
+        import grp
+        user, group = pwd.getpwnam('wazuh'), grp.getgrnam('wazuh')
+        require(user.pw_uid > 0 and group.gr_gid > 0 and
+                user.pw_gid == group.gr_gid, 'SOURCE_CERT_IDENTITY')
+        return user.pw_uid, group.gr_gid
+    except CompactError:
+        raise
+    except Exception:
+        raise CompactError('SOURCE_CERT_IDENTITY') from None
+
+
 def configuration(raw):
     # The existing package provides PyYAML. No config snippets/errors are logged.
     import yaml
@@ -191,6 +206,36 @@ class LinuxHost:
         if path.startswith(BASE + '/'):
             require(before.st_uid == 0 and before.st_gid == 0 and
                     stat.S_IMODE(before.st_mode) == 0o400, 'PRIVATE_FILE')
+        return self._read_checked(path, before)
+
+    def read_source_certificate(self):
+        """Only the pinned public API certificate; no general permission waiver."""
+        uid, gid = wazuh_identity()
+        layout = {'/': (0, 0, 0o755), '/var': (0, 0, 0o755),
+                  '/var/ossec': (0, gid, 0o750),
+                  '/var/ossec/api': (0, gid, 0o750),
+                  '/var/ossec/api/configuration': (0, gid, 0o770),
+                  '/var/ossec/api/configuration/ssl': (0, gid, 0o770)}
+        parents = {}
+        for parent in reversed(Path(SOURCE_CERT).parents):
+            value = parent.lstat()
+            require(str(parent) in layout and stat.S_ISDIR(value.st_mode) and
+                    (value.st_uid, value.st_gid, stat.S_IMODE(value.st_mode)) ==
+                    layout[str(parent)], 'SOURCE_CERT_PARENT')
+            parents[str(parent)] = identity(value)
+        require(set(parents) == set(layout), 'SOURCE_CERT_PARENT')
+        before = os.lstat(SOURCE_CERT)
+        require(stat.S_ISREG(before.st_mode) and before.st_nlink == 1 and
+                (before.st_uid, before.st_gid, stat.S_IMODE(before.st_mode)) ==
+                (uid, gid, 0o400) and 0 < before.st_size <= LIMIT, 'SOURCE_CERT_FILE')
+        raw = self._read_checked(SOURCE_CERT, before)
+        for parent, expected in parents.items():
+            require(identity(os.lstat(parent)) == expected, 'SOURCE_CERT_CHANGED')
+        certificate(raw)  # Exact DER pin before any caller may copy these bytes.
+        return raw
+
+    def _read_checked(self, path, before):
+        # Shared stable, bounded leaf I/O; callers must admit metadata first.
         fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
         try:
             held = os.fstat(fd)
@@ -363,7 +408,7 @@ def prepare(host):
     original = host.read(CLIENT, root=False)
     require(sha(original) == ORIGINAL_SHA, 'ORIGINAL_CLIENT')
     _, helper = stage(host)
-    certificate(host.read(SOURCE_CERT))
+    host.read_source_certificate()
     config = host.read(CONFIG, root=False)
     configuration(config)
     receipt = {'schema': 1, 'phase': 'prepared', 'helper_sha256': sha(helper),
@@ -392,8 +437,7 @@ def install(host):
     require(sha(helper) == receipt['helper_sha256'], 'HELPER_CHANGED')
     original = host.read(BACKUP)
     require(sha(original) == ORIGINAL_SHA, 'BACKUP')
-    pem = host.read(SOURCE_CERT)
-    certificate(pem)
+    pem = host.read_source_certificate()
     put_known(host, CERT, pem, (None, pem))
     put_known(host, HELPER, helper, (None, helper), metadata=(0o400, 0, 0))
     put_known(host, GUARD, STARTUP, (None, STARTUP))
