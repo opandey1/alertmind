@@ -1,5 +1,14 @@
 # Compact clone — scoped source-certificate correction
 
+**2 October status:** the owner confirmed focused approval of `9dda08b`, now
+merged in PR #107. R1/R2 passed on the clone; corrected Block 3 stopped with
+`CONFIG_ENDPOINT`. Preserve those results and both stages; do not replay R1/R2.
+The diagnostic identifies `https://127.0.0.1` rather than required localhost.
+The new [clone-only URL correction](rbac-broker-tls-compact-clone-endpoint-correction.md)
+is awaiting its own focused review and execution release. After its stopped
+correction, use E4's inhibited preflight, not original Block 3. The submission
+status and historical instructions below are retained, not a new release.
+
 **1 October 2026: offline correction prepared; awaiting focused review.**
 No VM execution or stage replacement is released by this document. The owner
 authorized implementation, not a retry of the failed native rehearsal. Obtain

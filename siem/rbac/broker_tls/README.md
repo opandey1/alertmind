@@ -19,8 +19,15 @@ does not release a VM packet or make Phase 1 complete. The new
 owner-confirmed review/release for the original packet; native preflight failed.
 The [scoped source-certificate correction](../../../docs/runbooks/rbac-broker-tls-compact-source-certificate-correction.md)
 accepts only the reported named-wazuh public source layout, retaining its DER
-pin and strict installed-trust checks. Eight regression tests and new packet
-pins are prepared for focused review; no permission changes or native retry.
+pin and strict installed-trust checks. Its focused approval is owner-confirmed
+(`9dda08b`, merged PR #107); R1/R2 staging passed, then CONFIG_ENDPOINT stopped
+preflight. The [additive clone-only endpoint packet](../../../docs/runbooks/rbac-broker-tls-compact-clone-endpoint-correction.md)
+and twelve regressions are awaiting focused review/execution release. Only
+the configured IP URL becomes localhost under private backup and stopped
+inhibition; credentials/0600 UID/GID and every other YAML byte are preserved.
+Existing five-file stage, TLS candidate/allowlist, operator and active preflight
+stay unchanged. A separate inhibited preflight connects to existing TLS prepare;
+no VM config/service mutation was performed by Codex.
 Native installation/refusal/recovery results remain NOT TESTED. The
 clone-only fault driver is never installed as the production startup helper.
 

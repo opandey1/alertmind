@@ -1,0 +1,85 @@
+{
+  "scope": "clone-only endpoint correction preparation; not native evidence or execution release",
+  "date": "2026-10-02",
+  "source_base_commit": "e5d6fb45963c32ef9d52881661e1797abfb405fe",
+  "source_reader_review": {
+    "commit": "9dda08bf851e933077853be1aef21e0b95ac6135",
+    "status": "focused approval confirmed by owner in chat; merged PR #107",
+    "independent_reviewer_artifact_supplied": false,
+    "codex_self_approval": false
+  },
+  "native_owner_reports": {
+    "corrected_source_packet_R1": "PASS public packet/build; source revision e5d6fb4",
+    "corrected_source_packet_R2": "PASS exact five-file stage; syntax only; old stage preserved",
+    "corrected_Block3": "FAIL CONFIG_ENDPOINT after four checksum rows OK",
+    "diagnostic": {
+      "password_is_nonempty_string": true,
+      "port_is_integer": true,
+      "port_matches_55000": true,
+      "run_as_is_boolean_true": true,
+      "url_is_https_127_0_0_1": true,
+      "url_is_localhost_with_explicit_port": false,
+      "url_matches_after_removing_trailing_slash": false,
+      "url_matches_https_localhost": false,
+      "username_matches_wazuh_wui": true
+    },
+    "earlier_TOOL_cause": "unexplained; not retrospectively accepted",
+    "native_installation_refusal_rollback_results": "NOT TESTED",
+    "source": "owner-reported chat output, not Codex VM execution or independent inspection"
+  },
+  "owner_authorized": "preparing scoped clone-only URL correction, regression tests, packet and rollback steps",
+  "revision": "clone-only-url-v1",
+  "review_status": "awaiting-focused-review",
+  "proposal": {
+    "target": "Ubuntu SOC 201 - Current Isolated Clone only",
+    "URL_delta": "https://127.0.0.1 -> https://localhost",
+    "other_YAML_bytes_credentials_mode_UID_GID": "preserved; requires named Dashboard identity and existing 0600",
+    "ACL_or_xattrs": "refused before replacement, not discarded",
+    "private_backup_receipt": "root:root 0400 under 0700 endpoint-state; no contents or hashes published",
+    "before_write": "prospective strict contract checked; persistent exact inhibition loaded and Dashboard stopped",
+    "after_write": "exact readback; Dashboard remains stopped/inhibited; other three services healthy",
+    "preflight": "additive explicit stopped/inhibited phase; original active-service preflight unchanged",
+    "recovery": "explicit recover-apply or exact YAML restore before TLS prepare only; never starts Dashboard",
+    "post_TLS_prepare": "endpoint recovery refused; existing TLS recovery preserves localhost configuration baseline"
+  },
+  "public_packet": {
+    "schema": 1,
+    "bytes": 14326,
+    "sha256": "8a5b7014ee8b462cb912955e5111a46f42e554d62582413402f5077d62681a71",
+    "files": {
+      "compact_clone_endpoint.py": "e790465fbe599c697cf0ede9d19c5fbd6a84c7f5b67576647275043b80f603eb",
+      "ENDPOINT-SHA256SUMS": "0b87e5b8fc0c52db446bdf13c63e75a16773960b056b39ee8af556b2493fba09"
+    },
+    "additive_stage": "/root/alertmind-broker-endpoint-correction",
+    "existing_five_file_stage_unchanged": true,
+    "existing_source_packet_sha256_retained": "20d1ec0813bdf782708d7c44721820f8a3dee1c7bf976994f2465d8780e69a7c",
+    "driver_LF_sha256": "b3f39e03dc32bd7d1de8f5a98b4f5a12dc201bc987ebcd6565c912be0da51340",
+    "operator_LF_sha256": "2200ccbe60fa347039ede8e7b627041056e21f2bdaed6755b7964e9529c48942",
+    "approval_or_signature": false
+  },
+  "new_tests": {"methods": 12, "native_VM": false, "fixture": "synthetic YAML/metadata/files/service state only"},
+  "focused_tests": {"run": 55, "skipped_on_windows": 2, "result": "OK", "seconds": 0.378},
+  "full_regression": {
+    "python": "3.12.14",
+    "test_methods": 1349,
+    "test_files": 76,
+    "skipped_on_windows": 54,
+    "seconds": 26.476,
+    "result": "OK"
+  },
+  "frozen_evidence_verifier": "PASS; no measurement or retained run changes",
+  "candidate_operator_driver_and_original_builders_changed": false,
+  "existing_tests_deleted_or_weakened": false,
+  "vm_contacted_by_codex": false,
+  "wazuh_configuration_or_service_changed_by_codex": false,
+  "correction_focused_approval": false,
+  "owner_execution_release": false,
+  "native_endpoint_helper_run": false,
+  "phase1_complete": false,
+  "remaining": [
+    "focused review of helper/tests/additive packet/recovery instructions",
+    "owner release for one clone-only E2-E4 and existing finite Block 4 batch",
+    "accepted P1-02 native inhibition/correction/preflight/install/interruption/refusal/rollback/secure-restoration output",
+    "P1-03 actual broker TLS/continuity; P1-04 human context/scope/mapping/UI; P1-05 safe allow/deny; P1-06 recovery/closure"
+  ]
+}

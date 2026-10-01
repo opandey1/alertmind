@@ -1,12 +1,15 @@
 # Compact broker TLS — one disposable-clone rehearsal (Batch B)
 
-**Correction notice:** the owner-approved original packet below was staged, but
-preflight failed (initial `TOOL`; later `PARENT_METADATA`). Its hashes/Blocks 1–2
-describe that retained attempt, not the corrected reader. Use the
-[source-certificate correction packet](rbac-broker-tls-compact-source-certificate-correction.md)
-after focused review and renewed owner release; do not replay old staging.
-Blocks 3–4 retain the same fixed stage path and finite action sequence. No native
-install/interruption/refusal/rollback acceptance has been recorded.
+**2 October correction notice:** original preflight failed `TOOL`, then
+`PARENT_METADATA`. The source-reader correction `9dda08b` is now owner-confirmed
+focused-approved/merged; its R1/R2 passed, but Block 3 stopped `CONFIG_ENDPOINT`.
+Its [retained public stage](rbac-broker-tls-compact-source-certificate-correction.md)
+stays unchanged. The additive [clone-only URL correction packet](rbac-broker-tls-compact-clone-endpoint-correction.md)
+awaits focused review and separate execution release. After its E3 correction,
+Dashboard is deliberately stopped/inhibited: use E4 instead of original Block 3,
+then the unchanged Block 4 sequence within ONE released batch. Do not replay
+staging or relabel earlier failures. No native install/interruption/refusal/
+rollback acceptance has been recorded. Historical packet pins below stay intact.
 
 **1 October 2026: prepared for focused review; VM execution NOT RELEASED.**
 The following describes the original submission state; later owner review and
@@ -229,6 +232,8 @@ printf '%s\n' 'PASS read-only preflight; no Dashboard inhibition or broker file 
 )
 ```
 
+For the endpoint-corrected attempt, E4's exact stopped/inhibited preflight
+replaces this original active-service Block 3; do not execute it after E3.
 The configuration is parsed privately, not printed. It must already meet the
 approved `https://localhost` contract. A mismatch is not authorization to patch
 credential-bearing YAML or accept a wider origin. Correct it separately with a
@@ -237,7 +242,8 @@ reviewed private backup if needed. Service start/refusal is not yet tested.
 ## Block 4 — single finite native rehearsal
 
 **Clone ONLY.** This deliberately aborts one installer process and removes one
-new public trust copy. Never run on the original VM. Block 3 must have passed
+new public trust copy. Never run on the original VM. Block 3 (or E4's exact
+inhibited preflight for the reviewed endpoint-corrected attempt) must have passed
 in this uninterrupted maintenance window. Take all output from one run; after a
 STOP/interruption other than expected exit 73, do not replay the whole block.
 The clone-only driver is never installed into the production startup path.
