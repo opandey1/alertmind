@@ -7,6 +7,13 @@ operator/OS-attestation framework is preserved experimental work, not a release
 prerequisite. Its guard/controller remain blocked; no existing test, runtime
 check, evidence or review obligation is removed, and nothing is deployed here.
 
+**Batch A candidate:** [compact deployment/startup/recovery](../../../docs/runbooks/rbac-broker-tls-compact-deployment.md)
+is implemented offline, awaiting focused independent review. The separate
+`compact_operator.py`/`build_compact_bundle.py` use fixed targets, conventional
+trusted-admin tooling, persistent deny-start inhibition and private recovery
+state. Rollback of original unverified bytes never restarts Dashboard. This
+does not release a VM packet or make Phase 1 complete.
+
 This is Choice 1 of the [approved design](../../../docs/hardening/broker-tls/hardening.md).
 The existing shared client disables TLS peer verification for both internal
 and scoped authentication/requests. This package builds a candidate and tests
@@ -79,8 +86,9 @@ not a compatible manifest for this revision. See
   Upstream HTTP error data is still application data, **not guaranteed redacted**;
   callers must not treat arbitrary error bodies as safe logs.
 - Trust is loaded at construction. Updates require an intentional guarded
-  restart; this candidate does not watch files. Startup/update guards and
-  atomic deployment/rollback are a later package, not implemented here. The
+  restart; this candidate does not watch files. The separate compact package
+  implements fixed startup/install/recovery behavior offline; native deployment
+  and acceptance remain pending. The
   [offline operator safety core](OPERATOR.md) now implements the byte-check and
   recovery-decision portion only; it is not an installed guard or live installer.
 
