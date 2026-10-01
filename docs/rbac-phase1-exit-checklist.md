@@ -13,15 +13,16 @@ supplies the detailed acceptance boundaries.
 
 ## 1. Finite exit checklist
 
-There is one completed foundation and **six remaining outcomes**. These are
+There is one completed foundation and six scoped outcomes. **Five outcomes
+remain after the owner's Batch A review confirmation.** These are
 acceptance outcomes, not a promise of six VM commands or six review cycles.
 An outcome closes only when its required evidence is recorded and accepted.
 
 | ID | Outcome | Required evidence | Current status |
 | --- | --- | --- | --- |
 | P1-00 | Preserve accepted foundation | Indexer roles/direct mappings, agent-001/002 DLS, scoped `own_index`, service read/write-denial proof, restricted SSH/TLS and completed credential/key drill | Complete recorded checkpoints; not a fresh health assertion |
-| P1-01 | Reviewed, deployable broker TLS package | Existing shared-client candidate/actual-client fixture; compact startup check; exact supported package; scoped install, private backup and interruption-safe recovery instructions; focused independent review | Offline compact candidate implemented; focused review pending |
-| P1-02 | Disposable-clone deployment rehearsal | New package installs, starts securely, rejects drift, survives interrupted installation in a stopped state and restores a verified secure configuration | Pending |
+| P1-01 | Reviewed, deployable broker TLS package | Existing shared-client candidate/actual-client fixture; compact startup check; exact supported package; scoped install, private backup and interruption-safe recovery instructions; focused independent review | Offline package complete; owner confirmed focused approval of `7e53ecd` and reused candidate on 1 October; native acceptance is P1-02 |
+| P1-02 | Disposable-clone deployment rehearsal | New package installs, starts securely, rejects drift, survives interrupted installation in a stopped state and restores a verified secure configuration | Packet prepared for focused review; execution NOT RELEASED; native results NOT TESTED |
 | P1-03 | Actual Dashboard broker TLS and continuity | Actual login, scoped Server read and refresh/re-authentication path; correct peer identity; synthetic negative TLS tests; administrator and two saved dashboards preserved | Pending |
 | P1-04 | Exact human read-only configuration | Actual Dashboard authorization context and matching rules; fresh relevant permission baseline; exact `socanalyst` Server mapping and read-only UI label; owner decision on broader Server reads | Pending |
 | P1-05 | Human allow/deny acceptance | Fresh analyst session can perform approved reads and view both dashboards; agent 000 excluded from alert data; backend writes/admin/actions denied using reviewed safe probes; administrator still works | Pending |
@@ -107,6 +108,13 @@ removing a mapping is not an instant logout guarantee.
 | B — rehearsal | One separately authorized disposable-clone deployment/recovery rehearsal for P1-02; correct actual failures | Accept rehearsal before touching the original VM; do not repeat PID 1 diagnostics |
 | C — live feature | Owner-approved maintenance window: P1-03 TLS, then P1-04 exact human configuration and P1-05 behavior | TLS acceptance before credentialed run-as/configuration; explicit permission-scope decision before human activation |
 | D — close Phase 1 | P1-06 recovery/evidence/review, then proceed directly to Phase 2 | No completion claim until all six outcomes are accepted |
+
+Batch A approval is owner-reported in chat (1 October), not a Codex self-review
+or a reviewer artifact supplied in this repository. The new
+[Batch B packet](runbooks/rbac-broker-tls-compact-clone-rehearsal.md) and clone-only
+fault driver still require focused review plus separate owner execution release.
+No additional approval cycle is needed at every successful checkpoint of that
+single released batch; an actual failure still stops the run for correction.
 
 New stop points must cite a concrete failure affecting one of these outcomes,
 the minimal corrective work and the acceptance check. A precautionary desire

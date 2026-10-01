@@ -1,8 +1,10 @@
 # Compact Dashboard broker TLS package — Batch A candidate
 
-**1 October 2026: offline implementation, awaiting focused independent review.**
-This is not a VM execution packet. Clone staging/execution will be released
-separately after review and owner approval. P1-01 remains open; P1-02 rehearsal,
+**1 October 2026: owner confirmed focused approval of `7e53ecd` and reused candidate.**
+This records the owner's review confirmation, not a Codex self-review; no reviewer
+artifact was supplied here. This is not a VM execution packet. The separate
+[Batch B clone packet](rbac-broker-tls-compact-clone-rehearsal.md) is prepared for
+its own focused review and owner execution release. P1-02 rehearsal,
 actual broker TLS and human `socanalyst` activation are NOT TESTED. Follow the
 [finite checklist](../rbac-phase1-exit-checklist.md), not the deferred guard work.
 
@@ -142,8 +144,8 @@ rerun: **17 groups passed**, including negative TLS, proxy/redirect mutants and
 refresh semantics. Packaged axios 1.12.2, workstation Node v24.19.0/Windows,
 synthetic pin/adapted Linux metadata — not VM packaged Node or live broker proof.
 
-Next: focused review of this package plus reused candidate, then one separately
-authorized clone deployment/recovery packet. Prove mandatory pre-start refusal,
+Next: review/release the prepared Batch B packet for one separately
+authorized clone deployment/recovery rehearsal. Prove mandatory pre-start refusal,
 secure restart, interrupted recovery and rollback remaining stopped; preserve
 admin/saved dashboards. Actual broker login/read/refresh TLS acceptance precedes
 human mapping/UI. Completed SSH, rotation and PID 1 diagnostics are not repeated.
