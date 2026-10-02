@@ -4,9 +4,12 @@
 This records the owner's review confirmation, not a Codex self-review; no reviewer
 artifact was supplied here. This is not a VM execution packet. The separate
 [Batch B clone packet](rbac-broker-tls-compact-clone-rehearsal.md) received
-owner-confirmed approval/release but stopped in preflight. The new
+owner-confirmed approval/release but stopped in preflight. The
 [source-certificate reader correction](rbac-broker-tls-compact-source-certificate-correction.md)
-and refreshed packet await focused review and renewed owner release. P1-02 rehearsal,
+is now owner-confirmed focused-approved/merged (`9dda08b`); R1/R2 passed, then
+Block 3 failed CONFIG_ENDPOINT. The additive
+[clone-only URL correction](rbac-broker-tls-compact-clone-endpoint-correction.md)
+awaits its own focused review and execution release. P1-02 rehearsal,
 actual broker TLS and human `socanalyst` activation are NOT TESTED. Follow the
 [finite checklist](../rbac-phase1-exit-checklist.md), not the deferred guard work.
 
@@ -31,7 +34,10 @@ containment, whole-runtime attestation or continuous integrity monitoring.
 One configured broker host must have `url: https://localhost`, integer
 `port: 55000`, `run_as: true`, username `wazuh-wui` and a nonempty password.
 Duplicate YAML keys and anchors/aliases are refused. Values are never printed;
-configuration is not copied or edited. Its whole-byte digest is retained
+this operator never copies or edits configuration. The separate clone-only
+endpoint helper proposes a credential-preserving single-URL correction under
+private backup and stopped inhibition; it is not production deployment authority.
+The operator's whole-byte configuration digest is retained
 privately and must match on later starts. Changed credentials/configuration
 need a reviewed stopped re-baseline, not automatic acceptance of a new hash.
 Earlier inventory proved only HTTPS loopback, not this exact spelling. Current
