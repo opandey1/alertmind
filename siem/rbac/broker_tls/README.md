@@ -16,19 +16,22 @@ state. Rollback of original unverified bytes never restarts Dashboard. This
 does not release a VM packet or make Phase 1 complete. The new
 [Batch B clone packet](../../../docs/runbooks/rbac-broker-tls-compact-clone-rehearsal.md),
 `compact_clone_rehearsal.py` and `build_compact_clone_packet.py` received
-owner-confirmed review/release for the original packet; native preflight failed.
+owner-confirmed review/release for the original packet; earlier preflights failed.
 The [scoped source-certificate correction](../../../docs/runbooks/rbac-broker-tls-compact-source-certificate-correction.md)
 accepts only the reported named-wazuh public source layout, retaining its DER
 pin and strict installed-trust checks. Its focused approval is owner-confirmed
 (`9dda08b`, merged PR #107); R1/R2 staging passed, then CONFIG_ENDPOINT stopped
 preflight. The [additive clone-only endpoint packet](../../../docs/runbooks/rbac-broker-tls-compact-clone-endpoint-correction.md)
-and twelve regressions are awaiting focused review/execution release. Only
+and twelve regressions have owner-confirmed focused approval (`6ca2090`). Only
 the configured IP URL becomes localhost under private backup and stopped
 inhibition; credentials/0600 UID/GID and every other YAML byte are preserved.
 Existing five-file stage, TLS candidate/allowlist, operator and active preflight
 stay unchanged. A separate inhibited preflight connects to existing TLS prepare;
 no VM config/service mutation was performed by Codex.
-Native installation/refusal/recovery results remain NOT TESTED. The
+Following separately approved service recovery and fresh release, E3/E4 and
+the finite rehearsal passed on 3 October. The [dated result](../../../evidence/rbac/compact-broker-clone-proof-2026-10-03.md)
+accepts P1-02 owner-executed native interruption/refusal/rollback/restoration
+checkpoints, not actual broker login/read/refresh or original-VM deployment. The
 clone-only fault driver is never installed as the production startup helper.
 
 This is Choice 1 of the [approved design](../../../docs/hardening/broker-tls/hardening.md).
