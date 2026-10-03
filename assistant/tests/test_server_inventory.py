@@ -458,6 +458,7 @@ class ServerInventoryTests(unittest.TestCase):
             codes.add(node.value)
         self.assertTrue({'SERVICE_SERVER_IDENTITY', 'MAPPING_COLLISION', 'BROKER_RUN_AS_DISABLED',
                          'RBAC_MODE', 'READONLY_POLICY_DRIFT', 'PEER_CERT_CHANGED'} <= codes)
+        self.assertEqual(codes, m.ERROR_CODES)
         failures = [(m.InventoryError(code), code) for code in sorted(codes)]
         failures += [(error('SECRET-PAYLOAD PEER_CERT_CHANGED'), None)
                      for error in (ValueError, OSError, ssl.SSLError, KeyboardInterrupt)]
@@ -474,14 +475,118 @@ class ServerInventoryTests(unittest.TestCase):
                     with contextlib.redirect_stdout(output):
                         self.assertEqual(m.main(), 1)
                     expected = 'STOP: Server inventory failed at inventory'
+                    expected += '; operation=NOT_STARTED'
                     if code is not None:
                         expected += '; code=' + code
+                    else:
+                        expected += '; category=' + {ValueError: 'VALUE_PARSE', OSError: 'IO_ERROR',
+                                                     ssl.SSLError: 'TLS_IO', KeyboardInterrupt: 'INTERRUPTED'}[type(failure)]
                     expected += '; no result accepted. Do not paste credentials or raw responses.'
                     self.assertEqual(output.getvalue().splitlines()[-1], expected)
                     self.assertNotIn('SECRET', output.getvalue())
                     self.assertNotIn('OPERATOR', output.getvalue())
                     self.assertNotIn('inventory_version', output.getvalue())
                     self.assertIsNone(client.token)
+
+    def test_diagnostic_categories_never_format_exception_payloads(self):
+        class PrivateError(Exception):
+            def __str__(self):
+                raise AssertionError('exception text must not be formatted')
+        cases = ((json.JSONDecodeError('PRIVATE-REASON', 'PRIVATE-BODY', 0), 'JSON_DECODE'),
+                 (ssl.SSLCertVerificationError('PRIVATE-CERT'), 'TLS_CERTIFICATE'),
+                 (ssl.SSLError('PRIVATE-TLS'), 'TLS_IO'), (TimeoutError('PRIVATE'), 'TIMEOUT'),
+                 (m.http.client.HTTPException('PRIVATE'), 'HTTP_PROTOCOL'),
+                 (KeyError('PRIVATE-KEY'), 'MISSING_FIELD'), (AttributeError('PRIVATE'), 'FIELD_ACCESS'),
+                 (UnicodeDecodeError('utf-8', b'PRIVATE\xff', 7, 8, 'PRIVATE'), 'TEXT_DECODE'),
+                 (TypeError('PRIVATE'), 'VALUE_TYPE'), (ValueError('PRIVATE'), 'VALUE_PARSE'),
+                 (OSError('PRIVATE'), 'IO_ERROR'), (KeyboardInterrupt('PRIVATE'), 'INTERRUPTED'),
+                 (PrivateError('PRIVATE'), 'UNEXPECTED_EXCEPTION'))
+        for failure, category in cases:
+            with self.subTest(category=category):
+                detail = m.failure_details(failure, mock.Mock(operation='VALIDATE_GRAPH'))
+                self.assertEqual(detail, 'operation=VALIDATE_GRAPH; category=' + category)
+                self.assertNotIn('PRIVATE', detail)
+
+    def test_diagnostic_rejects_unknown_operation_and_check_messages(self):
+        for operation in ('PRIVATE-PATH', '/security/users?PRIVATE', None, 123, ['PRIVATE'], mock.Mock()):
+            with self.subTest(operation_type=type(operation).__name__):
+                self.assertEqual(m.failure_details(m.InventoryError('PRIVATE'), mock.Mock(operation=operation)),
+                                 'operation=NOT_STARTED; code=UNEXPECTED_CHECK')
+        for args in ((), ('PRIVATE', 'HTTP_STATUS'), (['HTTP_STATUS'],)):
+            self.assertEqual(m.failure_details(m.InventoryError(*args)),
+                             'operation=NOT_STARTED; code=UNEXPECTED_CHECK')
+        for code in m.ERROR_CODES:
+            self.assertEqual(m.failure_details(m.InventoryError(code)), 'operation=NOT_STARTED; code=' + code)
+        client = m.Client(mock.Mock())
+        client.operation = 'TLS_HOSTNAME_NEGATIVE'
+        with self.assertRaises(m.InventoryError) as caught:
+            client.authenticate('PRIVATE:invalid', 'PRIVATE-PASSWORD')
+        self.assertEqual(m.failure_details(caught.exception, client),
+                         'operation=AUTHENTICATE; code=USERNAME')
+        self.assertEqual(client.requests, 0)
+
+    def test_failed_read_operation_is_fixed_and_http_resources_close(self):
+        routes = [(path, label) for path, label in m.READ_OPERATIONS.items()]
+        routes += [('/security/' + kind + '?limit=100&offset=0&sort=id', label)
+                   for kind, label in m.COLLECTION_OPERATIONS.items()]
+        routes.append((m.AUTH, 'AUTHENTICATE'))
+        for path, operation in routes:
+            with self.subTest(operation=operation):
+                client = m.Client(mock.Mock())
+                client.token = None if path == m.AUTH else 'PRIVATE-TOKEN'
+                connection, response = mock.Mock(), mock.Mock(status=200)
+                connection.getresponse.return_value = response
+                response.getheader.side_effect = lambda key, default=None: {
+                    'Content-Type': 'application/json', 'Content-Encoding': 'identity'}.get(key, default)
+                with mock.patch.object(client, 'connect'), \
+                     mock.patch.object(m.http.client, 'HTTPConnection', return_value=connection), \
+                     mock.patch.object(client, 'read_body', return_value=b'PRIVATE-BODY'):
+                    with self.assertRaises(json.JSONDecodeError) as caught:
+                        client.request('POST' if path == m.AUTH else 'GET', path,
+                                       basic='PRIVATE-BASIC' if path == m.AUTH else None)
+                self.assertEqual(m.failure_details(caught.exception, client),
+                                 'operation=' + operation + '; category=JSON_DECODE')
+                response.close.assert_called_once()
+                connection.close.assert_called_once()
+                self.assertEqual(client.requests, 1)
+
+    def test_inventory_validation_and_graph_failure_checkpoints(self):
+        api = FakeAPI()
+        with mock.patch.object(m, 'summarize', side_effect=KeyError('PRIVATE-FIELD')):
+            with self.assertRaises(KeyError) as caught:
+                m.collect(api, 'SERVER-OPERATOR-SECRET')
+        self.assertEqual(m.failure_details(caught.exception, api),
+                         'operation=VALIDATE_GRAPH; category=MISSING_FIELD')
+        self.assertEqual(len(api.calls), 8)  # Four singles, first four collections only.
+        for kind in m.COLLECTIONS:
+            api = FakeAPI()
+            api.catalog[kind] = [{'id': None}]
+            with self.assertRaises(m.InventoryError) as caught:
+                m.fetch_collection(api, kind)
+            self.assertEqual(m.failure_details(caught.exception, api),
+                             'operation=' + m.PAGE_OPERATIONS[kind] + '; code=PAGE_ORDER')
+            self.assertEqual(len(api.calls), 1)
+
+    def test_final_context_drift_checkpoint_keeps_short_circuit_read_set(self):
+        api = FakeAPI()
+        ordinary = api.request
+        config_reads = 0
+        def request(method, path):
+            nonlocal config_reads
+            if path == '/security/config':
+                config_reads += 1
+                if config_reads == 2:
+                    api.config['PRIVATE-FIELD'] = 'PRIVATE-VALUE'
+            return ordinary(method, path)
+        api.request = request
+        with self.assertRaises(m.InventoryError) as caught:
+            m.collect(api, 'SERVER-OPERATOR-SECRET')
+        self.assertEqual(m.failure_details(caught.exception, api),
+                         'operation=COMPARE_CONTEXT; code=CONTEXT_DRIFT')
+        self.assertEqual(api.calls[-1], ('GET', '/security/config'))
+        self.assertEqual(len(api.calls), 13)
+        self.assertEqual(api.calls.count(('GET', '/security/users/me')), 1)
+        self.assertEqual(api.calls.count(('GET', '/security/users/me/policies')), 1)
 
     def test_context_uses_only_checked_public_certificate(self):
         # A synthetic PEM is enough here because the parser and context are mocked.

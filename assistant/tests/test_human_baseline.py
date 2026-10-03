@@ -2,6 +2,7 @@
 import base64
 import ast
 import copy
+import contextlib
 import hashlib
 import importlib.util
 import json
@@ -407,6 +408,74 @@ class ClientBaselineTests(unittest.TestCase):
             client.clear.assert_called_once()
         self.assertEqual(len(made[1].calls), 4 * len(m.ADMIN_READS) + 1)
 
+    def test_cli_failure_phases_separate_server_from_final_indexer_checks(self):
+        cases = ('Server TLS', 'Server authentication', 'Server inventory', 'final Indexer baseline',
+                 'final socanalyst Indexer identity', 'final assistant-svc Indexer identity',
+                 'final enrollment bindings', 'summary assembly')
+        for failing_stage in cases:
+            with self.subTest(stage=failing_stage):
+                probe = mock.Mock()
+                clients = [mock.Mock(username=name) for name in ('admin', 'socanalyst', 'assistant-svc')]
+                server_client = mock.Mock(token='PRIVATE-TOKEN', operation='VALIDATE_GRAPH')
+                admin_checks = [dict(exact=True), dict(exact=True)]
+                identity_checks = [None, None]
+                binding_checks = [{'bindings': True}, {'bindings': True}]
+                if failing_stage == 'Server TLS':
+                    server_client.request.side_effect = ValueError('PRIVATE-RESPONSE')
+                if failing_stage == 'Server authentication':
+                    server_client.operation = 'AUTHENTICATE'
+                    server_client.authenticate.side_effect = s.InventoryError('HTTP_STATUS')
+                if failing_stage == 'final Indexer baseline':
+                    admin_checks[1] = KeyError('PRIVATE-FIELD')
+                if failing_stage == 'final socanalyst Indexer identity':
+                    identity_checks[0] = KeyError('PRIVATE-FIELD')
+                if failing_stage == 'final assistant-svc Indexer identity':
+                    identity_checks[1] = KeyError('PRIVATE-FIELD')
+                if failing_stage == 'final enrollment bindings':
+                    binding_checks[1] = {'bindings': False}
+                patches = (mock.patch.object(m.sys, 'argv', ['baseline']),
+                           mock.patch.object(m.os, 'geteuid', create=True, return_value=0),
+                           mock.patch.object(m.sys.stdin, 'isatty', return_value=True),
+                           mock.patch.object(m.sys.stdout, 'isatty', return_value=True),
+                           mock.patch('builtins.input', return_value='REVIEWED-BASELINE'),
+                           mock.patch.object(m, 'load_server', return_value=s),
+                           mock.patch.object(m, 'public_inputs', return_value=({}, [])),
+                           mock.patch.object(m, 'enrollment_bindings', side_effect=binding_checks),
+                           mock.patch.object(m, 'tls_context'),
+                           mock.patch.object(m, 'IndexerClient', side_effect=[probe] + clients),
+                           mock.patch.object(m, 'administrative_baseline', side_effect=admin_checks),
+                           mock.patch.object(m, 'count', return_value=1),
+                           mock.patch.object(m, 'principal_baseline', return_value={}),
+                           mock.patch.object(m, 'identity', side_effect=identity_checks),
+                           mock.patch.object(m, 'secret', return_value='PRIVATE-CREDENTIAL'),
+                           mock.patch.object(s, 'make_context'),
+                           mock.patch.object(s, 'Client', return_value=server_client),
+                           mock.patch.object(s, 'collect', side_effect=KeyError('PRIVATE-FIELD')
+                                       if failing_stage == 'Server inventory' else None,
+                                       return_value={'inventory_version': 1}),
+                           mock.patch.object(m, 'assemble', side_effect=TypeError('PRIVATE')
+                                       if failing_stage == 'summary assembly' else None))
+                with contextlib.ExitStack() as stack:
+                    for patch in patches:
+                        stack.enter_context(patch)
+                    output = stack.enter_context(mock.patch('builtins.print'))
+                    self.assertEqual(m.main(), 1)
+                text = output.call_args_list[-1].args[0]
+                self.assertTrue(text.startswith('STOP: human baseline failed at ' + failing_stage + ';'))
+                self.assertNotIn('PRIVATE', text)
+                self.assertNotIn('inventory_version', text)
+                if failing_stage.startswith('Server'):
+                    self.assertIn('operation=', text)
+                    if failing_stage == 'Server authentication':
+                        self.assertIn('code=HTTP_STATUS', text)
+                    elif failing_stage == 'Server inventory':
+                        self.assertIn('category=MISSING_FIELD', text)
+                else:
+                    self.assertNotIn('operation=', text)  # Never retain a stale Server label.
+                self.assertIsNone(server_client.token)
+                for client in clients:
+                    client.clear.assert_called_once()
+
     def test_ca_size_and_pin_failure_do_not_create_trust_context(self):
         for raw, code in ((b'A' * 65537, 'CA_SIZE'),
                           (b'-----BEGIN CERTIFICATE-----\nYQ==\n-----END CERTIFICATE-----\n', 'CA_CHANGED')):
@@ -427,9 +496,10 @@ class BaselinePacketTests(unittest.TestCase):
         doc = (ROOT / 'docs/runbooks/rbac-human-permission-baseline.md').read_text(encoding='utf-8')
         stage = doc.split("<<'PY'\n", 1)[1].split('\nPY\n', 1)[0]
         ast.parse(stage, feature_version=(3, 10))
-        self.assertIn("Path('/root/alertmind-human-baseline-identityfix')", stage)
+        self.assertIn("Path('/root/alertmind-human-baseline-serverdiag')", stage)
         self.assertIn('need(not os.path.lexists(root))', stage)
-        self.assertIn('cd /root/alertmind-human-baseline-identityfix\n', doc)
+        self.assertIn('cd /root/alertmind-human-baseline-serverdiag\n', doc)
+        self.assertNotIn('cd /root/alertmind-human-baseline-identityfix\n', doc)
         self.assertNotIn('cd /root/alertmind-human-baseline\n', doc)
         for name in ('collect_human_baseline.py', 'build_human_baseline_packet.py'):
             ast.parse((m.HERE / name).read_bytes(), feature_version=(3, 10))

@@ -1,9 +1,10 @@
 # Human RBAC — fresh permission baseline
 
-**Status, 3 October 2026:** corrected comparison package awaiting focused
-independent review and a renewed owner run release. The original approved packet
-staged successfully but H3 stopped at `socanalyst Indexer`; it is not an accepted
-baseline. Preserve the original stage, packet and failed output.
+**Status, 4 October 2026:** diagnostic revision awaiting focused independent
+review and a new owner run release. The port-comparison correction was approved
+and staged, then combined H3 stopped at `Server inventory`. A separately released
+unchanged-reader diagnostic authenticated, then stopped at `inventory` with no
+code or accepted summary. Preserve both prior stages, packets and failed outputs.
 No VM execution, authentication or permission change is released by this file.
 This advances P1-04 preparation; it does not close P1-04 or Phase 1.
 
@@ -45,6 +46,29 @@ complete H3 result or actual Dashboard context. No password reset, grant change
 or further VM diagnostic is needed to prepare this correction. After independent
 approval and **renewed explicit owner release**, use the new stage below for one
 corrected H2-H3 batch; a failure ends that release. Do not run the old H3 aid.
+
+## Diagnostic-only revision, 4 October
+
+The standalone result narrows the current failure to the Server inventory after
+authentication, not a rejected password; administrator scope is still unverified.
+The [retained result](../../evidence/rbac/server-inventory-diagnostic-2026-10-04.md)
+does not expose the exception type or exact failed read/validation. No response
+shape correction, credential reset or permission change is justified yet.
+
+The reader now reports only fixed operation checkpoints and fixed categories
+(such as `JSON_DECODE`, `MISSING_FIELD`, `TIMEOUT`) for non-check failures. Local
+check codes and operation labels are allowlisted; unknown values are redacted.
+No exception text, field key, raw response, private URL or token is printed.
+The combined runner separately labels Server authentication, Server inventory,
+final Indexer checks, enrollment comparison and summary assembly. Diagnostics
+fail closed; they do not return partial inventories or change reads/validation.
+
+Reader byte pins and checksums are refreshed explicitly for this pending revision,
+not auto-learned from the VM. The new stage below preserves BOTH older stages.
+After review and explicit release, the [Server-only diagnostic runbook](rbac-server-inventory-diagnostics.md)
+is the next execution path. Do not repeat combined H3 just to diagnose. H3 below
+remains a later, separately released complete-baseline path, not an extra command
+to run after a diagnostic STOP or PASS.
 
 ## Scope and one finite result
 
@@ -118,8 +142,9 @@ recoverable current before-state, stable host/VM, stopped AlertMind apps and no
 concurrent maintenance. Approval must cover this exact packet and run. This block
 stages public files only; it neither imports the collector nor authenticates.
 Never overwrite an existing stage, change groups or broaden the SSH tunnel.
-The new `/root/alertmind-human-baseline-identityfix` directory preserves the old
-`/root/alertmind-human-baseline` stage unchanged. If the new directory already
+The new `/root/alertmind-human-baseline-serverdiag` directory preserves both
+`/root/alertmind-human-baseline` and `/root/alertmind-human-baseline-identityfix`
+unchanged. If the new directory already
 exists, stop; do not delete or overwrite it. The old release does not authorize
 this refreshed packet or another run.
 
@@ -135,7 +160,7 @@ def need(ok):
     if not ok:
         raise SystemExit('STOP: public baseline staging refused; preserve any stage')
 
-root = Path('/root/alertmind-human-baseline-identityfix')
+root = Path('/root/alertmind-human-baseline-serverdiag')
 names = ('collect_human_baseline.py', 'collect_server_inventory.py', 'scope-contract.json',
          'indexer-role_socanalyst_ro.json', 'indexer-role_assistant_alerts_ro.json',
          'indexer-role-mapping_socanalyst_ro.json', 'indexer-role-mapping_assistant_alerts_ro.json')
@@ -174,7 +199,7 @@ for item in packet['files']:
 need(files['SHA256SUMS'] == ''.join(hashlib.sha256(files[name]).hexdigest() + '  ' + name + '\n'
                                   for name in names).encode('ascii'))
 need(hashlib.sha256(files['collect_server_inventory.py']).hexdigest() ==
-     '08ff077faa6f33a1e6bcd431c1f059ded3b753c63e975127451d5a4771e7aef5')
+     '5cccc906dbf4f5470f10814f37ccc4ca849e76c36d0b45c441da95357b911e77')
 need(not os.path.lexists(root))
 os.umask(0o077)
 root.mkdir(mode=0o700)
@@ -211,7 +236,7 @@ sudo -v
 sudo bash -s <<'SH'
 set -euo pipefail
 ulimit -c 0
-cd /root/alertmind-human-baseline-identityfix
+cd /root/alertmind-human-baseline-serverdiag
 test "$(stat -c '%u:%g:%a' .)" = '0:0:700'
 test "$(find . -mindepth 1 -maxdepth 1 | wc -l)" -eq 8
 for file in SHA256SUMS collect_human_baseline.py collect_server_inventory.py scope-contract.json \

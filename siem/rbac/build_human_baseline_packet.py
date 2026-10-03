@@ -9,7 +9,7 @@ HERE = Path(__file__).resolve().parent
 FILES = ('collect_human_baseline.py', 'collect_server_inventory.py', 'scope-contract.json',
          'indexer-role_socanalyst_ro.json', 'indexer-role_assistant_alerts_ro.json',
          'indexer-role-mapping_socanalyst_ro.json', 'indexer-role-mapping_assistant_alerts_ro.json')
-SERVER_SHA = '08ff077faa6f33a1e6bcd431c1f059ded3b753c63e975127451d5a4771e7aef5'
+SERVER_SHA = '5cccc906dbf4f5470f10814f37ccc4ca849e76c36d0b45c441da95357b911e77'
 
 
 def sha(raw):

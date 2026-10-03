@@ -29,10 +29,54 @@ AUTH = '/security/user/authenticate'
 COLLECTIONS = ('users', 'roles', 'policies', 'rules')
 SINGLE_READS = ('/', '/security/config', '/security/users/me',
                 '/security/users/me/policies')
+READ_OPERATIONS = {'/': 'READ_ROOT', '/security/config': 'READ_CONFIG',
+                   '/security/users/me': 'READ_CURRENT_USER',
+                   '/security/users/me/policies': 'READ_CURRENT_POLICIES'}
+COLLECTION_OPERATIONS = {kind: 'READ_' + kind.upper() for kind in COLLECTIONS}
+PAGE_OPERATIONS = {kind: 'VALIDATE_' + kind.upper() + '_PAGE' for kind in COLLECTIONS}
+OPERATIONS = frozenset(READ_OPERATIONS.values()) | frozenset(COLLECTION_OPERATIONS.values()) | frozenset(
+    PAGE_OPERATIONS.values()) | {'NOT_STARTED', 'TLS_HOSTNAME_NEGATIVE', 'AUTHENTICATE',
+                               'VALIDATE_VERSION', 'VALIDATE_GRAPH', 'COMPARE_GRAPH', 'COMPARE_CONTEXT'}
+# Only known local check codes may reach console diagnostics, even if an
+# unexpected exception is accidentally constructed with a private argument.
+ERROR_CODES = frozenset('''ADMIN_IDENTITY ADMIN_READ_SCOPE API_ERROR AUTH_REQUIRED
+BROKER_RUN_AS_DISABLED CATALOG_DRIFT CERT_CHANGED CERT_FORMAT CERT_SIZE
+CONSOLE_REQUIRED CONTENT_TYPE CONTEXT_DRIFT DEADLINE DUPLICATE_ID DUPLICATE_JSON_KEY
+EMPTY_PAGE ENCODING HTTP_FRAMING HTTP_STATUS ID_LIST INVALID_JSON_NUMBER INVALID_SHAPE
+ITEM_SHAPE MAPPING_COLLISION NAMED_RESOURCE NAMES NEGATIVE_TLS_ACCEPTED NEGATIVE_TLS_CAUSE
+PAGE_ORDER PAGE_OVERFLOW PAGE_SHAPE PAGINATION_DRIFT PARTIAL_RESULT PASSWORD
+PEER_CERT_CHANGED POLICY_EFFECT POLICY_SHAPE RBAC_MODE READONLY_POLICY_DRIFT
+READONLY_POLICY_SET RELATIONSHIP REQUEST_LIMIT RESPONSE_IO RESPONSE_SIZE RESPONSE_TIMEOUT
+REVIEW_GATE ROUTE_DENIED RULE_SHAPE RUN_AS_SHAPE SERVER_VERSION SERVICE_SERVER_IDENTITY
+STRING_LIST TLS_POLICY TOKEN_SHAPE TRUNCATED_RESPONSE USERNAME'''.split())
 
 
 class InventoryError(Exception):
     """Messages are static codes only, never API/configuration content."""
+
+
+def failure_details(exc, client=None):
+    """Fixed operation/category only; never exception text, keys or response data."""
+    operation = getattr(client, 'operation', None)
+    if type(operation) is not str or operation not in OPERATIONS:
+        operation = 'NOT_STARTED'
+    prefix = 'operation=' + operation
+    if isinstance(exc, InventoryError):
+        code = exc.args[0] if len(exc.args) == 1 else None
+        if type(code) is not str or code not in ERROR_CODES:
+            code = 'UNEXPECTED_CHECK'
+        return prefix + '; code=' + code
+    for kind, category in ((KeyboardInterrupt, 'INTERRUPTED'),
+                           (json.JSONDecodeError, 'JSON_DECODE'),
+                           (ssl.SSLCertVerificationError, 'TLS_CERTIFICATE'),
+                           (ssl.SSLError, 'TLS_IO'), (TimeoutError, 'TIMEOUT'),
+                           (http.client.HTTPException, 'HTTP_PROTOCOL'),
+                           (KeyError, 'MISSING_FIELD'), (AttributeError, 'FIELD_ACCESS'),
+                           (UnicodeError, 'TEXT_DECODE'), (TypeError, 'VALUE_TYPE'),
+                           (ValueError, 'VALUE_PARSE'), (OSError, 'IO_ERROR')):
+        if isinstance(exc, kind):
+            return prefix + '; category=' + category
+    return prefix + '; category=UNEXPECTED_EXCEPTION'
 
 
 def require(condition, code='INVALID_SHAPE'):
@@ -93,6 +137,7 @@ class Client:
         self.requests = 0
         self.auth_attempted = False
         self.token = None
+        self.operation = 'NOT_STARTED'
 
     def timeout(self):
         remaining = self.deadline - time.monotonic()
@@ -120,6 +165,7 @@ class Client:
             raise
 
     def wrong_hostname_probe(self):
+        self.operation = 'TLS_HOSTNAME_NEGATIVE'
         try:
             peer = self.connect('alertmind-server-hostname-check.invalid')
         except ssl.SSLCertVerificationError as exc:
@@ -139,6 +185,8 @@ class Client:
             require(method == 'GET' and basic is None and
                     (path in SINGLE_READS or (paged and int(paged[2]) < MAX_ITEMS)), 'ROUTE_DENIED')
             require(self.token is not None or path == '/', 'AUTH_REQUIRED')
+        self.operation = ('AUTHENTICATE' if method == 'POST' else
+                          COLLECTION_OPERATIONS[paged[1]] if paged else READ_OPERATIONS[path])
         self.requests += 1
         require(self.requests <= 100, 'REQUEST_LIMIT')
         peer = self.connect()  # Identity + exact peer pin checked BEFORE any HTTP headers.
@@ -204,6 +252,7 @@ class Client:
         return b''.join(chunks)
 
     def authenticate(self, username, password):
+        self.operation = 'AUTHENTICATE'
         require(type(username) is str and 1 <= len(username) <= 128
                 and ':' not in username and all(ord(c) >= 32 for c in username), 'USERNAME')
         require(type(password) is str and 1 <= len(password) <= 4096, 'PASSWORD')
@@ -234,8 +283,10 @@ def fetch_collection(client, kind):
     require(kind in COLLECTIONS, 'ROUTE_DENIED')
     found, expected, last = [], None, 0
     while True:
-        total, batch = rows(client.request('GET', '/security/' + kind +
-                         f'?limit={PAGE_SIZE}&offset={len(found)}&sort=id'))
+        data = client.request('GET', '/security/' + kind +
+                              f'?limit={PAGE_SIZE}&offset={len(found)}&sort=id')
+        client.operation = PAGE_OPERATIONS[kind]
+        total, batch = rows(data)
         if expected is None:
             expected = total
         require(total == expected and len(batch) <= PAGE_SIZE, 'PAGINATION_DRIFT')
@@ -370,18 +421,26 @@ def summarize(catalog, current, processed, config, username):
 
 def collect(client, username):
     version = client.request('GET', '/')
+    client.operation = 'VALIDATE_VERSION'
     require(version.get('api_version') == '4.14.7', 'SERVER_VERSION')
     current = client.request('GET', '/security/users/me')
     processed = client.request('GET', '/security/users/me/policies')
     config = client.request('GET', '/security/config')
     first = {k: fetch_collection(client, k) for k in COLLECTIONS}
+    client.operation = 'VALIDATE_GRAPH'
     summary = summarize(first, current, processed, config, username)
     # Re-read the whole graph/config/current-policy; counts alone miss replacements.
     second = {k: fetch_collection(client, k) for k in COLLECTIONS}
+    client.operation = 'COMPARE_GRAPH'
     require(canonical(first) == canonical(second), 'CATALOG_DRIFT')
-    require(config == client.request('GET', '/security/config') and
-            processed == client.request('GET', '/security/users/me/policies') and
-            current == client.request('GET', '/security/users/me'), 'CONTEXT_DRIFT')
+    # Same ordered reads and stop at the first mismatch, with a distinct
+    # comparison checkpoint rather than retaining the last successful read label.
+    for path, expected in (('/security/config', config),
+                           ('/security/users/me/policies', processed),
+                           ('/security/users/me', current)):
+        actual = client.request('GET', path)
+        client.operation = 'COMPARE_CONTEXT'
+        require(expected == actual, 'CONTEXT_DRIFT')
     summary['two_pass_observation_equal'] = True  # Not an atomic server snapshot.
     return summary
 
@@ -413,13 +472,9 @@ def main():
         print(json.dumps(summary, indent=2, sort_keys=True))
         print('STOP POINT: sanitized Server inventory only; no roles, users, settings or services changed.')
         return 0
-    except InventoryError as exc:
-        # InventoryError carries only a source-literal code, never remote content.
-        print('STOP: Server inventory failed at ' + stage + '; code=' + str(exc)
+    except (Exception, KeyboardInterrupt) as exc:
+        print('STOP: Server inventory failed at ' + stage + '; ' + failure_details(exc, client)
               + '; no result accepted. Do not paste credentials or raw responses.')
-        return 1
-    except (Exception, KeyboardInterrupt):
-        print('STOP: Server inventory failed at ' + stage + '; no result accepted. Do not paste credentials or raw responses.')
         return 1
     finally:
         password = username = None

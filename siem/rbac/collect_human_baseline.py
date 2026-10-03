@@ -21,7 +21,7 @@ import time
 import warnings
 
 HERE = Path(__file__).resolve().parent
-SERVER_SHA = '08ff077faa6f33a1e6bcd431c1f059ded3b753c63e975127451d5a4771e7aef5'
+SERVER_SHA = '5cccc906dbf4f5470f10814f37ccc4ca849e76c36d0b45c441da95357b911e77'
 CA = Path('/etc/wazuh-indexer/certs/root-ca.pem')
 CA_SHA = 'eb98a4af38cda550d473e5659a4375905334041fab4597f39c4f191d9e6f5e1d'
 LEAF_SHA = 'bc90aaa91888394165a33fc8be9fc667ca6f0a08f5de202c62a0e089262332fb'
@@ -323,7 +323,7 @@ def secret(prompt):
 
 
 def main():
-    clients, server_client, password = [], None, None
+    clients, server, server_client, password, username = [], None, None, None, None
     stage = 'preflight'
     try:
         require(len(sys.argv) == 1 and os.geteuid() == 0 and sys.stdin.isatty() and sys.stdout.isatty(),
@@ -360,31 +360,40 @@ def main():
         server_client.request('GET', '/')
         server_client.wrong_hostname_probe()
         print('PASS this client: separate pinned localhost Server TLS; no Server credentials sent yet')
-        stage = 'Server inventory'
+        stage = 'Server authentication'
         username = secret('Existing SERVER administrator username (not Indexer admin): ')
         password = secret('Existing SERVER administrator password: ')
         server_client.deadline = time.monotonic() + 120
         server_client.authenticate(username, password)
         password = None
+        stage = 'Server inventory'
         summary = server.collect(server_client, username)
         # Recheck the authoritative Indexer grants after the cross-plane observation.
         # Credential typing belongs outside each bounded network phase.
         for client in clients:
             client.reader.deadline = time.monotonic() + 120
+        stage = 'final Indexer baseline'
         require(administrative_baseline(admin, expected, preserved) == indexer, 'FINAL_BASELINE_DRIFT')
         for client in clients[1:]:
+            stage = 'final ' + client.username + ' Indexer identity'
             identity(client)
+        stage = 'final enrollment bindings'
         require(enrollment_bindings() == bindings, 'FINAL_ENROLLMENT_DRIFT')
         indexer.update(bindings)
+        stage = 'summary assembly'
         print(json.dumps(assemble(indexer, principals, summary), indent=2, sort_keys=True))
         print('STOP POINT: read-only baseline only; no actual Dashboard-context or mapping acceptance')
         return 0
-    except (Exception, KeyboardInterrupt):
+    except (Exception, KeyboardInterrupt) as exc:
         # No exception/HTTP body, partial summary, token or password escapes.
-        print('STOP: human baseline failed at ' + stage + '; no result accepted; no mapping or service action issued')
+        details = ''
+        if server is not None and stage in ('Server TLS', 'Server authentication', 'Server inventory'):
+            details = '; ' + server.failure_details(exc, server_client)
+        print('STOP: human baseline failed at ' + stage + details
+              + '; no result accepted; no mapping or service action issued')
         return 1
     finally:
-        password = None
+        password = username = None
         for client in clients:
             client.clear()
         if server_client is not None:
