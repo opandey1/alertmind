@@ -5,6 +5,14 @@ inventory package. Independent approval and a separate owner staging packet
 must precede execution. No application runtime change, role edit, Server user
 creation, Dashboard edit, service operation or additional tunnel is included.
 
+**4 October diagnostic revision:** the previously approved reader authenticated
+in the separately released Server-only diagnostic, then failed at inventory
+without a check code. The exact cause remains unknown; this is not a password
+rejection or a proven response-shape defect. This new diagnostic-only source
+revision requires focused review and a new release. See the
+[sanitized result](../../evidence/rbac/server-inventory-diagnostic-2026-10-04.md)
+and [held diagnostic runbook](rbac-server-inventory-diagnostics.md).
+
 ## Reader correction — replacement review required
 
 The owner ran the previously approved `510f049` package and reached `inventory`
@@ -88,9 +96,11 @@ local-only helper and its manifest remain unchanged.
   of a peer that continuously trickles header bytes. Bodies must be uncompressed JSON. Non-200,
   redirects, duplicate keys, partial failures, shape errors and oversize results
   stop without printing raw errors or a partial inventory. Failures report a
-  static phase and, for `InventoryError` only, its predefined source-literal
-  code (for example, `SERVICE_SERVER_IDENTITY` or `PEER_CERT_CHANGED`). Other
-  exception types report only the phase, never their exception text. No response
+  static phase and fixed operation checkpoint. `InventoryError` reports only
+  an allowlisted source-literal code (such as `SERVICE_SERVER_IDENTITY`);
+  other failures report a fixed category (such as `JSON_DECODE`, `MISSING_FIELD`
+  or `TIMEOUT`), never exception text, field keys or arbitrary class names.
+  Unknown operation/check values are replaced by fixed redacted labels. No response
   body, username, JWT or password is emitted. Return the sanitized STOP line for
   review; do not retry authentication or change permissions based on a code alone.
 

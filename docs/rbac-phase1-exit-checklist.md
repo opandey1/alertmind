@@ -29,7 +29,7 @@ An outcome closes only when its required evidence is recorded and accepted.
 | P1-01 | Reviewed, deployable broker TLS package | Existing shared-client candidate/actual-client fixture; compact startup check; exact supported package; scoped install, private backup and interruption-safe recovery instructions; focused independent review | Complete: focused approvals owner-confirmed for `7e53ecd`, `d5741e9`, `9dda08b` and `6ca2090`; new original-VM entry/packet still requires its own review/release |
 | P1-02 | Disposable-clone deployment rehearsal | New package installs, starts securely, rejects drift, survives interrupted installation in a stopped state and restores a verified secure configuration | Complete recorded owner-executed checkpoints, 3 October: E3/E4, expected exit 73, native inhibitor/guard refusals, rollback, secure restoration and final pause; not actual broker acceptance |
 | P1-03 | Actual Dashboard broker TLS and continuity | Actual login, scoped Server read and refresh/re-authentication path; correct peer identity; synthetic negative TLS tests; administrator and two saved dashboards preserved | Complete scoped recorded checkpoints: original deployment and trusted L6 PASS; owner confirms focused reviewer acceptance of retained synthetic retry plus trusted reauthentication. Actual issued-token HTTP-401 retry remains NOT TESTED; no reviewer artifact supplied here |
-| P1-04 | Exact human read-only configuration | Actual Dashboard authorization context and matching rules; fresh relevant permission baseline; exact `socanalyst` Server mapping and read-only UI label; owner decision on broader Server reads | Pending; broader readonly scope accepted. Original baseline H2 passed, H3 stopped; later read-only identity/DLS diagnostics pass. Port-comparison correction awaits focused review and renewed run release; complete baseline, actual context and mapping/UI not accepted |
+| P1-04 | Exact human read-only configuration | Actual Dashboard authorization context and matching rules; fresh relevant permission baseline; exact `socanalyst` Server mapping and read-only UI label; owner decision on broader Server reads | Pending; broader readonly scope accepted. Port correction approved; corrected H2 passed, H3 stopped at Server inventory. Separate Server-only authentication completed then inventory failed without a code. Diagnostic-only revision awaits focused review/new release; cause, complete baseline, actual context and mapping/UI remain unaccepted |
 | P1-05 | Human allow/deny acceptance | Fresh analyst session can perform approved reads and view both dashboards; agent 000 excluded from alert data; backend writes/admin/actions denied using reviewed safe probes; administrator still works | Pending |
 | P1-06 | Recovery, evidence and Phase 1 closure | Scoped rollback and secure restoration of the new changes; sanitized results and limitations; focused independent approval of the deployed path and acceptance record | Pending |
 
@@ -127,6 +127,14 @@ L6 functional results are recorded; the owner confirmed focused acceptance of
 retained synthetic retry plus trusted reauthentication for P1-03. The actual live
 HTTP-401 row remains NOT TESTED. See the [later disposition and failed-baseline
 diagnosis](../evidence/rbac/human-baseline-diagnostic-2026-10-03.md).
+
+4 October follow-up: corrected H2 passed and combined H3 reached the Server
+phase before stopping. A separately released Server-only run authenticated then
+failed during inventory without a code; [result retained](../evidence/rbac/server-inventory-diagnostic-2026-10-04.md).
+The [diagnostic-only revision](runbooks/rbac-server-inventory-diagnostics.md)
+reports fixed operation/category labels, without weakening TLS, read scopes,
+limits or validation. It is held for review/release, not a proven live fix or
+P1-04 acceptance. Do not reset passwords or replay accepted drills to address it.
 P1-04–06 remain unclosed; human context/mapping/UI/denials are pending. Do not
 rerun the old failed H3; the corrected packet uses a new stage and requires renewed
 focused approval and owner run release, without altering the existing permissions.

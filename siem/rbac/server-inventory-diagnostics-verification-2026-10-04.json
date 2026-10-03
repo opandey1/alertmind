@@ -1,0 +1,63 @@
+{
+  "date": "2026-10-04",
+  "scope": "offline author verification of diagnostic-only Server inventory revision; NOT independent approval, live defect repair or execution release",
+  "review_status": "awaiting-focused-review",
+  "base_revision": "f9b00ed",
+  "runtime": "Python 3.12.14 on Windows, existing disposable CI environment",
+  "focused_tests": {"run": 59, "skipped": 0, "elapsed_seconds": 0.585, "result": "PASS"},
+  "added_test_methods": 6,
+  "full_suite": {"run": 1396, "skipped": 54, "elapsed_seconds": 28.734, "result": "PASS"},
+  "intermediate_failures_corrected": [
+    "Initial new CLI test exceeded Python's static context-manager nesting limit; changed test setup to ExitStack without removing assertions",
+    "First full run found four stale README count assertions; updated 1390 to 1396 mechanically, then full suite passed"
+  ],
+  "python_310_source_and_staging_grammar": "PASS",
+  "syntax_only": {"bash_blocks": 3, "powershell_blocks": 1, "result": "PASS"},
+  "frozen_evidence_verifier": "PASS",
+  "diagnostic_contract": [
+    "allowlisted operation checkpoints and local check codes; unknown labels/arguments redacted",
+    "non-check exceptions mapped to fixed categories; never format exception text, keys, body, token, arbitrary class name or private URL",
+    "Server authentication and inventory phases distinct; final Indexer/identity/enrollment/assembly phases no longer carry a stale Server label",
+    "same ordered reads and short-circuit context rechecks, no additional authentication or diagnostic HTTP requests",
+    "fail closed with no partial inventory and clear credential/token references"
+  ],
+  "unchanged": [
+    "Indexer and Server certificates/name/peer pins and specific negative TLS checks",
+    "read-only route/method allowlists, request/body/page/deadline limits and no retries",
+    "all grant, graph, administrator and readonly-policy validations",
+    "agent binding, DLS/positive controls and port-only identity normalization",
+    "packet schema/file set/review submission label/no-overwrite semantics",
+    "five public role/mapping/scope payloads and protected measurement/run evidence"
+  ],
+  "source_lf_sha256": {
+    "collect_server_inventory.py": "5cccc906dbf4f5470f10814f37ccc4ca849e76c36d0b45c441da95357b911e77",
+    "collect_human_baseline.py": "3a067204b6eedabb4421fafecc202b27a1846f44494522e8ee89653dccef32fd",
+    "build_human_baseline_packet.py": "0003f29d13b5b9ab25eb53e47cf1cb2ea4cbb56417b4ea8f55d2e9718d87ea69"
+  },
+  "public_packet": {
+    "sha256": "985953a23a86057abf756fbfeefb0d4d17ba242efec62bc632a273f4b63a98b7",
+    "bytes": 63772,
+    "files": 8,
+    "collector_executed_by_build": false,
+    "review_status": "awaiting-focused-review",
+    "changed_files_vs_previous_packet": ["collect_human_baseline.py", "collect_server_inventory.py", "SHA256SUMS"]
+  },
+  "new_stage": "/root/alertmind-human-baseline-serverdiag",
+  "older_stages_preserved": ["/root/alertmind-human-baseline", "/root/alertmind-human-baseline-identityfix"],
+  "previous_packet_sha256": "55ffb1119b33e2b002d05540cbfab6873a3ed814b9030a8236c3640f178d4dc0",
+  "previous_server_reader_lf_sha256": "08ff077faa6f33a1e6bcd431c1f059ded3b753c63e975127451d5a4771e7aef5",
+  "owner_reported_previous_standalone_authentication_completed": true,
+  "live_failure_cause_proven": false,
+  "new_vm_execution_released": false,
+  "vm_api_browser_or_real_credential_use_by_author": false,
+  "model_calls": false,
+  "mutation_authorized": false,
+  "limits": [
+    "Windows platform skips are not Linux/CI/packaged-Python pass claims",
+    "Operation labels are diagnostic checkpoints, not a traceback or root-cause proof",
+    "No malformed-response repair, password reset or grant change is implemented",
+    "New focused independent approval and explicit owner release needed before one new-stage Server-only run",
+    "A diagnostic result alone does not accept combined H3 or prove actual Dashboard context/matching predicates",
+    "Complete baseline and human configuration/allow-deny/closure remain pending"
+  ]
+}
