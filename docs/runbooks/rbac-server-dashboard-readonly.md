@@ -1,14 +1,18 @@
 # Server/Dashboard read-only implementation gate
 
 **Active work order, 1 October 2026:** use the [finite Phase 1 exit checklist](../rbac-phase1-exit-checklist.md).
-The next author task is the compact broker TLS deployment/startup/recovery
-package, followed by a clone rehearsal and separately approved live acceptance.
+The compact package and clone rehearsal are complete recorded checkpoints;
+original-VM deployment/start and trusted-profile L6 reads/continuity now have
+owner-reported PASS. Next is the [fresh permission-baseline package](rbac-human-permission-baseline.md),
+actual human context and exact mapping/UI work after the remaining TLS decision.
 Expanded OS/runtime attestation is deferred; the actual-context, permission,
 safe-denial and broader-Server-scope requirements in this runbook remain.
 
 **Status:** Local configuration and corrected Server-admin inventory completed
-from owner-reported output. Broker TLS remediation remains offline and has not
-been deployed or accepted on the actual Dashboard path. The offline
+from owner-reported output. Broker TLS remediation is deployed, with trusted
+actual administrator Server reads, ordinary refresh, logout/login and both saved
+dashboards reported PASS on 3 October. Issued-token refresh/HTTP-401 retry remains
+NOT TESTED; focused acceptance of that criterion is unresolved. The offline
 `socanalyst` preview below is not a live-change package. No live mutation is
 authorized by this package. No application runtime change is included. The
 authenticated analyst profile is still absent.
@@ -44,6 +48,8 @@ The versioned Server role is broader than alert-only access. It can expose
 system and agent information beyond the Indexer agent-001/002 alert scope;
 Indexer DLS does not constrain Server responses. Record that accepted
 compatibility trade-off before activation, or stop for a custom-role redesign.
+The owner explicitly accepted the built-in scope for this lab on 3 October 2026;
+this settles the scope choice, not actual permissions, review or execution release.
 Do not advertise the entire Dashboard as agent-001/002 isolated.
 ([4.14.7 role definitions](https://github.com/wazuh/wazuh/blob/v4.14.7/framework/wazuh/rbac/default/roles.yaml))
 
@@ -116,14 +122,21 @@ this gate. The fresh package versions must still support the reviewed design.
 
 ## 3. Read-only follow-up inventory before mutation
 
+The new [combined permission baseline](rbac-human-permission-baseline.md) reuses
+the exact corrected Server reader and adds fresh relevant Indexer checks. It
+emits no mapping payload and cannot prove Dashboard context. It is offline
+preparation awaiting focused review and separate run release, not a new broker
+deployment or foundation-drill replay.
+
 The [authenticated Server inventory package](rbac-server-authenticated-inventory.md)
 implements the Server-admin slice below. The reviewed reader correction passed
 in the owner's 8 September execution. It does not replace actual Dashboard-context
-or separate Indexer baseline proof. The next [broker code inventory](rbac-dashboard-broker-preflight.md)
-checks installed code before broker execution: versioned upstream constructs an
-HTTPS agent with certificate verification disabled. Separate curl/Python TLS
-proofs do not prove the Dashboard broker verifies TLS. No credential-bearing
-broker test or TLS exception is authorized by this new inventory package.
+or separate Indexer baseline proof. The earlier [broker code inventory](rbac-dashboard-broker-preflight.md)
+found that versioned upstream constructed an HTTPS agent with certificate
+verification disabled. That finding led to the now-deployed remediation;
+it is not a statement that the current patched broker remains unverified.
+Separate curl/Python proofs still cannot substitute for actual broker acceptance.
+The old inventory package is not a release for new broker tests or TLS exceptions.
 The owner-observed Server certificate names `localhost`, not `127.0.0.1`:
 use localhost as the verified TLS identity with explicit loopback resolution.
 Trust-file fingerprint checking alone is not exact peer-certificate pinning;

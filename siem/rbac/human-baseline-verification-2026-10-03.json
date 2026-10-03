@@ -1,0 +1,31 @@
+{
+  "scope": "offline author verification; NOT independent approval or live acceptance",
+  "date": "2026-10-03",
+  "review_status": "awaiting-focused-review",
+  "runtime": "Python 3.12.14 on Windows, existing disposable CI environment",
+  "focused_tests": {"run": 22, "skipped": 0, "result": "PASS"},
+  "full_suite": {"run": 1385, "skipped": 54, "result": "PASS"},
+  "python_310_grammar_and_runbook_staging_syntax": "PASS",
+  "frozen_evidence_verifier": "PASS",
+  "public_packet": {
+    "sha256": "aff08cf4c170fec2d4a86eacc0b254eab02107222fb12839c4099954740e9cd1",
+    "bytes": 56996,
+    "files": 8,
+    "collector_executed_by_build": false
+  },
+  "reused_server_reader_sha256": "08ff077faa6f33a1e6bcd431c1f059ded3b753c63e975127451d5a4771e7aef5",
+  "owner_scope_decision": "built-in Server readonly broader reads accepted for this lab on 2026-10-03; not activation or execution release",
+  "vm_or_browser_execution": false,
+  "real_credentials_used": false,
+  "model_calls": false,
+  "mutation_authorized": false,
+  "actual_dashboard_context_proven": false,
+  "server_mapping_payload_emitted": false,
+  "limits": [
+    "Linux-only tests skipped on this Windows host; CI result not claimed",
+    "New baseline has not run on the VM",
+    "Owner scope consent is external to the collector",
+    "P1-03 actual retry criterion needs focused disposition",
+    "Actual Dashboard context, all matching Server predicates and mapping/UI/recovery/denial package remain pending"
+  ]
+}
