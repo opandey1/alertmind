@@ -78,7 +78,7 @@ assistant/
 ├── requirements-ci.lock                  # hash-pinned Python 3.12 linux set used by offline CI
 ├── README.md · DESIGN_AND_CHANGELOG.md   # design decisions, review log, Q&A
 │
-├── tests/               # 1349 unittest methods across 76 files
+├── tests/               # 1363 unittest methods across 77 files
 │   ├── test_redact.py            # redaction proof (plants secrets, asserts none leak)
 │   ├── test_redaction_trace.py   # trace masks values; proof and production paths cannot diverge
 │   ├── test_injection.py         # recorded injection scenario (mock + real provider)
@@ -94,6 +94,7 @@ assistant/
 │   ├── test_phase0_characterization.py  # pins current pipeline/provider behaviour before the RBAC refactor
 │   ├── test_rbac_templates.py     # offline contract for the committed RBAC/SSH templates and operator proofs
 │   ├── test_broker_tls_builder.py # pinned offline candidate builder guards
+│   ├── test_broker_tls_compact_live.py # original-VM maintenance wiring; synthetic only, no execution release
 │   ├── test_broker_tls_operator.py # offline byte-check and recovery decisions; no live operations
 │   ├── test_broker_tls_operator_fs.py # native-reader policy/faults; four Linux temporary-tree tests
 │   ├── test_broker_tls_dependency_graph.py # declared axios graph/shadow bounds; no Node execution
@@ -123,7 +124,7 @@ assistant/
 ```bash
 cd assistant
 pip install -r requirements.txt
-python -m unittest discover -s tests -p "test_*.py"   # full suite — 1349 tests
+python -m unittest discover -s tests -p "test_*.py"   # full suite — 1363 tests
 python tests/test_redact.py                       # redaction proof (non-zero exit if a secret leaks)
 python tests/test_injection.py                    # recorded injection scenario (mock)
 python runner.py --provider mock --view operational

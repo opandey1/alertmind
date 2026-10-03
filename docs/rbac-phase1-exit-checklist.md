@@ -13,19 +13,20 @@ supplies the detailed acceptance boundaries.
 
 ## 1. Finite exit checklist
 
-There is one completed foundation and six scoped outcomes. **Five outcomes
-remain after the owner's Batch A review confirmation.** The concrete
-source-certificate correction has owner-confirmed focused approval and is merged.
-Its clone staging passed; CONFIG_ENDPOINT now requires the scoped clone-only URL
-correction before an inhibited preflight/native rehearsal. These are
+There is one completed foundation and six scoped outcomes. **Four outcomes
+remain after focused package approval and the accepted 3 October clone rehearsal.**
+The source-certificate reader and clone-only URL correction have owner-confirmed
+focused approval. The separately released remaining E3/E4/Block 4 passed; see the
+[dated owner-executed result](../evidence/rbac/compact-broker-clone-proof-2026-10-03.md).
+These are
 acceptance outcomes, not a promise of six VM commands or six review cycles.
 An outcome closes only when its required evidence is recorded and accepted.
 
 | ID | Outcome | Required evidence | Current status |
 | --- | --- | --- | --- |
 | P1-00 | Preserve accepted foundation | Indexer roles/direct mappings, agent-001/002 DLS, scoped `own_index`, service read/write-denial proof, restricted SSH/TLS and completed credential/key drill | Complete recorded checkpoints; not a fresh health assertion |
-| P1-01 | Reviewed, deployable broker TLS package | Existing shared-client candidate/actual-client fixture; compact startup check; exact supported package; scoped install, private backup and interruption-safe recovery instructions; focused independent review | Original `7e53ecd`/candidate and source-reader `9dda08b` focused approval owner-confirmed; clone-only endpoint helper awaits focused review; native acceptance is P1-02 |
-| P1-02 | Disposable-clone deployment rehearsal | New package installs, starts securely, rejects drift, survives interrupted installation in a stopped state and restores a verified secure configuration | Source-reader packet staged; preflight FAIL CONFIG_ENDPOINT. Additive endpoint correction awaits review/release; native installation/refusal/recovery NOT TESTED |
+| P1-01 | Reviewed, deployable broker TLS package | Existing shared-client candidate/actual-client fixture; compact startup check; exact supported package; scoped install, private backup and interruption-safe recovery instructions; focused independent review | Complete: focused approvals owner-confirmed for `7e53ecd`, `d5741e9`, `9dda08b` and `6ca2090`; new original-VM entry/packet still requires its own review/release |
+| P1-02 | Disposable-clone deployment rehearsal | New package installs, starts securely, rejects drift, survives interrupted installation in a stopped state and restores a verified secure configuration | Complete recorded owner-executed checkpoints, 3 October: E3/E4, expected exit 73, native inhibitor/guard refusals, rollback, secure restoration and final pause; not actual broker acceptance |
 | P1-03 | Actual Dashboard broker TLS and continuity | Actual login, scoped Server read and refresh/re-authentication path; correct peer identity; synthetic negative TLS tests; administrator and two saved dashboards preserved | Pending |
 | P1-04 | Exact human read-only configuration | Actual Dashboard authorization context and matching rules; fresh relevant permission baseline; exact `socanalyst` Server mapping and read-only UI label; owner decision on broader Server reads | Pending |
 | P1-05 | Human allow/deny acceptance | Fresh analyst session can perform approved reads and view both dashboards; agent 000 excluded from alert data; backend writes/admin/actions denied using reviewed safe probes; administrator still works | Pending |
@@ -112,17 +113,13 @@ removing a mapping is not an instant logout guarantee.
 | C — live feature | Owner-approved maintenance window: P1-03 TLS, then P1-04 exact human configuration and P1-05 behavior | TLS acceptance before credentialed run-as/configuration; explicit permission-scope decision before human activation |
 | D — close Phase 1 | P1-06 recovery/evidence/review, then proceed directly to Phase 2 | No completion claim until all six outcomes are accepted |
 
-Batch A approval is owner-reported in chat (1 October), not a Codex self-review
-or a reviewer artifact supplied in this repository. The new
-[Batch B packet](runbooks/rbac-broker-tls-compact-clone-rehearsal.md) received
-owner-confirmed focused review and one release, but its preflight failed.
-The [source-certificate correction](runbooks/rbac-broker-tls-compact-source-certificate-correction.md)
-received owner-confirmed approval; its R1/R2 passed, then CONFIG_ENDPOINT stopped
-preflight. The [single-URL clone correction](runbooks/rbac-broker-tls-compact-clone-endpoint-correction.md)
-and additive two-file public stage require focused review and renewed owner
-execution release; existing five-file stage stays unchanged. After correction,
-use the exact inhibited preflight E4 and existing finite Block 4, not another
-active-service preflight or staging refresh.
+Batch A/B and scoped corrections have owner-confirmed focused approval, not
+Codex self-review or reviewer artifacts supplied in this repository. Earlier
+failed preflights, staging and approved service recovery remain separate history.
+The [accepted remaining clone sequence](../evidence/rbac/compact-broker-clone-proof-2026-10-03.md)
+closes P1-02. Do not rebuild/replay it or use its clone-only helper/driver as an
+original-VM execution release. Next is a separately reviewed and owner-released
+Batch C original-VM package and actual broker acceptance; P1-03–06 remain pending.
 No additional approval cycle is needed at every successful checkpoint of that
 single released batch; an actual failure still stops the run for correction.
 

@@ -1,0 +1,68 @@
+{
+  "date": "2026-10-03",
+  "scope": "Batch C offline original-VM TLS maintenance facade/packet; not execution release or live acceptance",
+  "status": "awaiting-focused-independent-review",
+  "source_base_commit": "1262f9a",
+  "implementation_commit_location": "HANDOFF author entry; exact public source hashes below bind this pre-commit preparation",
+  "supported_dashboard_and_manager_version": "4.14.7-1",
+  "public_packet": {
+    "schema": 1,
+    "bytes": 68159,
+    "sha256": "e3d0814b88252acad01944047ca922e08f163e8b51c9a97f79aede1fd9dc4cbc",
+    "files": {
+      "candidate.cjs": "fe721feb8599293853e10d33823e68ff72df001be00382e3701d5da645aba28f",
+      "compact_operator.py": "2200ccbe60fa347039ede8e7b627041056e21f2bdaed6755b7964e9529c48942",
+      "bundle.json": "13cd780dfdffe16887a78f69aa4655f2be846485689015975b61981279615e83",
+      "compact_clone_endpoint.py": "e790465fbe599c697cf0ede9d19c5fbd6a84c7f5b67576647275043b80f603eb",
+      "compact_live_deployment.py": "13073bf64a6e5a59dc9237927218ff54c5df463cffda1d89f1ba0520071f869b",
+      "SHA256SUMS": "06b83ce7239174fafa2cf388416921c90371c67531d9dc5197c8a85e824ff2fc"
+    },
+    "operator_or_endpoint_executed_by_builder": false,
+    "clone_fault_driver_included": false,
+    "private_data_included": false
+  },
+  "focused_tests": {"methods": 14, "result": "OK", "scope": "synthetic state and mocked source I/O only"},
+  "full_regression": {
+    "python": "3.12.14",
+    "methods": 1363,
+    "files": 77,
+    "skipped_on_windows": 54,
+    "seconds": 16.487,
+    "result": "OK",
+    "initial_attempt": "Four README-count assertions failed with stale 1349/76 inventory; counts corrected, no tests weakened"
+  },
+  "frozen_evidence_verifier": "PASS; protected artifacts unchanged",
+  "runbook_checks": {
+    "bash_blocks_syntax_only": 4,
+    "powershell_blocks_syntax_only": 1,
+    "stage_and_source_python_grammar": "3.10",
+    "local_markdown_targets_verified": 48,
+    "packet_stage_and_record_file_pins_and_checksum_bytes": "exact six-file match"
+  },
+  "actual_client_synthetic_fixture": {
+    "groups_passed": 17,
+    "node": "v24.19.0",
+    "openssl": "3.5.7",
+    "axios": "1.12.2",
+    "platform": "win32",
+    "linux_filesystem_metadata": "adapted, not native proof",
+    "fixture_pin": "synthetic substitution in memory only",
+    "packaged_linux_runtime_executed": false,
+    "live_acceptance": false,
+    "initial_attempt": "CI venv lacks cryptography; used existing bundled Python dependency runtime without installing packages"
+  },
+  "existing_operator_endpoint_candidate_or_experimental_guard_changed": false,
+  "prior_tests_deleted_or_weakened": false,
+  "vm_contacted": false,
+  "original_execution_released": false,
+  "independent_approval": false,
+  "remaining": [
+    "focused review of live facade, public staging/recovery and acceptance boundaries",
+    "fresh original package/health/endpoint and saved-object/permission baselines",
+    "owner downtime, current-before-state and secure-restart release",
+    "actual broker scoped login/read/re-authentication and refresh acceptance decision",
+    "administrator and two saved dashboards continuity",
+    "human actual context, broader Server scope decision, mapping/UI and safe backend acceptance",
+    "scoped recovery/evidence review and Phase 1 closure"
+  ]
+}

@@ -4,13 +4,14 @@
 This records the owner's review confirmation, not a Codex self-review; no reviewer
 artifact was supplied here. This is not a VM execution packet. The separate
 [Batch B clone packet](rbac-broker-tls-compact-clone-rehearsal.md) received
-owner-confirmed approval/release but stopped in preflight. The
+owner-confirmed approval/release. The
 [source-certificate reader correction](rbac-broker-tls-compact-source-certificate-correction.md)
-is now owner-confirmed focused-approved/merged (`9dda08b`); R1/R2 passed, then
-Block 3 failed CONFIG_ENDPOINT. The additive
+is owner-confirmed focused-approved/merged (`9dda08b`). The additive
 [clone-only URL correction](rbac-broker-tls-compact-clone-endpoint-correction.md)
-awaits its own focused review and execution release. P1-02 rehearsal,
-actual broker TLS and human `socanalyst` activation are NOT TESTED. Follow the
+has owner-confirmed focused approval (`6ca2090`). Following separate recovery
+and renewed release, E3/E4 and the finite native rehearsal passed on 3 October;
+see the [accepted result](../../evidence/rbac/compact-broker-clone-proof-2026-10-03.md).
+Actual original-VM broker TLS and human `socanalyst` activation remain NOT TESTED. Follow the
 [finite checklist](../rbac-phase1-exit-checklist.md), not the deferred guard work.
 
 ## Supported scope and trust
@@ -65,8 +66,8 @@ The startup helper checks the exact pin and expiry; it does not perform TLS traf
 The startup check uses `ExecStartPre=+` with fixed packaged Python and `-I -B`.
 Only that command runs with root privileges, to traverse packaged Python and
 read private state; Dashboard is not made root. Failure is not ignored and
-prevents service startup. These are documented systemd semantics, **not native
-acceptance for this package**. ([upstream v259 service contract](https://github.com/systemd/systemd/blob/v259/man/systemd.service.xml))
+prevents service startup. Native inhibitor/guard refusal was observed on the
+isolated clone, not yet on the original VM. ([upstream v259 service contract](https://github.com/systemd/systemd/blob/v259/man/systemd.service.xml))
 
 Use a deny-start drop-in, not a mask that might collide with a regular packaged
 unit under `/etc/systemd/system`. Reload, stop and verify MainPID 0 plus
@@ -152,12 +153,12 @@ rerun: **17 groups passed**, including negative TLS, proxy/redirect mutants and
 refresh semantics. Packaged axios 1.12.2, workstation Node v24.19.0/Windows,
 synthetic pin/adapted Linux metadata — not VM packaged Node or live broker proof.
 
-Next: review/release the prepared Batch B packet for one separately
-authorized clone deployment/recovery rehearsal. Prove mandatory pre-start refusal,
-secure restart, interrupted recovery and rollback remaining stopped; preserve
-admin/saved dashboards. Actual broker login/read/refresh TLS acceptance precedes
-human mapping/UI. Completed SSH, rotation and PID 1 diagnostics are not repeated.
-P1-02–06 stay pending; broader Server `readonly` scope needs owner decision.
+P1-02's finite clone rehearsal is now accepted; do not replay it. Next is the
+[separate original-VM package](rbac-broker-tls-compact-live-deployment.md), awaiting
+focused review and owner maintenance release. Actual broker login/read/refresh
+TLS and admin/two-dashboard continuity precede human mapping/UI. Completed SSH,
+rotation and PID 1 diagnostics are not repeated. P1-03–06 stay pending; broader
+Server `readonly` scope still needs owner decision.
 
 For updates, `pause` and preserve recovery state before normal vendor maintenance;
 review/rebuild the compact contract on a clone before secure restart. Unknown

@@ -16,20 +16,29 @@ state. Rollback of original unverified bytes never restarts Dashboard. This
 does not release a VM packet or make Phase 1 complete. The new
 [Batch B clone packet](../../../docs/runbooks/rbac-broker-tls-compact-clone-rehearsal.md),
 `compact_clone_rehearsal.py` and `build_compact_clone_packet.py` received
-owner-confirmed review/release for the original packet; native preflight failed.
+owner-confirmed review/release for the original packet; earlier preflights failed.
 The [scoped source-certificate correction](../../../docs/runbooks/rbac-broker-tls-compact-source-certificate-correction.md)
 accepts only the reported named-wazuh public source layout, retaining its DER
 pin and strict installed-trust checks. Its focused approval is owner-confirmed
 (`9dda08b`, merged PR #107); R1/R2 staging passed, then CONFIG_ENDPOINT stopped
 preflight. The [additive clone-only endpoint packet](../../../docs/runbooks/rbac-broker-tls-compact-clone-endpoint-correction.md)
-and twelve regressions are awaiting focused review/execution release. Only
+and twelve regressions have owner-confirmed focused approval (`6ca2090`). Only
 the configured IP URL becomes localhost under private backup and stopped
 inhibition; credentials/0600 UID/GID and every other YAML byte are preserved.
 Existing five-file stage, TLS candidate/allowlist, operator and active preflight
 stay unchanged. A separate inhibited preflight connects to existing TLS prepare;
 no VM config/service mutation was performed by Codex.
-Native installation/refusal/recovery results remain NOT TESTED. The
+Following separately approved service recovery and fresh release, E3/E4 and
+the finite rehearsal passed on 3 October. The [dated result](../../../evidence/rbac/compact-broker-clone-proof-2026-10-03.md)
+accepts P1-02 owner-executed native interruption/refusal/rollback/restoration
+checkpoints, not actual broker login/read/refresh or original-VM deployment. The
 clone-only fault driver is never installed as the production startup helper.
+
+**Batch C preparation:** the [original-VM maintenance package](../../../docs/runbooks/rbac-broker-tls-compact-live-deployment.md)
+adds a fixed facade/public builder, reusing pinned operator and endpoint functions
+without executing the clone driver/CLI. Separate private endpoint recovery state;
+unchanged production startup helper. It awaits focused review and owner release.
+No original VM, credential, mapping or saved object has been changed by this work.
 
 This is Choice 1 of the [approved design](../../../docs/hardening/broker-tls/hardening.md).
 The existing shared client disables TLS peer verification for both internal
@@ -104,8 +113,8 @@ not a compatible manifest for this revision. See
   callers must not treat arbitrary error bodies as safe logs.
 - Trust is loaded at construction. Updates require an intentional guarded
   restart; this candidate does not watch files. The separate compact package
-  implements fixed startup/install/recovery behavior offline; native deployment
-  and acceptance remain pending. The
+  implements fixed startup/install/recovery behavior with accepted clone checkpoints;
+  original-VM deployment and actual broker acceptance remain pending. The
   [offline operator safety core](OPERATOR.md) now implements the byte-check and
   recovery-decision portion only; it is not an installed guard or live installer.
 
@@ -216,12 +225,14 @@ that approval is merged in PR #32 (`5691d42`). Native filesystem, packaged
 runtime and live acceptance limits remain. Historical author verification JSON
 records retain their then-pending review status; later approval is in HANDOFF.
 
-Before a live apply package: independently review this change, validate the
-packaged Linux runtime and native filesystem checks, establish suitability of
-the actual pinned self-signed Server certificate, agree timeout/performance
-tolerances, implement/rehearse startup drift guards and interrupted rollback,
-and obtain explicit downtime approval. Stop the Dashboard before any future
-client change; stopping Streamlit alone does not stop background authentication.
+The finite local-first checklist now supersedes the earlier expanded runtime
+attestation prerequisites. Focused package/candidate approvals are owner-confirmed
+and the finite native clone rehearsal is accepted; do not replay it. The new
+original-VM facade/packet still needs focused review, fresh relevant compatibility,
+explicit downtime/start release, actual broker behavior/latency acceptance and
+admin/saved-dashboard continuity. Normal supported vendor runtime is trusted lab
+input, not a claim of independently attested packaged Node. Stop Dashboard before
+client changes; stopping the assistant alone does not stop broker traffic.
 Restoring vulnerable original bytes is not authorization to restart them.
 
 No new VM output, role/grant, credential, SSH change or model rerun is requested
