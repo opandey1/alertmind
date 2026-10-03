@@ -1,8 +1,11 @@
 # Human RBAC — fresh permission baseline
 
-**Status, 3 October 2026:** offline package awaiting focused independent review.
+**Status, 3 October 2026:** corrected comparison package awaiting focused
+independent review and a renewed owner run release. The original approved packet
+staged successfully but H3 stopped at `socanalyst Indexer`; it is not an accepted
+baseline. Preserve the original stage, packet and failed output.
 No VM execution, authentication or permission change is released by this file.
-This advances P1-04 preparation; it does not close P1-03 or P1-04.
+This advances P1-04 preparation; it does not close P1-04 or Phase 1.
 
 The owner accepted the built-in Server `readonly` scope for this lab: broader
 system/agent reads than Indexer agent-001/002 alert DLS, no management-write
@@ -12,10 +15,36 @@ HANDOFF and the exit checklist; the collector cannot attest owner consent.
 Original-VM broker installation/start checks and warning-free Firefox lab-profile
 L6 administrator reads, reauthentication and both saved-dashboard comparisons
 were owner-reported PASS. Actual issued-token refresh/HTTP-401 retry was **NOT
-TESTED**. The focused reviewer must explicitly dispose of that row against the
-retained synthetic retry tests and live reauthentication before credentialed
-Dashboard context observation or human activation. Do not force expiry or replay
-the deployment/clone/rotation drills to manufacture that result.
+TESTED**. The owner subsequently confirmed focused reviewer acceptance of the
+retained synthetic retry tests plus trusted L6 reauthentication for that remaining
+criterion. P1-03 is accepted on that scoped evidence combination, not a claim of
+actual issued-token HTTP-401 execution or a supplied reviewer artifact. Do not
+force expiry or replay the deployment/clone/rotation drills to manufacture it.
+
+## Scoped identity-comparison correction
+
+The original collector compared full `authinfo` JSON across fresh TCP connections.
+OpenSearch documents `remote_address` as the client's IP and TCP port:
+[Authentication Information API](https://docs.opensearch.org/latest/security/api/authentication/auth-info/).
+A different source port alone reproduced `IDENTITY_DRIFT` offline. The original
+generic STOP did not expose its error code, so this is a demonstrated collector
+bug and plausible cause, **not proof of the original run's exact failure**.
+
+The corrected collector accepts a well-formed IPv4 or bracketed IPv6 address and
+source port, then removes only that port from the in-memory comparison snapshot.
+It preserves the address host, presence of the field and every other authinfo
+field. The entire account response remains compared. Exact username, backend
+roles, effective role, tenant/requested-tenant, attributes and unknown-field drift
+are not ignored; malformed connection metadata is refused. Raw responses are not
+modified or exported. TLS pins, fresh connections, read routes, DLS/positive
+controls, timeouts, generic secret-free failure output and Server reader are unchanged.
+
+The owner-reported [failed attempt and later read-only diagnostics](../../evidence/rbac/human-baseline-diagnostic-2026-10-03.md)
+show current authentication, identity and count checks passing; they are not a
+complete H3 result or actual Dashboard context. No password reset, grant change
+or further VM diagnostic is needed to prepare this correction. After independent
+approval and **renewed explicit owner release**, use the new stage below for one
+corrected H2-H3 batch; a failure ends that release. Do not run the old H3 aid.
 
 ## Scope and one finite result
 
@@ -32,7 +61,8 @@ and exclusion of agent 000 with an administrator positive control. The two
 existing enrollment bindings are compared locally without displaying keys.
 It refreshes the full paginated Server graph and validates the unique built-in
 `readonly` role/policies using the existing reader. Grants/catalogs and identities
-are reread; equality is an observation, **not an atomic or continuous snapshot**.
+are reread; identity equality excludes only the validated source TCP port as
+described above. Equality is an observation, **not an atomic or continuous snapshot**.
 
 TLS is separate on both planes. Indexer: numeric loopback 9200, identity
 127.0.0.1, existing explicit CA and recorded leaf pin. Server: numeric loopback
@@ -88,6 +118,10 @@ recoverable current before-state, stable host/VM, stopped AlertMind apps and no
 concurrent maintenance. Approval must cover this exact packet and run. This block
 stages public files only; it neither imports the collector nor authenticates.
 Never overwrite an existing stage, change groups or broaden the SSH tunnel.
+The new `/root/alertmind-human-baseline-identityfix` directory preserves the old
+`/root/alertmind-human-baseline` stage unchanged. If the new directory already
+exists, stop; do not delete or overwrite it. The old release does not authorize
+this refreshed packet or another run.
 
 ```bash
 (
@@ -101,7 +135,7 @@ def need(ok):
     if not ok:
         raise SystemExit('STOP: public baseline staging refused; preserve any stage')
 
-root = Path('/root/alertmind-human-baseline')
+root = Path('/root/alertmind-human-baseline-identityfix')
 names = ('collect_human_baseline.py', 'collect_server_inventory.py', 'scope-contract.json',
          'indexer-role_socanalyst_ro.json', 'indexer-role_assistant_alerts_ro.json',
          'indexer-role-mapping_socanalyst_ro.json', 'indexer-role-mapping_assistant_alerts_ro.json')
@@ -177,7 +211,7 @@ sudo -v
 sudo bash -s <<'SH'
 set -euo pipefail
 ulimit -c 0
-cd /root/alertmind-human-baseline
+cd /root/alertmind-human-baseline-identityfix
 test "$(stat -c '%u:%g:%a' .)" = '0:0:700'
 test "$(find . -mindepth 1 -maxdepth 1 | wc -l)" -eq 8
 for file in SHA256SUMS collect_human_baseline.py collect_server_inventory.py scope-contract.json \
@@ -215,7 +249,7 @@ data remains private even on failure. Retain failed attempts separately.
 
 ## Next: actual context and exact mapping package
 
-After accepted baseline and the focused P1-03 retry decision, observe the actual
+After accepted baseline, with the scoped P1-03 decision recorded, observe the actual
 fresh `socanalyst` Dashboard broker context and processed Server policy without
 exporting sessions/tokens or adding sensitive logging. The installed current-user
 factory/account path is a code anchor, not runtime proof. Review **every** existing

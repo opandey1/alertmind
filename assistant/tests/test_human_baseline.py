@@ -59,7 +59,11 @@ class FakeIndexer:
         if self.change:
             self.change(self, path)
         if path in (m.AUTHINFO, m.ACCOUNT):
-            return copy.deepcopy(self.account)
+            result = copy.deepcopy(self.account)
+            if path == m.AUTHINFO:
+                # Every live request uses a new TCP connection/source port.
+                result['remote_address'] = '127.0.0.1:' + str(40000 + len(self.calls))
+            return result
         if path in m.SEARCH.values():
             return search(0 if path == m.SEARCH['000'] else 3)
         return copy.deepcopy(self.records[path])
@@ -138,6 +142,97 @@ class PermissionBaselineTests(unittest.TestCase):
             self.assertNotIn('SYNTHETIC-CONTEXT-DO-NOT-PRINT', json.dumps(result))
         with self.assertRaisesRegex(m.BaselineError, '^DLS_CONTROL$'):
             m.principal_baseline(FakeIndexer(), 0)
+
+    def test_authinfo_snapshot_removes_only_port_and_leaves_input_unchanged(self):
+        info = {'user_name': 'socanalyst', 'roles': [m.ROLES['socanalyst']],
+                'backend_roles': [], 'tenants': {'global_tenant': False},
+                'user_requested_tenant': None, 'custom_attribute_names': [],
+                'unknown_field': {'preserve': True}, 'remote_address': '127.0.0.1:41001'}
+        original = copy.deepcopy(info)
+        stable = m.authinfo_snapshot(info)
+        self.assertEqual(info, original)
+        expected = copy.deepcopy(info)
+        expected['remote_address'] = '127.0.0.1'
+        self.assertEqual(stable, expected)
+        self.assertIsNot(stable, info)
+        self.assertEqual(m.authinfo_snapshot({'roles': []}), {'roles': []})
+
+    def test_two_pass_identity_accepts_ipv4_and_bracketed_ipv6_port_changes(self):
+        for host in ('127.0.0.1', '[::1]', '[::ffff:127.0.0.1]'):
+            with self.subTest(host=host):
+                api = FakeIndexer()
+                ordinary = api.request
+                addresses = []
+                def request(method, path):
+                    value = ordinary(method, path)
+                    if path == m.AUTHINFO:
+                        value['remote_address'] = host + ':' + str(41000 + len(addresses))
+                        addresses.append(value['remote_address'])
+                    return value
+                api.request = request
+                self.assertTrue(m.principal_baseline(api, 5)['identity_two_pass_equal'])
+                self.assertEqual(len(addresses), 2)
+                self.assertNotEqual(addresses[0], addresses[1])
+
+    def test_connection_host_or_presence_change_still_fails(self):
+        for change in ('host', 'missing'):
+            with self.subTest(change=change):
+                api = FakeIndexer()
+                ordinary = api.request
+                calls = []
+                def request(method, path):
+                    value = ordinary(method, path)
+                    if path == m.AUTHINFO:
+                        calls.append(path)
+                        if len(calls) == 2:
+                            if change == 'host':
+                                value['remote_address'] = '127.0.0.2:42000'
+                            else:
+                                value.pop('remote_address')
+                    return value
+                api.request = request
+                with self.assertRaisesRegex(m.BaselineError, '^IDENTITY_DRIFT$'):
+                    m.principal_baseline(api, 5)
+
+    def test_authinfo_and_account_nonconnection_drift_still_fails(self):
+        changes = (
+            ('user_name', 'other', 'GRANT'),
+            ('backend_roles', ['admin'], 'GRANT'),
+            ('roles', [m.ROLES['socanalyst'], 'own_index'], 'GRANT'),
+            ('tenants', {'global_tenant': True}, 'IDENTITY_DRIFT'),
+            ('user_requested_tenant', 'global_tenant', 'IDENTITY_DRIFT'),
+            ('custom_attribute_names', ['new'], 'IDENTITY_DRIFT'),
+            ('principal', 'new', 'IDENTITY_DRIFT'),
+            ('peer_certificates', '1', 'IDENTITY_DRIFT'),
+            ('unknown_field', {'new': True}, 'IDENTITY_DRIFT'),
+        )
+        for endpoint in (m.AUTHINFO, m.ACCOUNT):
+            for key, changed, code in changes:
+                with self.subTest(endpoint=endpoint, key=key):
+                    api = FakeIndexer()
+                    ordinary = api.request
+                    calls = []
+                    def request(method, path):
+                        value = ordinary(method, path)
+                        if path == endpoint:
+                            calls.append(path)
+                            if len(calls) == 2:
+                                value[key] = changed
+                        return value
+                    api.request = request
+                    if code == 'GRANT':
+                        code = 'EFFECTIVE_ROLE_DRIFT' if endpoint == m.AUTHINFO else 'ACCOUNT_DRIFT'
+                    with self.assertRaisesRegex(m.BaselineError, '^' + code + '$'):
+                        m.principal_baseline(api, 5)
+
+    def test_malformed_connection_metadata_is_refused(self):
+        for address in (None, True, [], {}, '', 'hostname:41000', '999.0.0.1:41000',
+                        '127.0.0.1:0', '127.0.0.1:65536', '127.0.0.1:1e2',
+                        '[::1]:65536', '[127.0.0.1]:41000', '::1:41000',
+                        '127.0.0.1:41000\nSYNTHETIC-PRIVATE-DETAIL'):
+            with self.subTest(address=address), self.assertRaisesRegex(
+                    m.BaselineError, '^REMOTE_ADDRESS_SHAPE$'):
+                m.authinfo_snapshot({'remote_address': address})
 
     def test_extra_effective_roles_or_backend_roles_refused(self):
         for key, value in (('roles', ['own_index', m.ROLES['socanalyst']]),
@@ -332,6 +427,10 @@ class BaselinePacketTests(unittest.TestCase):
         doc = (ROOT / 'docs/runbooks/rbac-human-permission-baseline.md').read_text(encoding='utf-8')
         stage = doc.split("<<'PY'\n", 1)[1].split('\nPY\n', 1)[0]
         ast.parse(stage, feature_version=(3, 10))
+        self.assertIn("Path('/root/alertmind-human-baseline-identityfix')", stage)
+        self.assertIn('need(not os.path.lexists(root))', stage)
+        self.assertIn('cd /root/alertmind-human-baseline-identityfix\n', doc)
+        self.assertNotIn('cd /root/alertmind-human-baseline\n', doc)
         for name in ('collect_human_baseline.py', 'build_human_baseline_packet.py'):
             ast.parse((m.HERE / name).read_bytes(), feature_version=(3, 10))
         self.assertIn('No VM execution, authentication or permission change is released', doc)

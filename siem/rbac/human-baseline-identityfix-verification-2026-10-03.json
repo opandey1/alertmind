@@ -1,0 +1,51 @@
+{
+  "scope": "offline author verification of scoped identity comparison correction; NOT independent approval or live acceptance",
+  "date": "2026-10-03",
+  "review_status": "awaiting-focused-review",
+  "base_revision": "f8623a5",
+  "runtime": "Python 3.12.14 on Windows, existing disposable CI environment",
+  "focused_tests": {"run": 27, "skipped": 0, "result": "PASS"},
+  "added_test_methods": 5,
+  "full_suite": {"run": 1390, "skipped": 54, "elapsed_seconds": 41.799, "result": "PASS"},
+  "python_310_grammar_and_runbook_staging_syntax": "PASS",
+  "bash_and_powershell_runbook_syntax_only": "PASS",
+  "frozen_evidence_verifier": "PASS",
+  "old_port_only_identity_drift_reproduced_offline": true,
+  "comparison_delta": "validate IPv4/bracketed IPv6 remote_address; ignore only its TCP source port; retain host, presence, every other authinfo field and entire account",
+  "unchanged": [
+    "Indexer CA/name/exact peer policy and specific negative TLS probe",
+    "route/method/request/body/deadline limits and no retries",
+    "exact usernames, backend roles and effective role checks",
+    "DLS and administrator positive control, two-pass grant/enrollment rechecks",
+    "generic secret-free exception suppression",
+    "Server reader bytes and one-authentication graph inventory contract",
+    "packet builder/schema/file set and no-overwrite checks"
+  ],
+  "public_packet": {
+    "sha256": "55ffb1119b33e2b002d05540cbfab6873a3ed814b9030a8236c3640f178d4dc0",
+    "bytes": 58500,
+    "files": 8,
+    "collector_executed_by_build": false,
+    "submission_label": "awaiting-focused-review"
+  },
+  "corrected_collector_lf_sha256": "0336345109537b024ff04d8a36c308a6f542a207b25b45a1c2380f97d637be15",
+  "reused_server_reader_lf_sha256": "08ff077faa6f33a1e6bcd431c1f059ded3b753c63e975127451d5a4771e7aef5",
+  "new_stage": "/root/alertmind-human-baseline-identityfix",
+  "old_stage_preserved": "/root/alertmind-human-baseline",
+  "historical_packet_sha256": "aff08cf4c170fec2d4a86eacc0b254eab02107222fb12839c4099954740e9cd1",
+  "original_h3_failure_code_proven": false,
+  "vm_or_browser_execution_by_author": false,
+  "real_credentials_used_by_author": false,
+  "model_calls": false,
+  "mutation_authorized": false,
+  "actual_dashboard_context_proven": false,
+  "server_mapping_payload_emitted": false,
+  "limits": [
+    "Linux-only tests skipped on this Windows host; CI and packaged-Python execution are not claimed",
+    "Original H3 stopped without an internal error code; diagnostics do not prove its exact cause",
+    "Corrected H3/Server baseline has not run; separate approval and renewed owner release required",
+    "Authinfo remote_address, when present, must be IPv4:port or [IPv6]:port; unexpected metadata is refused rather than silently dropped",
+    "Two-pass normalized identity equality is not an atomic or continuous snapshot",
+    "Actual Dashboard context, all matching Server predicates and mapping/UI/recovery/denial package remain pending"
+  ]
+}
