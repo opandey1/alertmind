@@ -27,8 +27,8 @@ An outcome closes only when its required evidence is recorded and accepted.
 | P1-00 | Preserve accepted foundation | Indexer roles/direct mappings, agent-001/002 DLS, scoped `own_index`, service read/write-denial proof, restricted SSH/TLS and completed credential/key drill | Complete recorded checkpoints; not a fresh health assertion |
 | P1-01 | Reviewed, deployable broker TLS package | Existing shared-client candidate/actual-client fixture; compact startup check; exact supported package; scoped install, private backup and interruption-safe recovery instructions; focused independent review | Complete: focused approvals owner-confirmed for `7e53ecd`, `d5741e9`, `9dda08b` and `6ca2090`; new original-VM entry/packet still requires its own review/release |
 | P1-02 | Disposable-clone deployment rehearsal | New package installs, starts securely, rejects drift, survives interrupted installation in a stopped state and restores a verified secure configuration | Complete recorded owner-executed checkpoints, 3 October: E3/E4, expected exit 73, native inhibitor/guard refusals, rollback, secure restoration and final pause; not actual broker acceptance |
-| P1-03 | Actual Dashboard broker TLS and continuity | Actual login, scoped Server read and refresh/re-authentication path; correct peer identity; synthetic negative TLS tests; administrator and two saved dashboards preserved | Pending |
-| P1-04 | Exact human read-only configuration | Actual Dashboard authorization context and matching rules; fresh relevant permission baseline; exact `socanalyst` Server mapping and read-only UI label; owner decision on broader Server reads | Pending |
+| P1-03 | Actual Dashboard broker TLS and continuity | Actual login, scoped Server read and refresh/re-authentication path; correct peer identity; synthetic negative TLS tests; administrator and two saved dashboards preserved | Deployed; trusted-profile L6 reads/reauthentication/two-dashboard continuity owner-reported PASS on 3 October. Actual HTTP-401 retry NOT TESTED; focused criterion disposition pending |
+| P1-04 | Exact human read-only configuration | Actual Dashboard authorization context and matching rules; fresh relevant permission baseline; exact `socanalyst` Server mapping and read-only UI label; owner decision on broader Server reads | Pending; owner accepted built-in broader readonly scope on 3 October. Fresh baseline package prepared offline, awaiting review/release; actual context and live mapping/UI not accepted |
 | P1-05 | Human allow/deny acceptance | Fresh analyst session can perform approved reads and view both dashboards; agent 000 excluded from alert data; backend writes/admin/actions denied using reviewed safe probes; administrator still works | Pending |
 | P1-06 | Recovery, evidence and Phase 1 closure | Scoped rollback and secure restoration of the new changes; sanitized results and limitations; focused independent approval of the deployed path and acceptance record | Pending |
 
@@ -86,8 +86,9 @@ Wazuh documents a separate Server `readonly` mapping with `run_as=true`.
 Our narrow Indexer scope is retained rather than copying the guide's wildcard
 index example. ([Wazuh mapping guide](https://documentation.wazuh.com/current/user-manual/user-administration/rbac.html))
 The built-in Server role permits broader system/agent reads than Indexer
-agent-001/002 DLS. **Owner acceptance of that trade-off is still required.**
-If declined, stop for a scoped custom Server-role decision; do not silently
+agent-001/002 DLS. **Owner accepted that trade-off for this lab on 3 October 2026.**
+That acceptance is not activation, execution release or a claim of Server DLS.
+If scope changes, stop for a scoped custom Server-role decision; do not silently
 claim that all Dashboard data is DLS-isolated. The assistant stays Indexer-only.
 
 Use separate fresh analyst/admin sessions. Record effective permissions and
@@ -119,7 +120,10 @@ failed preflights, staging and approved service recovery remain separate history
 The [accepted remaining clone sequence](../evidence/rbac/compact-broker-clone-proof-2026-10-03.md)
 closes P1-02. Do not rebuild/replay it or use its clone-only helper/driver as an
 original-VM execution release. Next is a separately reviewed and owner-released
-Batch C original-VM package and actual broker acceptance; P1-03–06 remain pending.
+Batch C human work using the [fresh baseline package](runbooks/rbac-human-permission-baseline.md)
+after focused review/release. Original-VM TLS deployment/start and fresh trusted
+L6 functional results are recorded; actual retry criterion still awaits focused
+disposition. P1-03–06 remain unclosed; human context/mapping/UI/denials are pending.
 No additional approval cycle is needed at every successful checkpoint of that
 single released batch; an actual failure still stops the run for correction.
 
