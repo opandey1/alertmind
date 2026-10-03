@@ -153,12 +153,12 @@ rerun: **17 groups passed**, including negative TLS, proxy/redirect mutants and
 refresh semantics. Packaged axios 1.12.2, workstation Node v24.19.0/Windows,
 synthetic pin/adapted Linux metadata — not VM packaged Node or live broker proof.
 
-Next: review/release the prepared Batch B packet for one separately
-authorized clone deployment/recovery rehearsal. Prove mandatory pre-start refusal,
-secure restart, interrupted recovery and rollback remaining stopped; preserve
-admin/saved dashboards. Actual broker login/read/refresh TLS acceptance precedes
-human mapping/UI. Completed SSH, rotation and PID 1 diagnostics are not repeated.
-P1-02–06 stay pending; broader Server `readonly` scope needs owner decision.
+P1-02's finite clone rehearsal is now accepted; do not replay it. Next is the
+[separate original-VM package](rbac-broker-tls-compact-live-deployment.md), awaiting
+focused review and owner maintenance release. Actual broker login/read/refresh
+TLS and admin/two-dashboard continuity precede human mapping/UI. Completed SSH,
+rotation and PID 1 diagnostics are not repeated. P1-03–06 stay pending; broader
+Server `readonly` scope still needs owner decision.
 
 For updates, `pause` and preserve recovery state before normal vendor maintenance;
 review/rebuild the compact contract on a clone before secure restart. Unknown
