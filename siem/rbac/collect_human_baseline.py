@@ -9,6 +9,7 @@ import getpass
 import hashlib
 import http.client
 import importlib.util
+import ipaddress
 import json
 import os
 from pathlib import Path
@@ -246,6 +247,29 @@ def administrative_baseline(client, expected, preserved):
             'inherited_read_actions': sorted(actions), 'two_pass_observation_equal': True}
 
 
+def authinfo_snapshot(info):
+    """Ignore only the source TCP port, retaining the address and all other fields.
+
+    authinfo remote_address describes this individual HTTP connection, not a
+    grant. Each request uses a fresh connection. Do not discard tenant, role,
+    attribute or unknown fields when comparing the two authorization snapshots.
+    """
+    stable = dict(info)
+    if 'remote_address' in stable:
+        address = stable['remote_address']
+        require(type(address) is str and len(address) <= 128, 'REMOTE_ADDRESS_SHAPE')
+        match = re.fullmatch(r'(\[[0-9A-Fa-f:.]+\]|[0-9.]+):([0-9]{1,5})', address)
+        require(match is not None and 1 <= int(match[2]) <= 65535, 'REMOTE_ADDRESS_SHAPE')
+        host = match[1]
+        try:
+            parsed = ipaddress.ip_address(host[1:-1] if host.startswith('[') else host)
+        except ValueError:
+            raise BaselineError('REMOTE_ADDRESS_SHAPE') from None
+        require(parsed.version == (6 if host.startswith('[') else 4), 'REMOTE_ADDRESS_SHAPE')
+        stable['remote_address'] = host
+    return stable
+
+
 def identity(client):
     expected_role = ROLES[client.username]
     info = client.request('GET', AUTHINFO)
@@ -254,7 +278,7 @@ def identity(client):
             info.get('backend_roles') == [] and info.get('roles') == [expected_role], 'EFFECTIVE_ROLE_DRIFT')
     require(type(account) is dict and account.get('user_name') == client.username and
             account.get('backend_roles') == [] and account.get('roles') == [expected_role], 'ACCOUNT_DRIFT')
-    return info, account
+    return authinfo_snapshot(info), account
 
 
 def count(response):
