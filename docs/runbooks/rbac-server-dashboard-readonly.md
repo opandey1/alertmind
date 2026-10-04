@@ -1,10 +1,12 @@
 # Server/Dashboard read-only implementation gate
 
-**Active work order, 1 October 2026:** use the [finite Phase 1 exit checklist](../rbac-phase1-exit-checklist.md).
+**Active work order, updated 4 October 2026:** use the [finite Phase 1 exit checklist](../rbac-phase1-exit-checklist.md).
 The compact package and clone rehearsal are complete recorded checkpoints;
 original-VM deployment/start and trusted-profile L6 reads/continuity now have
-owner-reported PASS. Next is the [fresh permission-baseline package](rbac-human-permission-baseline.md),
-actual human context and exact mapping/UI work after the remaining TLS decision.
+owner-reported PASS. Complete owner-executed H3 permission baseline is now
+accepted. Next is the [Dashboard-scoped account/context and matching-rule observation](rbac-dashboard-context-observation.md),
+then exact mapping/UI work; the new observation package awaits focused review
+and separate original-VM/browser execution release.
 Expanded OS/runtime attestation is deferred; the actual-context, permission,
 safe-denial and broader-Server-scope requirements in this runbook remain.
 
@@ -12,7 +14,8 @@ safe-denial and broader-Server-scope requirements in this runbook remain.
 from owner-reported output. Broker TLS remediation is deployed, with trusted
 actual administrator Server reads, ordinary refresh, logout/login and both saved
 dashboards reported PASS on 3 October. Issued-token refresh/HTTP-401 retry remains
-NOT TESTED; focused acceptance of that criterion is unresolved. The offline
+NOT TESTED; the owner confirmed focused reviewer acceptance of synthetic retry
+tests plus trusted L6 reauthentication for the scoped P1-03 criterion. The offline
 `socanalyst` preview below is not a live-change package. No live mutation is
 authorized by this package. No application runtime change is included. The
 authenticated analyst profile is still absent.
@@ -290,14 +293,14 @@ identity/context, exact requests/status/error classification, positive controls,
 denials, broader Server-read disclosure, failures and rollback results. Unrun
 rows remain NOT TESTED. Do not add a "proof" file before execution.
 
-**Next owner action:** no VM output is requested for the scope decision. Obtain
-focused independent review and separate execution approval for the forthcoming
-compact package. Do not replay completed inventory, PID 1 diagnostics or drills.
-Before human activation, explicitly accept or decline the built-in Server
-`readonly` role's broader read scope; it is not constrained by Indexer DLS.
-**Next author action:** implement checklist Batch A using the existing reviewed
-TLS candidate, not the unreleased experimental guard/controller. After rehearsal
-and actual broker TLS acceptance, produce the exact context/mapping and safe
-denial package. Do not improvise live permissions.
+**Next owner action:** obtain focused review of the new context observation
+package, including its scoped-account/factory equivalence and owner-attestation
+limits, then explicitly release one original-VM/browser observation batch. No
+outputs are requested before that release. Do not replay completed H3, broker
+deployment, PID 1 diagnostics or drills. Broader Server readonly scope is already
+accepted for this lab; it remains unconstrained by Indexer DLS.
+**Next author action:** after accepted actual context/rule evidence, prepare the
+exact mapping/UI, recovery and safe-denial package. No Server mapping payload,
+UI mutation or broader role is authorized now. Do not improvise live permissions.
 Then, after this gate passes, implement OIDC/named permissions, the constrained
 Indexer reader, guarded live-alert triage and transactional sanitized auditing.

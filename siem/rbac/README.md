@@ -28,6 +28,19 @@ approved index namespace, DLS query, canonical principal/role names and the
 non-secret enrollment fingerprints current when agent IDs `001` and `002`
 were approved. Re-enrollment invalidates that binding until reviewed again.
 
+### Current human-access next step — 4 October 2026
+
+The complete owner-executed H3 permission baseline is accepted; do not replay it.
+[`observe_dashboard_context.py`](observe_dashboard_context.py),
+[`dashboard_context_observation.js`](dashboard_context_observation.js) and their
+[`public builder`](build_dashboard_context_packet.py) prepare one read-only
+Dashboard-scoped account/all-current-rule observation. The unchanged approved
+Server reader is reused. The actual scoped account is owner-carried evidence;
+factory-context equivalence must receive focused review. No run-as wire body,
+human effective Server policy, mapping payload or UI edit is claimed. The
+[finite runbook](../../docs/runbooks/rbac-dashboard-context-observation.md)
+is held until exact-packet review and explicit original-VM/browser run release.
+
 ### 2026-09-24 offline human-access preview
 
 [`plan_socanalyst_readonly.py`](plan_socanalyst_readonly.py) is a pure,

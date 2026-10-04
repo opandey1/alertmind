@@ -1,0 +1,47 @@
+{
+  "scope": "offline preparation only; no VM/browser/authentication or permission/UI change",
+  "date": "2026-10-04",
+  "timezone": "Asia/Calcutta (IST UTC+05:30)",
+  "review_status": "awaiting-focused-review",
+  "base_revision": "49efad1",
+  "public_packet": {
+    "sha256": "697f6f4fbd29711e3cefee2c434cd6ece7550dea7108abbac3ae78b9ef7ccf9c",
+    "bytes": 56982,
+    "files": 4,
+    "source_lf_sha256": {
+      "observe_dashboard_context.py": "83c4d5bc268282f4c9cc44dfc2cdcf936e6036196c601fc701614c3a193702da",
+      "collect_server_inventory.py": "5cccc906dbf4f5470f10814f37ccc4ca849e76c36d0b45c441da95357b911e77",
+      "dashboard_context_observation.js": "f0e328ba82ba3ad8e77f6648a4f1bae7e17ebeb720d7379929cc3d8bc064e9ff",
+      "SHA256SUMS": "e926b4d0b6d043278a7c281b165fecb7310e8e0c652f7b4942198019576dada5"
+    }
+  },
+  "verification": {
+    "new_focused_tests": 21,
+    "new_focused_result": "PASS, including actual browser script in synthetic Node Fetch sandbox",
+    "reused_server_tests": 31,
+    "reused_human_baseline_tests": 28,
+    "reused_results": "PASS; approved reader and earlier accepted packet inputs unchanged",
+    "full_suite": 1417,
+    "full_suite_files": 79,
+    "full_suite_skipped": 54,
+    "full_suite_result": "PASS on Windows Python 3.12.14",
+    "node_version": "24.19.0",
+    "frozen_evidence_verifier": "PASS",
+    "held_bash_blocks_syntax_only": 2,
+    "powershell_build_block_syntax_only": "PASS",
+    "python_3_10_helpers_and_staging_syntax_only": "PASS",
+    "javascript_syntax_only": "PASS",
+    "diff_check": "PASS"
+  },
+  "evidence_limits": [
+    "Actual browser-scoped account and live catalog observations have NOT been run for this new package",
+    "A future sanitized browser summary is owner-attested, not cryptographically authenticated by its challenge",
+    "Factory-context equivalence needs explicit focused review; exact outgoing run-as body and human Server policy are not observed",
+    "Only the exact current two versioned literal FIND predicates are supported; unknown or overlapping rules stop",
+    "Four unchanged vendor derivation files are checked; the remediated broker client is not compared with its insecure vendor hash",
+    "Service-owned code remains mutable; no loaded-code, atomic or continuous snapshot proof",
+    "Complete H3 and scoped P1-03 are already accepted; do not replay completed inventory/deployment/drills",
+    "Actual issued-token HTTP-401 retry remains NOT TESTED",
+    "No Server mapping payload, UI edit, mutation release or Phase 1 closure"
+  ]
+}

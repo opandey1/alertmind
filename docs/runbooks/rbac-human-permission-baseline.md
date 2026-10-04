@@ -1,10 +1,13 @@
 # Human RBAC — fresh permission baseline
 
-**Status, 4 October 2026:** diagnostic revision awaiting focused independent
-review and a new owner run release. The port-comparison correction was approved
-and staged, then combined H3 stopped at `Server inventory`. A separately released
-unchanged-reader diagnostic authenticated, then stopped at `inventory` with no
-code or accepted summary. Preserve both prior stages, packets and failed outputs.
+**Status, 4 October 2026:** diagnostic revision received owner-confirmed focused
+approval; the separately released Server-only diagnostic and then ONE complete
+H3 from the existing serverdiag stage succeeded and were accepted as sanitized
+owner-executed evidence. Earlier failed attempts and all stages remain retained;
+their exact failure causes remain unknown. Do not rerun/restage completed H3.
+Next is the separately reviewed/released
+[Dashboard-scoped account/context and matching-rule observation](rbac-dashboard-context-observation.md),
+not a Server mapping or UI change.
 No VM execution, authentication or permission change is released by this file.
 This advances P1-04 preparation; it does not close P1-04 or Phase 1.
 
@@ -65,10 +68,11 @@ fail closed; they do not return partial inventories or change reads/validation.
 
 Reader byte pins and checksums are refreshed explicitly for this pending revision,
 not auto-learned from the VM. The new stage below preserves BOTH older stages.
-After review and explicit release, the [Server-only diagnostic runbook](rbac-server-inventory-diagnostics.md)
-is the next execution path. Do not repeat combined H3 just to diagnose. H3 below
-remains a later, separately released complete-baseline path, not an extra command
-to run after a diagnostic STOP or PASS.
+The [Server-only diagnostic runbook](rbac-server-inventory-diagnostics.md) and
+separately released complete H3 are now completed historical execution paths.
+The diagnostic revision's original submission/failed attempts below remain
+documented for reproducibility, not as current replay instructions. Neither
+those results nor the accepted complete H3 prove actual Dashboard context.
 
 ## Scope and one finite result
 
