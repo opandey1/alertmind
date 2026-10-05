@@ -5,9 +5,12 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import re
+import shlex
 import shutil
 import subprocess
 import stat
+import sys
 import tempfile
 import types
 import unittest
@@ -217,6 +220,130 @@ class ObservationTests(unittest.TestCase):
                 with self.assertRaisesRegex(m.ObservationError, 'CODE_METADATA'): m.code_snapshot()
                 mode['parent_owner'] = 0; leaf.write_bytes(b'changed bytes')
                 with self.assertRaisesRegex(m.ObservationError, 'CODE_BYTES'): m.code_snapshot()
+
+
+class StagingInputTests(unittest.TestCase):
+    """Execute only C2's public-input prefix, never decoding/staging/helpers."""
+
+    @classmethod
+    def setUpClass(cls):
+        runbook = (ROOT / 'docs/runbooks/rbac-dashboard-context-observation.md').read_text()
+        block = re.findall(r'```bash\n(.*?)\n```', runbook, re.S)[0]
+        source = block.split("<<'PY'\n", 1)[1].rsplit('\nPY', 1)[0]
+        cls.prefix = source.split('raw = base64.b64decode(', 1)[0]
+        cls.finish = "\nassert expected == 'a' * 64\nassert parts == ['e30=']\nassert tty.closed\nprint('PASS_C2_PUBLIC_INPUT', flush=True)\n"
+        cls.public = 'REVIEWED-RELEASED-CONTEXT\n' + 'a' * 64 + '\ne30=\nALERTMIND_PUBLIC_SOURCE_END\n'
+
+    def pipe_source(self, data, interactive=True, available=True):
+        # Actual Python '-' consumes source stdin to EOF, as in the heredoc.
+        # Only /dev/tty is simulated on Windows; do not replace sys.stdin.
+        bootstrap = """import builtins, io
+class PublicConsole(io.StringIO):
+    def isatty(self):
+        return INTERACTIVE
+    def readline(self, size=-1):
+        assert 0 < size <= 4098
+        return super().readline(size)
+console = PublicConsole(DATA)
+def terminal_open(path, mode, encoding):
+    assert (path, mode, encoding) == ('/dev/tty', 'r', 'ascii')
+    if not AVAILABLE:
+        raise OSError('SYNTHETIC unavailable console')
+    return console
+builtins.open = terminal_open
+""".replace('INTERACTIVE', repr(interactive)).replace('AVAILABLE', repr(available)).replace('DATA', repr(data))
+        return subprocess.run([sys.executable, '-I', '-B', '-'],
+                              input=(bootstrap + self.prefix + self.finish).encode(),
+                              capture_output=True, timeout=10)
+
+    def test_heredoc_source_eof_does_not_consume_public_console_input(self):
+        result = self.pipe_source(self.public)
+        self.assertEqual(result.returncode, 0, result.stderr.decode())
+        self.assertIn(b'PASS_C2_PUBLIC_INPUT', result.stdout)
+        self.assertNotIn(b'EOFError', result.stderr)
+
+    def test_missing_terminal_eof_and_bounded_public_lines_refuse_before_decode(self):
+        head = 'REVIEWED-RELEASED-CONTEXT\n' + 'a' * 64 + '\n'
+        cases = [(self.public, False, True), (self.public, True, False),
+                 ('', True, True), ('WRONG-RELEASE\n', True, True),
+                 ('REVIEWED-RELEASED-CONTEXT\nnot-a-digest\n', True, True),
+                 (head + 'e30=\n', True, True),
+                 (head + 'e30=', True, True),
+                 (head + 'x' * 4097 + '\n', True, True),
+                 (head + ('x' * 4096 + '\n') * 86, True, True)]
+        for number, (data, interactive, available) in enumerate(cases):
+            with self.subTest(case=number):
+                result = self.pipe_source(data, interactive, available)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(b'STOP: public context staging refused', result.stderr)
+                self.assertNotIn(b'PASS_C2_PUBLIC_INPUT', result.stdout)
+                self.assertNotIn(b'EOFError', result.stderr)
+
+    @unittest.skipUnless(sys.platform.startswith('linux') and shutil.which('bash'),
+                         'Linux controlling-terminal regression')
+    def test_real_controlling_terminal_reads_while_bash_heredoc_supplies_source(self):
+        import errno
+        import pty
+        import select
+        import signal
+        import time
+        # Only the exact public-input prefix runs. No sudo, decoding, root writes,
+        # approved collector, network or credentials; this is a disposable PTY.
+        command = shlex.quote(sys.executable) + " -I -B - <<'ALERTMIND_C2_TEST'\n" + \
+                  self.prefix + self.finish + '\nALERTMIND_C2_TEST\n'
+        pid, master = pty.fork()
+        if pid == 0:
+            try:
+                env = dict(os.environ)
+                for key in ('BASH_ENV', 'ENV'):
+                    env.pop(key, None)
+                shell = shutil.which('bash')
+                os.execve(shell, [shell, '--noprofile', '--norc', '-c', command], env)
+            except BaseException:
+                os._exit(127)  # Failed exec must never resume the child test runner.
+        reaped, output = False, bytearray()
+        deadline = time.monotonic() + 10
+
+        def until(needle):
+            while needle not in output:
+                remaining = deadline - time.monotonic()
+                self.assertGreater(remaining, 0, 'PTY public prompt timed out')
+                ready, _, _ = select.select([master], [], [], remaining)
+                self.assertTrue(ready, 'PTY public prompt timed out')
+                try:
+                    chunk = os.read(master, 4096)
+                except OSError as exc:
+                    if exc.errno == errno.EIO:
+                        self.fail('PTY ended before completion; synthetic output: ' + repr(output[-1024:]))
+                    raise
+                self.assertTrue(chunk, 'PTY closed before public-input completion')
+                output.extend(chunk)
+                self.assertLessEqual(len(output), 65536)
+
+        try:
+            until(b'original-VM/browser run release:')
+            os.write(master, b'REVIEWED-RELEASED-CONTEXT\n')
+            until(b'independently reviewed PUBLIC packet SHA-256:')
+            os.write(master, b'a' * 64 + b'\n')
+            until(b'ending with ALERTMIND_PUBLIC_SOURCE_END:')
+            os.write(master, b'e30=\nALERTMIND_PUBLIC_SOURCE_END\n')
+            until(b'PASS_C2_PUBLIC_INPUT')
+            while True:
+                ended, status = os.waitpid(pid, os.WNOHANG)
+                if ended:
+                    reaped = True
+                    self.assertEqual(os.waitstatus_to_exitcode(status), 0)
+                    break
+                self.assertLess(time.monotonic(), deadline, 'PTY child did not exit')
+                time.sleep(0.01)
+        finally:
+            if not reaped:
+                try:
+                    os.killpg(pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+                os.waitpid(pid, 0)
+            os.close(master)
 
 
 # Execute the real reviewed browser script with in-memory synthetic Fetch

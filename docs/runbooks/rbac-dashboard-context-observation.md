@@ -1,6 +1,11 @@
 # Actual socanalyst Dashboard account/context and matching-rule observation
 
-**Status, 4 October 2026: preparation only; awaiting focused independent review.**
+**Status, 5 October 2026: C2 terminal-input correction awaiting focused review.**
+The previously approved four-file packet/collector is unchanged. The released
+C2 attempt stopped at its first prompt because source stdin was exhausted;
+that failure consumed the batch before staging writes or authentication. Do not
+rerun C2 or continue to C3 until this launcher correction is reviewed and the
+owner separately renews the one-run release. Preserve the earlier failure.
 No VM run, browser login, permission change or UI edit is released by this file.
 The complete owner-executed H3 baseline is accepted; do not rerun it or restage
 its files. P1-03 is accepted on the scoped synthetic-retry/trusted-L6 combination;
@@ -90,6 +95,10 @@ and private unrecorded original console, stopped AlertMind apps, no concurrent
 updates/configuration or other Dashboard session, and owner release covering
 staging plus C3–C5 and one fresh browser login. Preserve all older stages/results.
 If the new stage exists, stop; never overwrite it to replay a failed batch.
+Python source is supplied by the heredoc on stdin. Public prompts must therefore
+read the separate controlling terminal (`/dev/tty`), not call `input()` on source
+stdin. Missing/non-interactive terminal, EOF, unterminated or oversized public
+lines refuse before packet decoding or staging writes.
 
 ```bash
 (
@@ -103,19 +112,32 @@ def need(ok):
         raise SystemExit('STOP: public context staging refused; preserve any stage')
 root = Path('/root/alertmind-dashboard-context')
 names = ('observe_dashboard_context.py', 'collect_server_inventory.py', 'dashboard_context_observation.js')
-need(input('Type REVIEWED-RELEASED-CONTEXT after exact packet review and original-VM/browser run release: ') == 'REVIEWED-RELEASED-CONTEXT')
-expected = input('Enter the independently reviewed PUBLIC packet SHA-256: ').strip()
-need(re.fullmatch('[0-9a-f]{64}', expected))
-print('Paste wrapped PUBLIC Base64, ending with ALERTMIND_PUBLIC_SOURCE_END:')
-parts = []
-for _ in range(8192):
-    line = input().strip()
-    if line == 'ALERTMIND_PUBLIC_SOURCE_END':
-        break
-    parts.append(line)
-    need(sum(map(len, parts)) <= 350000)
-else:
+try:
+    tty = open('/dev/tty', 'r', encoding='ascii')
+except OSError:
     need(False)
+with tty:
+    need(tty.isatty())
+    def public_line(limit):
+        line = tty.readline(limit + 2)
+        need(bool(line) and line.endswith('\n') and len(line) <= limit + 1)
+        return line[:-1]
+    print('Type REVIEWED-RELEASED-CONTEXT after exact packet review and original-VM/browser run release:', flush=True)
+    need(public_line(80) == 'REVIEWED-RELEASED-CONTEXT')
+    print('Enter the independently reviewed PUBLIC packet SHA-256:', flush=True)
+    expected = public_line(80).strip()
+    need(re.fullmatch('[0-9a-f]{64}', expected))
+    print('Paste wrapped PUBLIC Base64, ending with ALERTMIND_PUBLIC_SOURCE_END:', flush=True)
+    parts, size = [], 0
+    for _ in range(8192):
+        line = public_line(4096).strip()
+        if line == 'ALERTMIND_PUBLIC_SOURCE_END':
+            break
+        size += len(line)
+        need(size <= 350000)
+        parts.append(line)
+    else:
+        need(False)
 raw = base64.b64decode(''.join(parts), validate=True)
 need(0 < len(raw) <= 262144 and hashlib.sha256(raw).hexdigest() == expected)
 packet = json.loads(raw)
