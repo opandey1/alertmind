@@ -1,7 +1,9 @@
 """Finite synthetic context/predicate checks; never a VM or browser login."""
 import base64
+import contextlib
 import copy
 import importlib.util
+import io
 import json
 import os
 from pathlib import Path
@@ -150,6 +152,52 @@ class ObservationTests(unittest.TestCase):
         for field in ('st_ino', 'st_mode', 'st_uid', 'st_size', 'st_mtime_ns', 'st_ctime_ns'):
             changed = copy.copy(value); setattr(changed, field, getattr(changed, field) + 1)
             self.assertNotEqual(first, m.stamp(changed))
+
+    def test_first_catalog_timeout_never_requests_browser_observation(self):
+        fake = types.SimpleNamespace(collect=mock.Mock(side_effect=TimeoutError('SYNTHETIC-PRIVATE')))
+        read = mock.Mock()
+        code = mock.Mock(return_value={'public': 'pin'})
+        with self.assertRaises(TimeoutError):
+            m.observe(fake, types.SimpleNamespace(deadline=0), 'SYNTHETIC', CHALLENGE, read, code)
+        fake.collect.assert_called_once()
+        read.assert_not_called()
+        code.assert_called_once()
+
+    def test_main_opts_in_and_emits_only_fixed_transport_failure(self):
+        context = mock.Mock()
+        client = s.Client(context, diagnostics=True)
+        client.request = mock.Mock()
+        client.wrong_hostname_probe = mock.Mock()
+        client.authenticate = mock.Mock()
+        client.token = 'SYNTHETIC-PRIVATE-TOKEN'
+        client.operation = 'READ_RULES'
+        client.request_failure = ('RESPONSE_HEADERS', 9, 10000, 9990)
+        output = io.StringIO()
+        output.isatty = lambda: True
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(mock.patch.object(m.sys, 'argv', ['observation']))
+            stack.enter_context(mock.patch.object(m.os, 'geteuid', return_value=0, create=True))
+            stack.enter_context(mock.patch.object(m.sys.stdin, 'isatty', return_value=True))
+            stack.enter_context(mock.patch.object(m, 'HERE', m.STAGE))
+            stack.enter_context(mock.patch('builtins.input', return_value='REVIEWED-ORIGINAL-CONTEXT'))
+            stack.enter_context(mock.patch.object(m, 'verify_stage', return_value={}))
+            stack.enter_context(mock.patch.object(m, 'load_server', return_value=s))
+            stack.enter_context(mock.patch.object(s, 'make_context', return_value=context))
+            factory = stack.enter_context(mock.patch.object(s, 'Client', return_value=client))
+            stack.enter_context(mock.patch.object(m.getpass, 'getpass', side_effect=['SYNTHETIC-PRIVATE-USER', 'SYNTHETIC-PRIVATE-PASSWORD']))
+            stack.enter_context(mock.patch.object(m, 'observe', side_effect=TimeoutError('SYNTHETIC-PRIVATE-RESPONSE')))
+            stack.enter_context(contextlib.redirect_stdout(output))
+            self.assertEqual(m.main(), 1)
+        factory.assert_called_once_with(context, diagnostics=True)
+        client.authenticate.assert_called_once_with('SYNTHETIC-PRIVATE-USER', 'SYNTHETIC-PRIVATE-PASSWORD')
+        self.assertEqual(output.getvalue().splitlines()[-1],
+            'STOP Dashboard context at observation; operation=READ_RULES; category=TIMEOUT; '
+            'transport=RESPONSE_HEADERS; request=9; request_elapsed_ms=10000; stage_elapsed_ms=9990; '
+            'no observation accepted; no live change issued')
+        self.assertNotIn('SYNTHETIC-PRIVATE', output.getvalue())
+        self.assertNotIn('PUBLIC observation challenge', output.getvalue())
+        self.assertNotIn('observation_version', output.getvalue())
+        self.assertIsNone(client.token)
 
     def test_public_packet_is_deterministic_exact_and_no_overwrite(self):
         with tempfile.TemporaryDirectory() as temp:

@@ -221,13 +221,17 @@ class ServerInventoryTests(unittest.TestCase):
         frames += [wire(json.dumps({'error': 0, 'data': api.request(method, path)}).encode(),
                         'length' if i % 2 == 0 else 'chunked')
                    for i, (method, path) in enumerate(paths)]
-        peers = [WirePeer(frame, 11) for frame in frames]
-        client = m.Client(mock.Mock())
-        with mock.patch.object(client, 'connect', side_effect=peers) as connect:
-            client.authenticate('SERVER-OPERATOR-SECRET', 'SYNTHETIC-PASSWORD')
-            self.assertEqual(m.collect(client, 'SERVER-OPERATOR-SECRET'), expected)
-            self.assertEqual(connect.call_count, len(frames))
-        self.assertTrue(all(p.closed and p.file.closed and p.timeouts_after_release == 0 for p in peers))
+        for diagnostics in (False, True):
+            with self.subTest(diagnostics=diagnostics):
+                peers = [WirePeer(frame, 11) for frame in frames]
+                client = m.Client(mock.Mock(), diagnostics=diagnostics)
+                with mock.patch.object(client, 'connect', side_effect=peers) as connect:
+                    client.authenticate('SERVER-OPERATOR-SECRET', 'SYNTHETIC-PASSWORD')
+                    self.assertEqual(m.collect(client, 'SERVER-OPERATOR-SECRET'), expected)
+                    self.assertEqual(connect.call_count, len(frames))
+                    self.assertEqual(client.requests, len(frames))
+                self.assertIsNone(client.request_failure)
+                self.assertTrue(all(p.closed and p.file.closed and p.timeouts_after_release == 0 for p in peers))
 
     def test_complete_sanitized_graph_and_no_authorization_claim(self):
         client = FakeAPI()
@@ -699,6 +703,193 @@ class ServerInventoryTests(unittest.TestCase):
         client.request = drift
         with self.assertRaisesRegex(m.InventoryError, 'CONTEXT_DRIFT'):
             m.collect(client, 'SERVER-OPERATOR-SECRET')
+
+    def test_transport_tcp_tls_and_pin_failures_precede_http(self):
+        for stage in ('TCP_CONNECT', 'TLS_HANDSHAKE', 'PEER_PIN'):
+            with self.subTest(stage=stage):
+                now = [0.0]
+                context = mock.Mock(verify_mode=ssl.CERT_REQUIRED, check_hostname=True)
+                peer = mock.Mock()
+                context.wrap_socket.return_value = peer
+                def fail(*args, **kwargs):
+                    now[0] = 10.0
+                    raise TimeoutError('PRIVATE-CREDENTIAL BODY URL')
+                with mock.patch.object(m.time, 'monotonic', side_effect=lambda: now[0]), \
+                     mock.patch.object(m.socket, 'socket') as raw, \
+                     mock.patch.object(m.http.client, 'HTTPConnection') as http:
+                    client = m.Client(context, diagnostics=True)
+                    client.token = 'PRIVATE-TOKEN'
+                    if stage == 'TCP_CONNECT': raw.return_value.connect.side_effect = fail
+                    if stage == 'TLS_HANDSHAKE': context.wrap_socket.side_effect = fail
+                    if stage == 'PEER_PIN': peer.getpeercert.side_effect = fail
+                    with self.assertRaises(TimeoutError) as caught:
+                        client.request('GET', '/security/rules?limit=100&offset=0&sort=id')
+                    self.assertEqual(m.failure_details(caught.exception, client),
+                        'operation=READ_RULES; category=TIMEOUT; transport=' + stage +
+                        '; request=1; request_elapsed_ms=10000; stage_elapsed_ms=10000')
+                    http.assert_not_called()
+                    raw.return_value.connect.assert_called_once_with(m.ADDRESS)
+                    self.assertEqual(client.requests, 1)
+                    if stage == 'TCP_CONNECT': context.wrap_socket.assert_not_called()
+                    else: context.wrap_socket.assert_called_once_with(raw.return_value, server_hostname='localhost')
+                    if stage == 'PEER_PIN': peer.close.assert_called_once()
+                    else: raw.return_value.close.assert_called_once()
+                    self.assertIsNone(client._request_started)
+        context = mock.Mock(verify_mode=ssl.CERT_REQUIRED, check_hostname=True)
+        context.wrap_socket.return_value.getpeercert.return_value = b'WRONG-PEER'
+        client = m.Client(context, diagnostics=True)
+        with mock.patch.object(m.socket, 'socket'), mock.patch.object(m.http.client, 'HTTPConnection') as http:
+            with self.assertRaisesRegex(m.InventoryError, '^PEER_CERT_CHANGED$') as caught:
+                client.request('GET', '/')
+            self.assertIn('; transport=PEER_PIN;', m.failure_details(caught.exception, client))
+            http.assert_not_called()
+            context.wrap_socket.return_value.close.assert_called_once()
+
+    def test_transport_send_headers_body_decode_and_precleanup_timings(self):
+        for stage in ('SEND_REQUEST', 'RESPONSE_HEADERS', 'RESPONSE_BODY', 'DECODE_RESPONSE'):
+            with self.subTest(stage=stage):
+                now = [0.0]
+                response = mock.Mock(status=200)
+                response.getheader.side_effect = lambda name, default: 'application/json' if name == 'Content-Type' else default
+                connection = mock.Mock()
+                connection.getresponse.return_value = response
+                def connected():
+                    now[0] = 2.0
+                    return mock.Mock()
+                def sent(*args, **kwargs): now[0] = 3.0
+                connection.request.side_effect = sent
+                def fail(*args, **kwargs):
+                    now[0] = 10.0
+                    if stage == 'RESPONSE_BODY': raise m.InventoryError('RESPONSE_TIMEOUT')
+                    if stage == 'DECODE_RESPONSE': raise json.JSONDecodeError('PRIVATE', 'PRIVATE-BODY', 0)
+                    raise TimeoutError('PRIVATE-PASSWORD TOKEN URL')
+                def cleanup(): now[0] = 500.0
+                response.close.side_effect = cleanup
+                connection.close.side_effect = cleanup
+                with contextlib.ExitStack() as stack:
+                    stack.enter_context(mock.patch.object(m.time, 'monotonic', side_effect=lambda: now[0]))
+                    client = m.Client(mock.Mock(), diagnostics=True)
+                    client.token = 'PRIVATE-TOKEN'
+                    stack.enter_context(mock.patch.object(client, 'connect', side_effect=connected))
+                    stack.enter_context(mock.patch.object(m.http.client, 'HTTPConnection', return_value=connection))
+                    body = stack.enter_context(mock.patch.object(client, 'read_body', return_value=b'PRIVATE-BODY'))
+                    parse = stack.enter_context(mock.patch.object(m, 'envelope', return_value={}))
+                    if stage == 'SEND_REQUEST': connection.request.side_effect = fail
+                    if stage == 'RESPONSE_HEADERS': connection.getresponse.side_effect = fail
+                    if stage == 'RESPONSE_BODY': body.side_effect = fail
+                    if stage == 'DECODE_RESPONSE': parse.side_effect = fail
+                    with self.assertRaises((TimeoutError, m.InventoryError, json.JSONDecodeError)) as caught:
+                        client.request('GET', '/security/rules?limit=100&offset=0&sort=id')
+                    category = 'code=RESPONSE_TIMEOUT' if stage == 'RESPONSE_BODY' else (
+                        'category=JSON_DECODE' if stage == 'DECODE_RESPONSE' else 'category=TIMEOUT')
+                    self.assertEqual(m.failure_details(caught.exception, client),
+                        'operation=READ_RULES; ' + category + '; transport=' + stage +
+                        '; request=1; request_elapsed_ms=10000; stage_elapsed_ms=' +
+                        ('8000' if stage == 'SEND_REQUEST' else '7000'))
+                    connection.request.assert_called_once()
+                    connection.close.assert_called_once()
+                    if stage in ('RESPONSE_BODY', 'DECODE_RESPONSE'): response.close.assert_called_once()
+                    else: response.close.assert_not_called()
+                    if stage in ('SEND_REQUEST', 'RESPONSE_HEADERS'): body.assert_not_called()
+                    if stage != 'DECODE_RESPONSE': parse.assert_not_called()
+
+    def test_transport_real_http_body_timeout_preserves_framing_cleanup(self):
+        now = [0.0]
+        peer = WirePeer(wire(b'{"error":0,"data":{}}'))
+        def fail(size):
+            now[0] = 10.0
+            raise TimeoutError('PRIVATE-BODY')
+        with mock.patch.object(m.time, 'monotonic', side_effect=lambda: now[0]), \
+             mock.patch.object(peer.file, 'read1', side_effect=fail):
+            client = m.Client(mock.Mock(), diagnostics=True)
+            client.token = 'PRIVATE-TOKEN'
+            with mock.patch.object(client, 'connect', return_value=peer):
+                with self.assertRaisesRegex(m.InventoryError, '^RESPONSE_TIMEOUT$') as caught:
+                    client.request('GET', '/security/rules?limit=100&offset=0&sort=id')
+        self.assertEqual(m.failure_details(caught.exception, client),
+            'operation=READ_RULES; code=RESPONSE_TIMEOUT; transport=RESPONSE_BODY; request=1; '
+            'request_elapsed_ms=10000; stage_elapsed_ms=10000')
+        self.assertTrue(peer.closed and peer.file.closed)
+        self.assertEqual(peer.timeouts_after_release, 0)
+
+    def test_transport_snapshot_allowlist_type_bounds_and_suspend_cap(self):
+        calls = [node for node in ast.walk(ast.parse(PATH.read_text()))
+                 if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+                 and node.func.attr == '_transport_stage']
+        self.assertTrue(all(len(node.args) == 1 and isinstance(node.args[0], ast.Constant)
+                            and type(node.args[0].value) is str and not node.keywords for node in calls))
+        self.assertEqual({node.args[0].value for node in calls}, m.TRANSPORT_STAGES)
+        class Private:
+            def __str__(self): raise AssertionError('private diagnostic value formatted')
+        valid = ('RESPONSE_HEADERS', 9, 10000, 9999)
+        client = mock.Mock(operation='READ_RULES', request_failure=valid)
+        self.assertEqual(m.transport_details(client), '; transport=RESPONSE_HEADERS; request=9; '
+                         'request_elapsed_ms=10000; stage_elapsed_ms=9999')
+        invalid = [None, 'PRIVATE', list(valid), {'token': 'PRIVATE'}, (Private(), 1, 0, 0)]
+        for index, values in ((0, ('PRIVATE-STAGE', 3, None)), (1, (True, 0, 101, Private())),
+                              (2, (True, -1, m.MAX_DIAGNOSTIC_MS + 1, float('nan'), Private())),
+                              (3, (True, -1, 10001, 'PRIVATE', Private()))):
+            for value in values:
+                item = list(valid); item[index] = value; invalid.append(tuple(item))
+        for value in invalid:
+            with self.subTest(value_type=type(value).__name__):
+                client.request_failure = value
+                self.assertEqual(m.failure_details(TimeoutError('PRIVATE'), client),
+                                 'operation=READ_RULES; category=TIMEOUT')
+        client = m.Client(mock.Mock(), diagnostics=True)
+        client.requests = 1
+        client._request_started = client._stage_started = 0.0
+        client._transport = 'TCP_CONNECT'
+        with mock.patch.object(m.time, 'monotonic', return_value=100000.0): client._capture_request_failure()
+        self.assertEqual(client.request_failure, ('TCP_CONNECT', 1, m.MAX_DIAGNOSTIC_MS, m.MAX_DIAGNOSTIC_MS))
+
+    def test_transport_default_disabled_and_success_clears_stale_snapshot(self):
+        client = m.Client(mock.Mock())
+        client.token = 'PRIVATE-TOKEN'
+        with mock.patch.object(client, 'connect', side_effect=TimeoutError('PRIVATE')):
+            with self.assertRaises(TimeoutError) as caught: client.request('GET', '/')
+        self.assertIsNone(client.request_failure)
+        self.assertEqual(m.failure_details(caught.exception, client), 'operation=READ_ROOT; category=TIMEOUT')
+        client = m.Client(mock.Mock(), diagnostics=True)
+        client.token = 'PRIVATE-TOKEN'
+        peer = WirePeer(wire(b'{"error":0,"data":{}}'))
+        with mock.patch.object(client, 'connect', side_effect=TimeoutError('PRIVATE')):
+            with self.assertRaises(TimeoutError): client.request('GET', '/')
+        self.assertIsNotNone(client.request_failure)
+        with mock.patch.object(client, 'connect', return_value=peer): self.assertEqual(client.request('GET', '/'), {})
+        self.assertIsNone(client.request_failure)
+        client.operation = 'VALIDATE_GRAPH'
+        self.assertEqual(m.failure_details(m.InventoryError('CATALOG_DRIFT'), client),
+                         'operation=VALIDATE_GRAPH; code=CATALOG_DRIFT')
+
+    def test_transport_opt_in_retains_deadline_routes_budget_and_one_auth(self):
+        client = m.Client(mock.Mock(), diagnostics=True)
+        with mock.patch.object(m.time, 'monotonic', return_value=client.deadline - 100): self.assertEqual(client.timeout(), 10)
+        with mock.patch.object(m.time, 'monotonic', return_value=client.deadline - 2): self.assertEqual(client.timeout(), 2)
+        with mock.patch.object(m.time, 'monotonic', return_value=client.deadline + 1):
+            with self.assertRaisesRegex(m.InventoryError, '^DEADLINE$'): client.timeout()
+        with mock.patch.object(client, 'connect') as connect:
+            for method, path in (('PUT', '/security/rules'), ('POST', m.AUTH + '/run_as'), ('GET', '//PRIVATE')):
+                with self.assertRaisesRegex(m.InventoryError, '^ROUTE_DENIED$'): client.request(method, path)
+            client.requests = 100
+            with self.assertRaisesRegex(m.InventoryError, '^REQUEST_LIMIT$'): client.request('GET', '/')
+            self.assertIsNone(client.request_failure)
+            connect.assert_not_called()
+        client = m.Client(mock.Mock(), diagnostics=True)
+        with mock.patch.object(client, 'connect', side_effect=TimeoutError('PRIVATE')) as connect:
+            with self.assertRaises(TimeoutError): client.authenticate('SYNTHETIC', 'PRIVATE-PASSWORD')
+            with self.assertRaisesRegex(m.InventoryError, '^ROUTE_DENIED$'): client.authenticate('SYNTHETIC', 'PRIVATE-PASSWORD')
+            connect.assert_called_once()
+        self.assertEqual((m.MAX_BYTES, m.MAX_ITEMS, m.PAGE_SIZE), (1048576, 1000, 100))
+
+    def test_transport_constructor_failure_closes_connected_peer(self):
+        client = m.Client(mock.Mock(), diagnostics=True)
+        peer = mock.Mock()
+        with mock.patch.object(client, 'connect', return_value=peer), \
+             mock.patch.object(m.http.client, 'HTTPConnection', side_effect=TimeoutError('PRIVATE')):
+            with self.assertRaises(TimeoutError): client.request('GET', '/')
+        peer.close.assert_called_once()
+        self.assertEqual(client.requests, 1)
 
     def test_manifest_runbook_and_local_inventory_guard(self):
         manifest = PATH.with_name('SERVER-AUTH-SHA256SUMS').read_text(encoding='ascii').splitlines()

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Owner-attested Dashboard account/context and current matching-rule review aid.
 
-One Server-admin authentication, allowlisted reads via the unchanged reader,
+One Server-admin authentication, allowlisted reads with opt-in transport diagnostics,
 two browser account GETs. No run-as synthesis, grants, UI edit or restart.
 The browser summary is owner-carried evidence, not cryptographic attestation.
 """
@@ -18,10 +18,10 @@ import time
 import warnings
 
 HERE = Path(__file__).resolve().parent
-SERVER_SHA = '5cccc906dbf4f5470f10814f37ccc4ca849e76c36d0b45c441da95357b911e77'
+SERVER_SHA = '96e64194cbed95a5cd8526e9f76c7f38432c8061c29f9fe1c8d7239a340a030e'
 SOURCE_NAMES = ('observe_dashboard_context.py', 'collect_server_inventory.py',
                 'dashboard_context_observation.js')
-STAGE = Path('/root/alertmind-dashboard-context')
+STAGE = Path('/root/alertmind-dashboard-context-transportdiag')
 PLUGIN_ROOT = Path('/usr/share/wazuh-dashboard/plugins')
 # Public, version-matched vendor .deb bytes. The patched broker client is NOT
 # pinned to its pre-remediation image here. These unchanged derivation routes
@@ -198,7 +198,7 @@ def main():
         files = verify_stage()
         server = load_server(files)
         phase = 'TLS'
-        client = server.Client(server.make_context())
+        client = server.Client(server.make_context(), diagnostics=True)
         client.request('GET', '/')
         client.wrong_hostname_probe()
         print('PASS separate pinned Server TLS and hostname rejection; no Server credentials sent yet')

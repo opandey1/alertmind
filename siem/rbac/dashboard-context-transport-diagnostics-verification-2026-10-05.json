@@ -1,0 +1,125 @@
+{
+  "date": "2026-10-05",
+  "timezone": "Asia/Calcutta (IST UTC+05:30)",
+  "scope": "offline opt-in C3 transport diagnostics and regression tests; NOT a live timeout/freeze repair, review approval or execution release",
+  "review_status": "awaiting-focused-review",
+  "base_revision": "77e19ee",
+  "branch": "fix/rbac-context-staging-tty",
+  "owner_reported_failure": {
+    "phase": "observation",
+    "operation": "READ_RULES",
+    "category": "TIMEOUT",
+    "public_browser_challenge_seen": false,
+    "vcpu": 4,
+    "original_and_clone_simultaneous": false,
+    "resource_sample_scope": "after-event guest sample only; not conditions during failure"
+  },
+  "diagnostics": {
+    "enabled_by": "C3 Client(..., diagnostics=True) only",
+    "defaults_for_other_clients": "disabled; previous operation/code/category output retained",
+    "fields": [
+      "transport",
+      "request",
+      "request_elapsed_ms",
+      "stage_elapsed_ms"
+    ],
+    "stages": [
+      "TLS_POLICY",
+      "TCP_CONNECT",
+      "TLS_HANDSHAKE",
+      "PEER_PIN",
+      "SEND_REQUEST",
+      "RESPONSE_HEADERS",
+      "RESPONSE_BODY",
+      "DECODE_RESPONSE"
+    ],
+    "timing": "monotonic client-side milliseconds frozen before cleanup; capped at 86400000; not CPU time/server processing/root-cause proof",
+    "unsafe_snapshot_fields": "unknown labels, non-exact types, malformed tuples and out-of-bounds numbers suppressed"
+  },
+  "verification": {
+    "added_methods": 9,
+    "server_tests": {
+      "run": 38,
+      "skipped": 0,
+      "elapsed_seconds": 0.358,
+      "result": "PASS"
+    },
+    "context_tests": {
+      "run": 26,
+      "skipped": 1,
+      "elapsed_seconds": 2.209,
+      "result": "PASS; actual public JS in synthetic Node sandbox"
+    },
+    "reused_human_baseline_tests": {
+      "run": 28,
+      "skipped": 0,
+      "elapsed_seconds": 0.17,
+      "result": "PASS"
+    },
+    "full_suite": {
+      "run": 1429,
+      "files": 79,
+      "skipped": 55,
+      "elapsed_seconds": 18.198,
+      "result": "PASS on Windows Python 3.12.14"
+    },
+    "python_310_helpers_and_c2_ast": "PASS, syntax only; not packaged-Python execution",
+    "two_git_bash_blocks": "PASS, syntax only",
+    "powershell_build_block": "PASS, syntax only",
+    "unchanged_server_ast": "PASS: all prior constants and17 TLS/parser/inventory functions",
+    "unchanged_context_ast": "PASS: all non-main validation/observation functions",
+    "c2_delta": "PASS: same controlling-terminal correction and guards; only new path/reader pin",
+    "historical_packet_and_js": "PASS: retained packet checksum and JS member byte identity",
+    "frozen_evidence_verifier": "PASS",
+    "diff_check": "PASS"
+  },
+  "public_packet": {
+    "sha256": "082506ed184f364adc2ce43d759f72f9b10e8925cb7264348d70e7b62766a809",
+    "bytes": 61470,
+    "files": 4,
+    "review_status": "awaiting-focused-review",
+    "source_lf_sha256": {
+      "observe_dashboard_context.py": "9663bc3dab2aa1cced2e8266cf819cf25d7f0985e796aed6f4691abb8f38816c",
+      "collect_server_inventory.py": "96e64194cbed95a5cd8526e9f76c7f38432c8061c29f9fe1c8d7239a340a030e",
+      "dashboard_context_observation.js": "f0e328ba82ba3ad8e77f6648a4f1bae7e17ebeb720d7379929cc3d8bc064e9ff",
+      "SHA256SUMS": "ca4765534e068ef692c46767e842a10511cd581ab7c2d2f3609ce6791291cb8f"
+    },
+    "new_stage": "/root/alertmind-dashboard-context-transportdiag",
+    "previous_packet_sha256": "697f6f4fbd29711e3cefee2c434cd6ece7550dea7108abbac3ae78b9ef7ccf9c",
+    "previous_stage_preserved": "/root/alertmind-dashboard-context",
+    "changed_members": [
+      "observe_dashboard_context.py",
+      "collect_server_inventory.py",
+      "SHA256SUMS"
+    ],
+    "unchanged_member": "dashboard_context_observation.js"
+  },
+  "unchanged": [
+    "TLS certificate/name/exact peer pins and specific negative hostname check",
+    "route/method allowlists, one authentication, no retry/redirect/proxy/DNS/new reads",
+    "min(10s, remaining120s) socket timeout,100-request budget,1MiB body,100 page,1000 items",
+    "graph/current-context equality, readonly/admin validations, predicate overlap checks and browser challenge gates",
+    "installed derivation code pins, actual public browser JS and accepted H3/P1-03",
+    "historical packets/submission records, prior stage/evidence and frozen measurement/run evidence"
+  ],
+  "narrow_cleanup_change": "close connected peer if HTTPConnection setup/remaining-budget check fails before connection ownership",
+  "transitive_pin_consumers": [
+    "build_dashboard_context_packet.py",
+    "observe_dashboard_context.py",
+    "collect_human_baseline.py",
+    "build_human_baseline_packet.py",
+    "SERVER-AUTH-SHA256SUMS",
+    "HUMAN-BASELINE-SHA256SUMS"
+  ],
+  "pending": [
+    "Focused review of this correction AND 77e19ee C2 terminal-input fix",
+    "Real Linux PTY/CI method skipped on Windows; not a Linux/native PASS",
+    "New exact-packet review and separately renewed ONE-run owner release before any VM run",
+    "Actual Dashboard context/matching rule evidence, Server mapping/UI/backend allow-deny acceptance and Phase1 closure"
+  ],
+  "live_timeout_or_freeze_cause_proven": false,
+  "new_vm_execution_released": false,
+  "vm_api_browser_or_real_credential_use_by_author": false,
+  "mutation_authorized": false,
+  "actual_issued_token_http401_retry": "NOT TESTED"
+}
