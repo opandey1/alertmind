@@ -7,7 +7,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 FILES = ('observe_dashboard_context.py', 'collect_server_inventory.py', 'dashboard_context_observation.js')
-SERVER_SHA = '5cccc906dbf4f5470f10814f37ccc4ca849e76c36d0b45c441da95357b911e77'
+SERVER_SHA = '96e64194cbed95a5cd8526e9f76c7f38432c8061c29f9fe1c8d7239a340a030e'
 
 
 def sha(raw):

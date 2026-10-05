@@ -1,6 +1,14 @@
 # Actual socanalyst Dashboard account/context and matching-rule observation
 
-**Status, 4 October 2026: preparation only; awaiting focused independent review.**
+**Status, 5 October 2026: C2 input and C3 transport diagnostics awaiting review.**
+The earlier C2 EOF and later owner-reported C3 READ_RULES/TIMEOUT attempts are
+retained failures, not accepted observations. The refreshed public packet uses
+a revised reader and observer at a NEW stage,
+`/root/alertmind-dashboard-context-transportdiag`; preserve the earlier packet
+and `/root/alertmind-dashboard-context` unchanged. The C2 terminal-input fix
+77e19ee remains awaiting review, including its native Linux PTY/CI check.
+Do not stage/retry C3 or continue to C4 until focused approval of both corrections,
+the exact new packet and a separately renewed owner one-run release.
 No VM run, browser login, permission change or UI edit is released by this file.
 The complete owner-executed H3 baseline is accepted; do not rerun it or restage
 its files. P1-03 is accepted on the scoped synthetic-retry/trusted-L6 combination;
@@ -9,7 +17,7 @@ actual issued-token HTTP-401 retry remains NOT TESTED. Broader built-in Server
 
 This is one finite observation batch on the **original wazuh-siem**, not the
 clone, and not another runtime-attestation project. It uses the existing trusted
-Firefox lab profile and unchanged Server inventory reader. No new dependency,
+Firefox lab profile and the Server reader with opt-in request diagnostics. No new dependency,
 broker logging/instrumentation, service restart, direct run-as impersonation,
 Indexer grant, Server mapping payload or read-only UI change is included.
 
@@ -54,12 +62,41 @@ stops rather than silently accepting inherited administrator grants. Reserved
 predicate behavior requires the observed `wazuh-wui` Server broker ID 2 in this
 version; this is distinct from the dynamically resolved readonly role.
 
-Only public booleans, fixed labels, rule/role IDs and fingerprints leave the
+Only public booleans, fixed labels, bounded diagnostic numbers, rule/role IDs and fingerprints leave the
 processes. No raw account, tenant names, custom attributes, password/hash,
 authorization header, broker credential, cookie, JWT, HAR, network response,
 console exception text or enrollment key may be exported. Tokens stay in the
 Server process; normal Firefox sessions stay in the dedicated lab profile.
 Reference cleanup is not guaranteed secret-memory erasure.
+
+## Timeout diagnostic contract (review preparation, not a fix or retry release)
+
+C3 alone opts in to failed-request diagnostics. No extra HTTP request, retry,
+log file, background process or heartbeat is added. Other Server/baseline
+clients default to their previous operation/category/check output.
+
+A failed request adds an allowlisted `transport` label, its bounded request
+number, `request_elapsed_ms` and `stage_elapsed_ms`. Stages distinguish TLS
+policy, TCP connect, TLS handshake, exact peer pin, request sending, response
+headers, response body and decoding. Numbers use the client's monotonic clock,
+freeze before cleanup, and cap at86400000ms after extreme suspension. This cap
+is diagnostic only; socket waits still use min(10s, remaining120s budget).
+Elapsed time is not CPU time, a server processing measurement or an explanation
+of a desktop freeze. A stage identifies the local failing boundary, not a proven
+server/root cause. No raw route/query, credentials, tokens, response or exception
+text is exported. Later successful requests clear stale failed-request timings.
+
+Illustrative only, NOT a live result:
+
+```text
+STOP Dashboard context at observation; operation=READ_RULES; category=TIMEOUT; transport=RESPONSE_HEADERS; request=9; request_elapsed_ms=10000; stage_elapsed_ms=9990; no observation accepted; no live change issued
+```
+
+Server authentication already completed before an `observation` failure.
+Unless C3 prints `PUBLIC observation challenge`, do NOT log in/run C4 to
+unblock it: the helper has not reached the browser checkpoint. An Indexer
+search-permission error in the Wazuh page does not identify its target index
+or prove a missing Server role; do not add broad grants to clear that screen.
 
 ## C1 — workstation public build, no execution
 
@@ -68,7 +105,7 @@ From the repository root, using an existing workstation Python:
 ```powershell
 & {
     $ErrorActionPreference = 'Stop'
-    $Packet = Join-Path ([System.IO.Path]::GetTempPath()) ("alertmind-dashboard-context-" + [guid]::NewGuid() + '.json')
+    $Packet = Join-Path ([System.IO.Path]::GetTempPath()) ("alertmind-dashboard-context-transportdiag-" + [guid]::NewGuid() + '.json')
     python -B siem/rbac/build_dashboard_context_packet.py --output $Packet
     if ($LASTEXITCODE -ne 0) { throw 'STOP: public build failed; preserve output' }
     "Packet retained at: $Packet"
@@ -90,6 +127,10 @@ and private unrecorded original console, stopped AlertMind apps, no concurrent
 updates/configuration or other Dashboard session, and owner release covering
 staging plus C3–C5 and one fresh browser login. Preserve all older stages/results.
 If the new stage exists, stop; never overwrite it to replay a failed batch.
+Python source is supplied by the heredoc on stdin. Public prompts must therefore
+read the separate controlling terminal (`/dev/tty`), not call `input()` on source
+stdin. Missing/non-interactive terminal, EOF, unterminated or oversized public
+lines refuse before packet decoding or staging writes.
 
 ```bash
 (
@@ -101,21 +142,34 @@ from pathlib import Path
 def need(ok):
     if not ok:
         raise SystemExit('STOP: public context staging refused; preserve any stage')
-root = Path('/root/alertmind-dashboard-context')
+root = Path('/root/alertmind-dashboard-context-transportdiag')
 names = ('observe_dashboard_context.py', 'collect_server_inventory.py', 'dashboard_context_observation.js')
-need(input('Type REVIEWED-RELEASED-CONTEXT after exact packet review and original-VM/browser run release: ') == 'REVIEWED-RELEASED-CONTEXT')
-expected = input('Enter the independently reviewed PUBLIC packet SHA-256: ').strip()
-need(re.fullmatch('[0-9a-f]{64}', expected))
-print('Paste wrapped PUBLIC Base64, ending with ALERTMIND_PUBLIC_SOURCE_END:')
-parts = []
-for _ in range(8192):
-    line = input().strip()
-    if line == 'ALERTMIND_PUBLIC_SOURCE_END':
-        break
-    parts.append(line)
-    need(sum(map(len, parts)) <= 350000)
-else:
+try:
+    tty = open('/dev/tty', 'r', encoding='ascii')
+except OSError:
     need(False)
+with tty:
+    need(tty.isatty())
+    def public_line(limit):
+        line = tty.readline(limit + 2)
+        need(bool(line) and line.endswith('\n') and len(line) <= limit + 1)
+        return line[:-1]
+    print('Type REVIEWED-RELEASED-CONTEXT after exact packet review and original-VM/browser run release:', flush=True)
+    need(public_line(80) == 'REVIEWED-RELEASED-CONTEXT')
+    print('Enter the independently reviewed PUBLIC packet SHA-256:', flush=True)
+    expected = public_line(80).strip()
+    need(re.fullmatch('[0-9a-f]{64}', expected))
+    print('Paste wrapped PUBLIC Base64, ending with ALERTMIND_PUBLIC_SOURCE_END:', flush=True)
+    parts, size = [], 0
+    for _ in range(8192):
+        line = public_line(4096).strip()
+        if line == 'ALERTMIND_PUBLIC_SOURCE_END':
+            break
+        size += len(line)
+        need(size <= 350000)
+        parts.append(line)
+    else:
+        need(False)
 raw = base64.b64decode(''.join(parts), validate=True)
 need(0 < len(raw) <= 262144 and hashlib.sha256(raw).hexdigest() == expected)
 packet = json.loads(raw)
@@ -131,7 +185,7 @@ for item in packet['files']:
         compile(data, item['name'], 'exec')
     files[item['name']] = data
 need(files['SHA256SUMS'] == ''.join(hashlib.sha256(files[n]).hexdigest() + '  ' + n + '\n' for n in names).encode('ascii'))
-need(hashlib.sha256(files['collect_server_inventory.py']).hexdigest() == '5cccc906dbf4f5470f10814f37ccc4ca849e76c36d0b45c441da95357b911e77')
+need(hashlib.sha256(files['collect_server_inventory.py']).hexdigest() == '96e64194cbed95a5cd8526e9f76c7f38432c8061c29f9fe1c8d7239a340a030e')
 need(not os.path.lexists(root))
 os.umask(0o077)
 root.mkdir(mode=0o700)
@@ -167,8 +221,8 @@ for unit in wazuh-indexer wazuh-manager filebeat wazuh-dashboard; do
     test "$(systemctl is-active "$unit")" = active || exit 1
     printf 'PASS service health: %s=active\n' "$unit"
 done
-sudo bash -c 'cd /root/alertmind-dashboard-context && sha256sum -c SHA256SUMS'
-sudo /var/ossec/framework/python/bin/python3 -I -B /root/alertmind-dashboard-context/observe_dashboard_context.py
+sudo bash -c 'cd /root/alertmind-dashboard-context-transportdiag && sha256sum -c SHA256SUMS'
+sudo /var/ossec/framework/python/bin/python3 -I -B /root/alertmind-dashboard-context-transportdiag/observe_dashboard_context.py
 )
 ```
 
@@ -193,11 +247,16 @@ the original Ubuntu VM**:
    role to clear that error or use its direct broker administrator checks as
    human proof. The account observation is through the authenticated security
    route, not a Wazuh token response. Any account-route refusal below stops.
-3. Open Firefox Web Console, clear its displayed old entries, and paste the
-   **complete reviewed public** `siem/rbac/dashboard_context_observation.js`
+3. Open the Dashboard TAB's Firefox Web Console with Ctrl+Shift+K (not the
+   Browser Console, shell, PowerShell or address bar), clear its displayed old
+   entries, and paste the **complete reviewed public**
+   [`siem/rbac/dashboard_context_observation.js`](../../siem/rbac/dashboard_context_observation.js)
    source once, not an altered snippet. If browser protections block pasting,
    stop; do not disable them. Do not enable persistent network capture or open,
    copy or export cookies, storage, login responses, token values or a HAR.
+   The existing execution aid's Step4 hash-checked PUBLIC source-copy block is
+   the clipboard source; the JS itself is unchanged. Do not run Firefox as root
+   or loosen permissions on a staged root-private file to access it.
 4. At the script's prompt, enter only C3's public 64-hex challenge. The script
    checks the HTTPS origin, exact nine-field account shape, exact SOC role,
    empty backend/custom attributes and equality across both account responses.

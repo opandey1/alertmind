@@ -37,6 +37,9 @@ PAGE_OPERATIONS = {kind: 'VALIDATE_' + kind.upper() + '_PAGE' for kind in COLLEC
 OPERATIONS = frozenset(READ_OPERATIONS.values()) | frozenset(COLLECTION_OPERATIONS.values()) | frozenset(
     PAGE_OPERATIONS.values()) | {'NOT_STARTED', 'TLS_HOSTNAME_NEGATIVE', 'AUTHENTICATE',
                                'VALIDATE_VERSION', 'VALIDATE_GRAPH', 'COMPARE_GRAPH', 'COMPARE_CONTEXT'}
+TRANSPORT_STAGES = frozenset('TLS_POLICY TCP_CONNECT TLS_HANDSHAKE PEER_PIN SEND_REQUEST '
+                             'RESPONSE_HEADERS RESPONSE_BODY DECODE_RESPONSE'.split())
+MAX_DIAGNOSTIC_MS = 86400000  # Cap diagnostic numbers after host suspend; not a timeout.
 # Only known local check codes may reach console diagnostics, even if an
 # unexpected exception is accidentally constructed with a private argument.
 ERROR_CODES = frozenset('''ADMIN_IDENTITY ADMIN_READ_SCOPE API_ERROR AUTH_REQUIRED
@@ -55,8 +58,23 @@ class InventoryError(Exception):
     """Messages are static codes only, never API/configuration content."""
 
 
+def transport_details(client):
+    """Only an allowlisted stage and bounded integer timings from a failed request."""
+    value = getattr(client, 'request_failure', None)
+    if type(value) is not tuple or len(value) != 4:
+        return ''
+    stage, number, elapsed, stage_elapsed = value
+    if (type(stage) is not str or stage not in TRANSPORT_STAGES
+            or type(number) is not int or not 1 <= number <= 100
+            or type(elapsed) is not int or not 0 <= elapsed <= MAX_DIAGNOSTIC_MS
+            or type(stage_elapsed) is not int or not 0 <= stage_elapsed <= elapsed):
+        return ''
+    return ('; transport=' + stage + '; request=' + str(number)
+            + '; request_elapsed_ms=' + str(elapsed) + '; stage_elapsed_ms=' + str(stage_elapsed))
+
+
 def failure_details(exc, client=None):
-    """Fixed operation/category only; never exception text, keys or response data."""
+    """Fixed labels and opt-in timings; never exception text, keys or response data."""
     operation = getattr(client, 'operation', None)
     if type(operation) is not str or operation not in OPERATIONS:
         operation = 'NOT_STARTED'
@@ -65,7 +83,7 @@ def failure_details(exc, client=None):
         code = exc.args[0] if len(exc.args) == 1 else None
         if type(code) is not str or code not in ERROR_CODES:
             code = 'UNEXPECTED_CHECK'
-        return prefix + '; code=' + code
+        return prefix + '; code=' + code + transport_details(client)
     for kind, category in ((KeyboardInterrupt, 'INTERRUPTED'),
                            (json.JSONDecodeError, 'JSON_DECODE'),
                            (ssl.SSLCertVerificationError, 'TLS_CERTIFICATE'),
@@ -75,8 +93,8 @@ def failure_details(exc, client=None):
                            (UnicodeError, 'TEXT_DECODE'), (TypeError, 'VALUE_TYPE'),
                            (ValueError, 'VALUE_PARSE'), (OSError, 'IO_ERROR')):
         if isinstance(exc, kind):
-            return prefix + '; category=' + category
-    return prefix + '; category=UNEXPECTED_EXCEPTION'
+            return prefix + '; category=' + category + transport_details(client)
+    return prefix + '; category=UNEXPECTED_EXCEPTION' + transport_details(client)
 
 
 def require(condition, code='INVALID_SHAPE'):
@@ -131,13 +149,31 @@ def make_context():
 
 
 class Client:
-    def __init__(self, context):
+    def __init__(self, context, *, diagnostics=False):
         self.context = context
         self.deadline = time.monotonic() + 120
         self.requests = 0
         self.auth_attempted = False
         self.token = None
         self.operation = 'NOT_STARTED'
+        # C3 opts in. Existing inventory/baseline clients retain their old output.
+        self.diagnostics = diagnostics is True
+        self.request_failure = None
+        self._request_started = None
+        self._stage_started = None
+        self._transport = None
+
+    def _transport_stage(self, stage):
+        if self._request_started is not None:
+            self._transport = stage
+            self._stage_started = time.monotonic()
+
+    def _capture_request_failure(self):
+        if self._request_started is not None and self.request_failure is None:
+            now = time.monotonic()
+            elapsed = min(MAX_DIAGNOSTIC_MS, max(0, int((now - self._request_started) * 1000)))
+            stage_elapsed = min(elapsed, max(0, int((now - self._stage_started) * 1000)))
+            self.request_failure = (self._transport, self.requests, elapsed, stage_elapsed)
 
     def timeout(self):
         remaining = self.deadline - time.monotonic()
@@ -145,22 +181,28 @@ class Client:
         return min(10, remaining)
 
     def connect(self, name=HOSTNAME):
+        self._transport_stage('TLS_POLICY')
         require(self.context.verify_mode == ssl.CERT_REQUIRED
                 and self.context.check_hostname, 'TLS_POLICY')
         # Numeric AF_INET connection prevents DNS and proxy routing entirely.
+        self._transport_stage('TCP_CONNECT')
         raw = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
             raw.settimeout(self.timeout())
             raw.connect(ADDRESS)
+            self._transport_stage('TLS_HANDSHAKE')
             peer = self.context.wrap_socket(raw, server_hostname=name)
         except BaseException:
+            self._capture_request_failure()
             raw.close()
             raise
         try:
+            self._transport_stage('PEER_PIN')
             require(hashlib.sha256(peer.getpeercert(binary_form=True)).hexdigest()
                     == FINGERPRINT, 'PEER_CERT_CHANGED')
             return peer
         except BaseException:
+            self._capture_request_failure()
             peer.close()
             raise
 
@@ -176,6 +218,7 @@ class Client:
         raise InventoryError('NEGATIVE_TLS_ACCEPTED')
 
     def request(self, method, path, basic=None):
+        self.request_failure = None  # Never reuse a failed request's timing for a later check.
         paged = re.fullmatch(r'/security/(users|roles|policies|rules)\?limit=100&offset=([0-9]+)&sort=id', path)
         if method == 'POST':
             require(path == AUTH and basic is not None and not self.auth_attempted
@@ -189,11 +232,24 @@ class Client:
                           COLLECTION_OPERATIONS[paged[1]] if paged else READ_OPERATIONS[path])
         self.requests += 1
         require(self.requests <= 100, 'REQUEST_LIMIT')
-        peer = self.connect()  # Identity + exact peer pin checked BEFORE any HTTP headers.
-        connection = http.client.HTTPConnection(HOSTNAME, ADDRESS[1], timeout=self.timeout())
-        connection.sock = peer
-        response = None
+        if self.diagnostics:
+            self._request_started = self._stage_started = time.monotonic()
+            self._transport = 'TLS_POLICY'
         try:
+            return self._exchange(method, path, basic)
+        except BaseException:
+            self._capture_request_failure()
+            raise
+        finally:
+            self._request_started = self._stage_started = self._transport = None
+
+    def _exchange(self, method, path, basic):
+        peer = self.connect()  # Identity + exact peer pin checked BEFORE any HTTP headers.
+        connection = response = None
+        try:
+            self._transport_stage('SEND_REQUEST')
+            connection = http.client.HTTPConnection(HOSTNAME, ADDRESS[1], timeout=self.timeout())
+            connection.sock = peer
             headers = {'Host': 'localhost:55000', 'Accept': 'application/json',
                        'Accept-Encoding': 'identity', 'Connection': 'close'}
             if basic is not None:
@@ -201,6 +257,7 @@ class Client:
             elif self.token is not None:
                 headers['Authorization'] = 'Bearer ' + self.token
             connection.request(method, path, headers=headers)
+            self._transport_stage('RESPONSE_HEADERS')
             response = connection.getresponse()
             expected = 401 if path == '/' and self.token is None else 200
             require(response.status == expected, 'HTTP_STATUS')
@@ -209,11 +266,20 @@ class Client:
             require(response.getheader('Content-Encoding', 'identity') == 'identity', 'ENCODING')
             require(response.getheader('Content-Type', '').split(';')[0].strip().lower()
                     == 'application/json', 'CONTENT_TYPE')
-            return envelope(self.read_body(response, peer))
+            self._transport_stage('RESPONSE_BODY')
+            raw = self.read_body(response, peer)
+            self._transport_stage('DECODE_RESPONSE')
+            return envelope(raw)
+        except BaseException:
+            self._capture_request_failure()  # Freeze timings before response/socket cleanup.
+            raise
         finally:
             if response is not None:
                 response.close()
-            connection.close()
+            if connection is not None:
+                connection.close()
+            else:
+                peer.close()
 
     def read_body(self, response, peer):
         # HTTPResponse.read1 closes its file at the Content-Length boundary.

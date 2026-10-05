@@ -21,7 +21,7 @@ import time
 import warnings
 
 HERE = Path(__file__).resolve().parent
-SERVER_SHA = '5cccc906dbf4f5470f10814f37ccc4ca849e76c36d0b45c441da95357b911e77'
+SERVER_SHA = '96e64194cbed95a5cd8526e9f76c7f38432c8061c29f9fe1c8d7239a340a030e'
 CA = Path('/etc/wazuh-indexer/certs/root-ca.pem')
 CA_SHA = 'eb98a4af38cda550d473e5659a4375905334041fab4597f39c4f191d9e6f5e1d'
 LEAF_SHA = 'bc90aaa91888394165a33fc8be9fc667ca6f0a08f5de202c62a0e089262332fb'

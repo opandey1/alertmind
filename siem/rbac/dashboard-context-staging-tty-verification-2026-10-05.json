@@ -1,0 +1,44 @@
+{
+  "scope": "C2 runbook/execution-aid public-input correction and regression tests only",
+  "date": "2026-10-05",
+  "timezone": "Asia/Calcutta (IST UTC+05:30)",
+  "review_status": "awaiting-focused-review",
+  "base_revision": "9861c33",
+  "reported_failure": "first C2 input() raised EOFError because the heredoc supplied Python source on stdin",
+  "correction": "bounded public prompt reads from a separate ASCII /dev/tty stream; terminal required; closed after input",
+  "public_packet": {
+    "sha256": "697f6f4fbd29711e3cefee2c434cd6ece7550dea7108abbac3ae78b9ef7ccf9c",
+    "bytes": 56982,
+    "files": 4,
+    "changed": false,
+    "collector_browser_source_and_reader_changed": false
+  },
+  "verification": {
+    "new_regression_methods": 3,
+    "focused_methods": 24,
+    "focused_skipped": 1,
+    "focused_result": "PASS on Windows; real Linux PTY test skipped",
+    "native_linux_pty_result": "NOT RUN locally; requires Linux CI/focused review",
+    "portable_regression": "actual Python '-' source stdin consumed to EOF; separate console simulated; no sys.stdin substitution",
+    "original_launcher_rejection": "PASS: the same positive regression setup rejects the original prefix with EOFError",
+    "input_refusals": "PASS: missing/non-interactive terminal, wrong release/digest, EOF/missing marker, unterminated/oversized lines and total-size limit",
+    "full_suite_methods": 1420,
+    "full_suite_files": 79,
+    "full_suite_skipped": 55,
+    "full_suite_result": "PASS on Windows Python 3.12.14; Node 24.19.0",
+    "initial_full_run": "only four maintained README inventory-count assertions failed; counts updated without weakening checks",
+    "frozen_evidence_verifier": "PASS; protected artifacts unchanged",
+    "corrected_aid_canonical_bash_equality": "PASS",
+    "c3_and_all_post_input_decoding_staging_guards_unchanged": "PASS",
+    "bash_syntax_only": "PASS; two held blocks",
+    "packaged_python_3_10_syntax_only": "PASS",
+    "diff_check": "PASS"
+  },
+  "execution": {
+    "prior_one_run_release": "consumed by reported C2 failure before staging writes/authentication",
+    "renewed_release_authorized": false,
+    "vm_browser_collector_credentials_or_service_action_by_codex": false,
+    "server_mapping_or_readonly_ui_changed": false,
+    "phase1_closed": false
+  }
+}
