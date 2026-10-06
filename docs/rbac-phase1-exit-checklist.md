@@ -29,7 +29,7 @@ An outcome closes only when its required evidence is recorded and accepted.
 | P1-01 | Reviewed, deployable broker TLS package | Existing shared-client candidate/actual-client fixture; compact startup check; exact supported package; scoped install, private backup and interruption-safe recovery instructions; focused independent review | Complete: focused approvals owner-confirmed for `7e53ecd`, `d5741e9`, `9dda08b` and `6ca2090`; new original-VM entry/packet still requires its own review/release |
 | P1-02 | Disposable-clone deployment rehearsal | New package installs, starts securely, rejects drift, survives interrupted installation in a stopped state and restores a verified secure configuration | Complete recorded owner-executed checkpoints, 3 October: E3/E4, expected exit 73, native inhibitor/guard refusals, rollback, secure restoration and final pause; not actual broker acceptance |
 | P1-03 | Actual Dashboard broker TLS and continuity | Actual login, scoped Server read and refresh/re-authentication path; correct peer identity; synthetic negative TLS tests; administrator and two saved dashboards preserved | Complete scoped recorded checkpoints: original deployment and trusted L6 PASS; owner confirms focused reviewer acceptance of retained synthetic retry plus trusted reauthentication. Actual issued-token HTTP-401 retry remains NOT TESTED; no reviewer artifact supplied here |
-| P1-04 | Exact human read-only configuration | Actual Dashboard authorization context and matching rules; fresh relevant permission baseline; exact `socanalyst` Server mapping and read-only UI label; owner decision on broader Server reads | Pending; broader readonly scope and complete owner-executed H3 baseline accepted, 4 October. Earlier failed attempts retained/unexplained. [Dashboard-scoped account/context and all-current-rule observation package](runbooks/rbac-dashboard-context-observation.md) prepared; awaits focused review of its equivalence/evidence limits and separate one-run release. No actual context result or mapping/UI change yet |
+| P1-04 | Exact human read-only configuration | Actual Dashboard authorization context and matching rules; fresh relevant permission baseline; exact `socanalyst` Server mapping and read-only UI label; owner decision on broader Server reads | Pending installation/acceptance. Broader scope and complete H3 baseline accepted; [6 October actual scoped-account/current-rule result](../evidence/rbac/dashboard-context-result-2026-10-06.md) completed with normal logout/no extra changes. Neither admin predicate matched; readonly resolved by name. [Exact mapping/UI/recovery package](runbooks/rbac-human-readonly-deployment.md) implemented offline, awaiting focused review and separate live release; no mapping/UI mutation yet |
 | P1-05 | Human allow/deny acceptance | Fresh analyst session can perform approved reads and view both dashboards; agent 000 excluded from alert data; backend writes/admin/actions denied using reviewed safe probes; administrator still works | Pending |
 | P1-06 | Recovery, evidence and Phase 1 closure | Scoped rollback and secure restoration of the new changes; sanitized results and limitations; focused independent approval of the deployed path and acceptance record | Pending |
 
@@ -146,6 +146,20 @@ the minimal corrective work and the acceptance check. A precautionary desire
 for broader OS attestation is deferred, not a new release gate. A genuine TLS,
 authorization, secret-exposure or recovery failure still blocks its outcome.
 Do not claim a fixed calendar duration before the deployment rehearsal.
+
+6 October follow-up: the renewed C3–C5 batch completed actual Dashboard-scoped
+socanalyst account/current-rule observation after separately approved Manager
+recovery. Neither existing admin predicate matched; the catalog and installed
+derivation pins were equal before/after. Owner subsequently confirmed normal
+logout/no additional changes. Account/factory equivalence remains owner-attested,
+not exact outgoing run-as capture or actual human Server-policy proof. No repeat
+of C3–C5/H3 or accepted foundation drills is requested. The new [human package](runbooks/rbac-human-readonly-deployment.md)
+adds only the scoped Server rule/edge and read-only UI list, with private rollback,
+secure restoration and actual-session acceptance. Review must cover this result,
+predicate and fail-safe probe and explicitly settle the unrun agent-action/write
+rows. Offline implementation does not close P1-04, P1-05 or P1-06 or authorize VM
+installation. Earlier failed attempts and unknown guest-freeze/DB-exit cause stay
+retained; completed recovery is not a cause or continuous-health proof.
 
 ## 5. Trusted lab boundary and deferred work
 
