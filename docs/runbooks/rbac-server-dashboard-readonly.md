@@ -1,12 +1,13 @@
 # Server/Dashboard read-only implementation gate
 
-**Active work order, updated 4 October 2026:** use the [finite Phase 1 exit checklist](../rbac-phase1-exit-checklist.md).
+**Active work order, updated 6 October 2026:** use the [finite Phase 1 exit checklist](../rbac-phase1-exit-checklist.md).
 The compact package and clone rehearsal are complete recorded checkpoints;
 original-VM deployment/start and trusted-profile L6 reads/continuity now have
 owner-reported PASS. Complete owner-executed H3 permission baseline is now
-accepted. Next is the [Dashboard-scoped account/context and matching-rule observation](rbac-dashboard-context-observation.md),
-then exact mapping/UI work; the new observation package awaits focused review
-and separate original-VM/browser execution release.
+accepted. The [6 October Dashboard-scoped account/current-rule observation](../../evidence/rbac/dashboard-context-result-2026-10-06.md)
+completed; owner confirms normal logout/no extra changes. Next is focused review
+and separate release of the [exact mapping/UI, recovery and safe-acceptance package](rbac-human-readonly-deployment.md).
+No original-VM mapping/UI installation or human acceptance is claimed yet.
 Expanded OS/runtime attestation is deferred; the actual-context, permission,
 safe-denial and broader-Server-scope requirements in this runbook remain.
 
@@ -16,7 +17,8 @@ actual administrator Server reads, ordinary refresh, logout/login and both saved
 dashboards reported PASS on 3 October. Issued-token refresh/HTTP-401 retry remains
 NOT TESTED; the owner confirmed focused reviewer acceptance of synthetic retry
 tests plus trusted L6 reauthentication for the scoped P1-03 criterion. The offline
-`socanalyst` preview below is not a live-change package. No live mutation is
+`socanalyst` preview below remains preview-only; the new separately reviewed
+package above supplies actual implementation. No live mutation is
 authorized by this package. No application runtime change is included. The
 authenticated analyst profile is still absent.
 

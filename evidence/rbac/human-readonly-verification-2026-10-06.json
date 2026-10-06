@@ -1,0 +1,76 @@
+{
+  "schema": 1,
+  "date": "2026-10-06",
+  "role": "author",
+  "branch": "feat/rbac-human-readonly-package",
+  "base_commit": "34967905730aea3aeed6ddadb70654f87441444d",
+  "review_status": "awaiting-review",
+  "scope": "offline scoped human Server mapping, Dashboard readonly UI, private recovery and actual-session acceptance package",
+  "vm_execution_by_author": false,
+  "live_changes_authorized": false,
+  "phase1_closed": false,
+  "accepted_server_summary_sha256": "d3db272c808ddb23c7532530c096087a7b336481b6503bc783cf390111c4f046",
+  "public_packet": {
+    "sha256": "f6cbb01302ddc4d6e4214a6e61a759caaf1ebb9c35966d96718c37fd509ab071",
+    "bytes": 107715,
+    "source_count": 4,
+    "file_count_including_checksums": 5,
+    "deterministic_rebuild_equal": true,
+    "sources_lf_normalized": true,
+    "files": [
+      {"name": "human_readonly_operator.py", "sha256": "8245e2af44353269fb206c720065f247c7d58fa1d5833afead84d610758c9a70"},
+      {"name": "collect_server_inventory.py", "sha256": "96e64194cbed95a5cd8526e9f76c7f38432c8061c29f9fe1c8d7239a340a030e", "reused_unchanged": true},
+      {"name": "compact_operator.py", "sha256": "2200ccbe60fa347039ede8e7b627041056e21f2bdaed6755b7964e9529c48942", "reused_unchanged": true},
+      {"name": "human_readonly_acceptance.js", "sha256": "efb4d821727783385e68197b9e8db64f3d48503c269a0c34a69a49110eb9777c"},
+      {"name": "SHA256SUMS", "sha256": "9f9ffb0b0404edac2f76a38b9506601039623359c36b7a9b74d4f734374b3600"}
+    ]
+  },
+  "additional_review_scope_lf_sha256": {
+    "siem/rbac/stage_human_readonly.py": "320c94b1d0819e572a53cf01be15322d26cf5ee4df8c05f4a3bd7713aac57443",
+    "siem/rbac/build_human_readonly_packet.py": "68fb4b28876c5bbb2d1a212e7b43e3d11af2db6bc97516326927ac049759da25",
+    "assistant/tests/test_human_readonly_package.py": "41d19c1ba85251b54132e55467d8b58649dae2b86cf4bfea0dc086e595503b50",
+    "docs/runbooks/rbac-human-readonly-deployment.md": "924cf7e18b69ee0417df3d34955abd692727aa98e2a8d9b8e4c07a327de5f3f3"
+  },
+  "environment": {
+    "platform": "Windows",
+    "python": "3.12.14",
+    "pyyaml": "6.0.3",
+    "node": "24.19.0",
+    "dependencies": "fresh disposable venv; explicit hash-pinned requirements-ci.lock packages installed with --no-deps",
+    "pip_check_passed": false,
+    "pip_check_missing_windows_only_transitives": ["colorama (click)", "tzdata (pandas)"],
+    "dependency_lock_changed": false,
+    "linux_ci_claimed": false
+  },
+  "results": {
+    "focused_unittest": {"discovered": 23, "passed": 22, "skipped": 1, "seconds": 1.804, "status": "PASS"},
+    "full_unittest": {"discovered": 1452, "passed": 1396, "skipped": 56, "seconds": 31.004, "status": "PASS"},
+    "frozen_evidence_verifier": "PASS",
+    "node_check": "PASS",
+    "python_310_packet_ast_and_compile": "PASS; syntax only",
+    "powershell_runbook_parser": "PASS; syntax only",
+    "powershell_retained_packet_variable": "PASS; actual child-scope regression with mocked builder, no VM action",
+    "bash_runbook_and_staging_heredoc_syntax": "PASS; no command execution",
+    "git_diff_check": "PASS"
+  },
+  "regression_boundaries": [
+    "fixed narrow Server routes, pinned TLS before bearer, real synthetic HTTP framing and response cleanup",
+    "exact top-level MATCH binding, current named readonly resolution and preserved full unrelated graph",
+    "flow/block/dotted/nested YAML list-only edit; ambiguity, aliases, ACL/xattrs and drift refuse",
+    "durable private intents; lost create/link/unlink/delete response reconciliation",
+    "local write/control interruption recovery, secure rollback/resume and explicit scoped restoration",
+    "same-origin actual-session account/policy/read controls; unsafe authentication/validation/proxy/duplicate/partial errors never denial PASS",
+    "only duplicate-owned-name create probe; no real agent action, Indexer, saved-object or broad RBAC write"
+  ],
+  "not_proven": [
+    "new Linux native PTY test (skipped locally; Linux CI required)",
+    "root staging and actual service/API/UI transaction",
+    "actual installed rule matching and issued human policy compatibility",
+    "analyst DLS/UI/two-dashboard and administrator continuity after installation",
+    "live rollback and deliberate secure restoration",
+    "agent-action and saved-object/write HTTP denial rows intentionally NOT TESTED; focused criterion disposition required",
+    "exact broker run-as wire body, loaded code, cryptographic owner observation, continuous integrity",
+    "earlier guest freeze or wazuh-db exit cause",
+    "independent approval or execution release"
+  ]
+}
