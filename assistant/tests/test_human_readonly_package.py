@@ -480,31 +480,63 @@ class HumanBrowserAcceptanceTests(unittest.TestCase):
 const fs = require('fs'), vm = require('vm');
 const input = JSON.parse(fs.readFileSync(0, 'utf8'));
 const account = input.account, policy = input.policy, calls = [], logs = [];
-if (input.variant === 'elevated') policy['security:create'] = {'*:*:*': 'allow'};
-if (input.variant === 'wrong-account') account.roles.push('all_access');
-let number = 0;
-const sandbox = {location: {origin: 'https://127.0.0.1'}, AbortController, TextDecoder,
-  Uint8Array, setTimeout, clearTimeout, prompt: () => ++number === 1 ?
-    'RELEASED-SAFE-ACCEPTANCE' : 'default', console: {log: x => logs.push(x)},
+const variant = input.variant;
+if (variant === 'elevated') policy['security:create'] = {'*:*:*': 'allow'};
+if (variant === 'wrong-account') account.roles.push('all_access');
+if (variant === 'backend-roles') account.backend_roles.push('unexpected');
+const empty = {total_failed_items: 0, failed_items: [], total_affected_items: 0, affected_items: []};
+const origin = variant === 'origin' ? 'https://other.invalid' : 'https://127.0.0.1';
+let prompts = 0, accountReads = 0, policyReads = 0;
+const sandbox = {location: {origin}, AbortController, TextDecoder,
+  Uint8Array, setTimeout, clearTimeout, prompt: () => ++prompts === 1 ?
+    (variant === 'release' ? 'WRONG' : 'RELEASED-SAFE-ACCEPTANCE') : 'default',
+  console: {log: x => logs.push(x)},
   fetch: async (url, options) => {
     const request = options.body ? JSON.parse(options.body) : null;
     calls.push([url, request]);
     let status = 200, body;
-    if (!request) body = {total: 9, data: account};
-    else if (request.path === '/security/users/me/policies') body = {error: 0, data: policy};
-    else if (request.path.startsWith('/agents')) body = {error: 0, data: {
-      total_failed_items: 0, failed_items: [], total_affected_items: 3, affected_items: [{id: '001'}]}};
-    else {
-      status = 403; body = {error: 4000, detail: 'SECRET-RAW-ERROR'};
-      if (input.variant === 'validation') {status = 400; body.error = 4003;}
-      if (input.variant === 'duplicate') {status = 200; body = {error: 0, data: {
-        total_failed_items: 1, failed_items: [{error: {code: 4005}}], total_affected_items: 0, affected_items: []}};}
-      if (input.variant === 'generic403') body.error = 3013;
-      if (input.variant === 'auth401') status = 401;
-      if (input.variant === 'proxy500') status = 500;
+    if (!request) {
+      accountReads++;
+      body = {total: 9, data: accountReads === 2 && variant === 'account-drift' ?
+        {...account, user_requested_tenant: 'changed'} : account};
+    } else if (request.path === '/security/users/me/policies') {
+      policyReads++;
+      body = {error: variant === 'policy-error' ? 4000 : 0,
+        data: policyReads === 2 && variant === 'policy-drift' ? {} : policy};
+    } else if (request.path === '/agents?limit=1&select=id') {
+      body = {error: 0, data: {...empty, total_affected_items: variant === 'agents-zero' ? 0 : 3,
+        affected_items: [{id: '001'}]}};
+    } else if (request.method === 'GET' && request.path === '/security/rules?limit=1') {
+      // Wazuh v4.14.7 decorators.py:439-466 filters an implicit rule list.
+      body = {error: 0, data: empty};
+    } else if ((request.method === 'GET' && request.path === '/security/config') ||
+               (request.method === 'POST' && request.path === '/security/rules')) {
+      // Packaged OSD response_adapter.js toError exposes the Boom envelope.
+      // The Server's numeric code is absent, including on genuine denials.
+      status = 403;
+      body = {statusCode: 403, error: 'Forbidden', message: 'Permission denied: Resource type: *:*'};
+      const leg = request.method === 'GET' ? 'read' : 'write';
+      if (variant === leg + '-filtered') {status = 200; body = {error: 0, data: empty};}
+      if (variant === leg + '-wrong-status') status = 401;
+      if (variant === leg + '-status-code') body.statusCode = 401;
+      if (variant === leg + '-error') body.error = 'Unauthorized';
+      if (variant === leg + '-detail') body.message += ' SECRET-RAW-ERROR';
+      if (variant === leg + '-extra') body.detail = 'SECRET-RAW-ERROR';
+      if (variant === leg + '-raw4000') body = {error: 4000, detail: 'SECRET-RAW-ERROR'};
+      if (variant === leg + '-generic403') body = {statusCode: 403, error: 'Forbidden', message: 'Forbidden'};
+      if (variant === leg + '-validation') {status = 400; body = {statusCode: 400, error: 'Bad Request'};}
+      if (variant === leg + '-proxy500') {status = 500; body = {statusCode: 500, error: 'Internal Server Error'};}
+      if (variant === 'write-duplicate' && leg === 'write') {
+        status = 200; body = {error: 0, data: {...empty, total_failed_items: 1,
+          failed_items: [{error: {code: 4005}}]}};
+      }
+    } else {
+      throw new Error('Unexpected fixture route');
     }
-    const data = new TextEncoder().encode(JSON.stringify(body)); let used = false;
-    return {status, url: 'https://127.0.0.1' + url, type: 'basic',
+    const data = new TextEncoder().encode(JSON.stringify(body) +
+      (variant === 'size' ? ' '.repeat(65536) : ''));
+    let used = false;
+    return {status, url: origin + url, type: 'basic',
       headers: {get: () => 'application/json'}, body: {getReader: () => ({
         read: async () => used ? {done: true} : (used = true, {done: false, value: data}),
         cancel: async () => {}, releaseLock: () => {}})}};
@@ -513,29 +545,54 @@ vm.runInNewContext(input.source, sandbox).then(() => console.log(JSON.stringify(
 '''
         result = subprocess.run([NODE, '-e', harness], input=json.dumps({
             'account': account, 'policy': policy, 'variant': variant,
-            'source': (ROOT / 'siem/rbac/human_readonly_acceptance.js').read_text()}).encode(),
+            'source': (ROOT / 'siem/rbac/human_readonly_acceptance.js').read_text(encoding='utf-8')}).encode(),
             stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=15)
         self.assertEqual(result.returncode, 0, result.stderr.decode())
         return json.loads(result.stdout)
 
     def test_actual_session_paths_exact_policy_positive_control_and_fail_safe_duplicate(self):
         result = self.run_js()
+        self.assertEqual(len(result['logs']), 1)
+        self.assertTrue(result['logs'][0].startswith('{'), result['logs'][0])
         value = json.loads(result['logs'][0])
+        self.assertEqual(value['schema'], 2)
         self.assertTrue(value['effective_readonly_policy_exact'])
+        self.assertEqual(value['security_config_read_http'], 403)
         self.assertEqual(value['duplicate_rule_create_http'], 403)
+        self.assertTrue(value['dashboard_denial_detail_matched'])
+        self.assertTrue(value['account_and_policy_equal_before_after'])
+        self.assertNotIn('server_permission_error', value)
         calls = [c[1] for c in result['calls'] if c[1]]
-        self.assertEqual([c['method'] for c in calls], ['GET', 'GET', 'GET', 'POST', 'GET'])
+        self.assertEqual([(c['method'], c['path']) for c in calls], [
+            ('GET', '/security/users/me/policies'), ('GET', '/agents?limit=1&select=id'),
+            ('GET', '/security/config'), ('POST', '/security/rules'),
+            ('GET', '/security/users/me/policies')])
+        self.assertEqual(sum(c[0] == '/api/v1/configuration/account' for c in result['calls']), 2)
         self.assertEqual(calls[3]['body']['body'], m.PAYLOAD)
         self.assertTrue(all(c['body']['devTools'] for c in calls))
         self.assertNotIn('SECRET-RAW-ERROR', '|'.join(result['logs']))
 
     def test_auth_validation_duplicate_partial_or_proxy_failures_are_never_denial_pass(self):
-        for variant in ('validation', 'duplicate', 'generic403', 'auth401', 'proxy500', 'elevated', 'wrong-account'):
+        cases = {
+            'origin': ('ORIGIN', 0), 'release': ('RELEASE', 0), 'size': ('SIZE', 1),
+            'wrong-account': ('ACCOUNT', 1), 'backend-roles': ('ACCOUNT', 1),
+            'elevated': ('POLICY', 2), 'policy-error': ('READ', 2), 'agents-zero': ('READ', 3),
+            'policy-drift': ('DRIFT', 6), 'account-drift': ('DRIFT', 7),
+            'write-duplicate': ('DENIAL', 5),
+        }
+        for leg, count in (('read', 4), ('write', 5)):
+            for failure in ('filtered', 'wrong-status', 'status-code', 'error', 'detail',
+                            'extra', 'raw4000', 'generic403', 'validation', 'proxy500'):
+                cases[f'{leg}-{failure}'] = ('DENIAL', count)
+        for variant, (code, count) in cases.items():
             with self.subTest(variant=variant):
                 result = self.run_js(variant)
-                self.assertTrue(result['logs'][0].startswith('STOP human acceptance:'))
+                self.assertEqual(len(result['logs']), 1)
+                self.assertTrue(result['logs'][0].startswith(f'STOP human acceptance: {code};'))
                 self.assertNotIn('SECRET', result['logs'][0])
-                self.assertLessEqual(len(result['calls']), 4)
+                self.assertEqual(len(result['calls']), count)
+                posts = [c[1] for c in result['calls'] if c[1] and c[1]['method'] == 'POST']
+                self.assertEqual(len(posts), int(count >= 5))
 
 
 if __name__ == '__main__':

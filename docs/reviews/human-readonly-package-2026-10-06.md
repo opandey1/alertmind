@@ -3,6 +3,13 @@
 Status: **awaiting-review**. Codex author implementation, not independent approval,
 live release or Phase1 closure. Base main3496790; branch `feat/rbac-human-readonly-package`.
 
+**24 November follow-up:** Claude's focused pre-M6 review found that the
+original helper used a filtered rules list as a denial probe and expected a
+numeric Server error hidden by the Dashboard adapter. The corrected M6
+contract below requires separate focused re-review and a fresh owner release.
+The historical source pins and recorded October results remain tied to
+`9a1c241` and the existing VM stage.
+
 ## Review scope
 
 - [Operator](../../siem/rbac/human_readonly_operator.py): fixed Server route writer,
@@ -54,19 +61,28 @@ remain unchanged. ([v4.14.7 API specification](https://github.com/wazuh/wazuh/bl
 The safe write probe uses the **existing owned rule's unique name**, not a new
 throwaway resource or an actual agent. `RulesManager.add_rule` commits through a
 unique-name constraint; IntegrityError rolls the transaction back and returns
-ALREADY_EXIST. Framework add_rule reports error4005; only Server permission
-error4000/HTTP403 is a denial PASS. An unexpected duplicate/partial result stops
-even though collision protects existing state. No concurrent writers and fresh
-operator check are mandatory. Post-probe graph/UI check must remain identical.
+ALREADY_EXIST. Framework add_rule reports error4005 in an HTTP 200 response.
+It and other unexpected responses stop the helper. No concurrent writers and
+a fresh pre-probe operator check are mandatory. The post-probe graph/UI check
+must remain identical.
 ([versioned ORM](https://github.com/wazuh/wazuh/blob/v4.14.7/framework/wazuh/rbac/orm.py),
 [security functions](https://github.com/wazuh/wazuh/blob/v4.14.7/framework/wazuh/security.py))
 
-`/api/request` has the fixed id/method/path/body schema and calls the scoped
-current-user client. `devTools` preserves the actual upstream error/status; it is
-not a credential or role selector. The already retained official package was
-locally re-read: full .deb SHA25683f472d9... and installed-matched controller
-SHA2566e9618c5... match; scoped request line426 and devTools error-response branch
-line456 are present. This is static package comparison, not loaded-code attestation.
+`/api/request` calls the scoped current-user client. The corrected read probe is
+`GET /security/config` (`security:read_config` on the resourceless resource).
+The implicit list `GET /security/rules?limit=1` can return a filtered HTTP 200.
+Only after the read is denied may the helper send the unchanged duplicate POST.
+`devTools` carries upstream HTTP status and detail through the controller.
+On error the packaged OpenSearch Dashboards response adapter converts the body
+to the Boom envelope. Both legs must return wire HTTP 403 and exactly
+`{statusCode: 403, error: "Forbidden", message: "Permission denied: Resource type: *:*"}`.
+The numeric Server error is not observable in the browser and schema 2 does not
+report it. Claude's offline review used the official .deb (SHA25683f472d9...),
+the pinned controller (6e9618c5...) and packaged
+`src/core/server/http/router/response_adapter.js` (bb7e031c...).
+These references identify the reviewed package, without a loaded-code claim.
+([versioned security function](https://github.com/wazuh/wazuh/blob/v4.14.7/framework/wazuh/security.py#L1230-L1239),
+[versioned authorization decorator](https://github.com/wazuh/wazuh/blob/v4.14.7/framework/wazuh/rbac/decorators.py#L429-L473))
 ([versioned Dashboard route](https://github.com/wazuh/wazuh-dashboard-plugins/blob/v4.14.7/plugins/main/server/routes/wazuh-api.ts),
 [controller](https://github.com/wazuh/wazuh-dashboard-plugins/blob/v4.14.7/plugins/main/server/controllers/wazuh-api.ts))
 

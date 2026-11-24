@@ -74,8 +74,8 @@
     return value;
   }
   async function broker(host, method, path, body = null) {
-    // devTools preserves the upstream status/error instead of treating a generic
-    // Dashboard 500 as authorization denial. No headers, delay or impersonation.
+    // devTools preserves the upstream HTTP status and detail message.
+    // Dashboard's response adapter replaces the numeric Server error.
     return request('/api/request', {method: 'POST', headers: {
       'Content-Type': 'application/json', 'osd-xsrf': 'alertmind-readonly-acceptance'},
       body: JSON.stringify({id: host, method, path, body: {
@@ -86,8 +86,10 @@
     return result.value.data;
   }
   function denied(result) {
-    // NOT 401/400/404/500, duplicate-name 4005 or a partial-success envelope.
-    need(result.status === 403 && result.value?.error === 4000, 'DENIAL');
+    const body = result.value;
+    need(result.status === 403 && object(body) && Object.keys(body).length === 3 &&
+      body.statusCode === 403 && body.error === 'Forbidden' &&
+      body.message === 'Permission denied: Resource type: *:*', 'DENIAL');
   }
   try {
     need(location.origin === 'https://127.0.0.1', 'ORIGIN');
@@ -103,14 +105,16 @@
       agents.failed_items.length === 0 && Number.isInteger(agents.total_affected_items) &&
       agents.total_affected_items > 0 && Array.isArray(agents.affected_items) &&
       agents.affected_items.length === 1 && /^\d{3}$/.test(agents.affected_items[0]?.id), 'READ');
-    denied(await broker(host, 'GET', '/security/rules?limit=1'));
+    // The rules list can return HTTP 200 with zero visible items. The
+    // resourceless security configuration read gives an explicit denial.
+    denied(await broker(host, 'GET', '/security/config'));
     denied(await broker(host, 'POST', '/security/rules', rule));
     const again = success(await broker(host, 'GET', '/security/users/me/policies'));
     need(canonical(again) === canonical(expected) && canonical(first) === canonical(await account()), 'DRIFT');
-    console.log(JSON.stringify({schema: 1, source: 'actual-dashboard-as-current-user',
+    console.log(JSON.stringify({schema: 2, source: 'actual-dashboard-as-current-user',
       socanalyst_account_verified: true, effective_readonly_policy_exact: true,
-      bounded_server_agent_read: true, security_admin_read_http: 403,
-      duplicate_rule_create_http: 403, server_permission_error: 4000,
+      bounded_server_agent_read: true, security_config_read_http: 403,
+      duplicate_rule_create_http: 403, dashboard_denial_detail_matched: true,
       account_and_policy_equal_before_after: true, direct_run_as_used: false,
       real_agent_action_sent: false, indexer_grants_changed: false,
       requires_post_probe_operator_check: true, phase1_complete: false}));
