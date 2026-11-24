@@ -9,6 +9,12 @@
   "vm_execution_by_author": false,
   "live_changes_authorized": false,
   "phase1_closed": false,
+  "subsequent_review": {
+    "date": "2026-11-24",
+    "scope": "historical October packet and test counts below remain tied to commit 9a1c241",
+    "m6_disposition": "October M6 aid on hold after focused review; corrected helper requires focused re-review and a fresh release",
+    "browser_contract_correction": "the corrected helper expects the exact Dashboard HTTP 403 Boom envelope and permission detail; the numeric Server error is not observable in the browser"
+  },
   "accepted_server_summary_sha256": "d3db272c808ddb23c7532530c096087a7b336481b6503bc783cf390111c4f046",
   "public_packet": {
     "sha256": "f6cbb01302ddc4d6e4214a6e61a759caaf1ebb9c35966d96718c37fd509ab071",

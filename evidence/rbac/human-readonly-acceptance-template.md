@@ -14,10 +14,12 @@ Prepare/private backup retained: NOT RUN
 Install: only exact named rule/readonly edge/UI list; stopped/inhibited: NOT RUN
 Secure resume/current graph/UI/TLS/four services: NOT RUN
 Trusted fresh socanalyst session; no exception/warning bypass: NOT RUN
+Fresh pre-probe operator check / owned rule, readonly edge and UI verified: NOT RUN
+Normal Wazuh Server page reloaded successfully immediately before helper: NOT RUN
 Actual human effective readonly policy exact / no extra grants: NOT RUN
 Bounded actual Server agent read positive control: NOT RUN
-Security administration read: NOT RUN; HTTP/code:
-Fail-safe duplicate-owned-rule create: NOT RUN; HTTP/code:
+Security config read: NOT RUN (browser HTTP status and exact Dashboard detail match)
+Fail-safe duplicate-owned-rule create: NOT RUN (browser HTTP status and exact Dashboard detail match)
 Fresh post-probe graph/UI unchanged: NOT RUN
 Read-only UI controls observed (presentation only): NOT RUN
 Approved alert reads agent001/002 positive: NOT RUN
@@ -47,6 +49,8 @@ Focused deployed-path/evidence approval: PENDING
 P1-06 / Phase1 closure: PENDING
 ```
 
-If any negative request returns401/400/404/500, generic Dashboard403, duplicate
-4005, partial result or unexpected success, record FAIL—not authorization denial.
-Stop, retain state and seek scoped diagnosis; no broad grants or unsafe follow-up.
+Both negative requests must return HTTP 403 with the exact Dashboard error
+envelope and versioned permission detail. The browser does not expose numeric
+Server error 4000. A generic Dashboard 403, a filtered HTTP 200, a duplicate
+4005 result, a partial result or another unexpected status is a failure.
+Stop and retain state for scoped diagnosis.

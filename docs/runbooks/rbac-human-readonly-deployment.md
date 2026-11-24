@@ -185,6 +185,11 @@ requires diagnosis/recoverable before-state; never delete the journal to proceed
 
 ## M6 — actual analyst/admin acceptance, separately released
 
+The 7 October M6 aid is on hold. The corrected helper and new aid require
+focused re-review and a fresh one-run release. Reconfirm original VM,
+recoverable before-state and Snapshot 1, stable private console, stopped apps,
+prior analyst logout and absence of concurrent maintenance on the day.
+
 Use the trusted Firefox lab profile on **https://127.0.0.1:443**, no certificate
 exception/warning bypass. Close old analyst sessions; fresh login as socanalyst
 must acquire the new mapping. Do not capture cookies/JWTs/HAR/raw responses or
@@ -197,31 +202,46 @@ administrator positive control must show agent000 exists before claiming DLS
 exclusion. Do not add `.kibana*`, monitoring grants, `kibana_user`, `all_access` or
 write tenants if a page fails. Record the denied target for scoped diagnosis.
 
-Copy the COMPLETE reviewed `siem/rbac/human_readonly_acceptance.js` as public
-source from the workstation, then paste once into Firefox **Web Console**
-(`Ctrl+Shift+K`) on this authenticated origin—not the address bar or Ubuntu
-terminal. Never bypass browser self-XSS protection blindly; review the source
-first. Enter the requested release token and public single Server host ID printed
-by M3/M5. This helper performs:
+Review the complete `siem/rbac/human_readonly_acceptance.js` from the
+workstation. Run the existing M5 **check-only** block immediately before
+the browser probe. It must verify the owned rule, exact readonly link, UI and
+secure running state. Keep the original VM stage and manifest for the operator.
+After the private credential prompts are finished, hash-check and copy the
+complete public helper from the workstation. It requires no VM restaging.
+
+Reload a normal Wazuh Server page immediately before the helper and wait for
+a successful read with the approved Server host selected. If login or the
+read fails, stop. Open Firefox **Web Console** (`Ctrl+Shift+K`) on that tab.
+If Firefox shows its self-XSS paste warning, pause and review the complete
+hash-verified source. Follow the browser's paste prompt only for that reviewed
+source in the dedicated lab profile, or stop if it cannot be reviewed or the
+dialog differs. Paste and execute once. Enter the release token and public
+single Server host ID from the fresh check. This helper performs:
 
 1. Actual scoped account read, exact socanalyst role/empty backend roles.
 2. Actual current-user broker policy read: exact effective built-in readonly
    action/resource map, white mode and **no extra grants**.
 3. Bounded real Server agent read as a positive control (ID only, no output).
-4. GET security-rules denial, then one **duplicate-name** POST of the existing
-   exact owned rule as a fail-safe create probe. Fresh M5/operator check must
-   prove this rule exists and no concurrent maintenance is allowed. Wazuh4.14.7's
-   unique rule-name constraint rolls back a duplicate rather than creating a rule
-   even if permission is unexpectedly granted. Duplicate error4005 is **FAIL**,
-   not authorization proof; only HTTP403 + Server error4000 passes.
-5. Policy/account re-read equality. All outputs are fixed public booleans/statuses.
+4. Denial of `GET /security/config`, then one **duplicate-name**
+   `POST /security/rules` for the existing exact owned rule. Wazuh v4.14.7
+   filters the implicit rules list to HTTP 200 with zero visible items. The
+   security-configuration read instead requires `security:read_config` on a
+   resourceless action. The POST runs only after the read denial passes.
+   Wazuh's unique constraints make an unexpected duplicate a collision.
+5. Policy/account re-read equality. Schema 2 reports both observed HTTP
+   statuses and a fixed Dashboard denial-detail match flag.
 
 The Dashboard wrapper POSTs `/api/request` with a fixed method/path/body and
-`devTools=true` solely to preserve upstream status. No delay/headers/impersonation
-options. No real agent restart/removal, active-response, configuration/RBAC update,
+`devTools=true` to preserve upstream status and the denial detail. The browser
+must receive HTTP 403 and the exact Dashboard error envelope with
+`statusCode: 403`, `error: "Forbidden"` and
+`message: "Permission denied: Resource type: *:*"`. The browser cannot attest
+the upstream numeric Wazuh error code. No delay/headers/impersonation options.
+No real agent restart/removal, active-response, configuration/RBAC update,
 bulk deletion, global token revocation, Indexer or saved-object write is sent.
-HTTP401/400/404/500, generic Dashboard403 and partial/duplicate responses never
-count as denial. A STOP consumes this acceptance run; do not repeat blindly.
+Filtered HTTP 200, an HTTP 200 duplicate error 4005, partial responses, generic
+403 and other HTTP errors all stop the helper. A STOP consumes this acceptance
+run. Record the sanitized outcome and seek scoped diagnosis.
 
 After normal logout, run the same **M5 `check` command only**, not resume/restart,
 under the released acceptance batch. It verifies the whole unrelated Server graph
